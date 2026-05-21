@@ -806,7 +806,7 @@ async function loadFromSupabase() {
         }
 
         var jobResult = await supaClient.from('job_entries').select('*').eq('user_id', currentUser.id).order('created_at');
-        if (jobResult.data) {
+        if (jobResult.data && jobResult.data.length > 0) {
             entries = jobResult.data.map(function(e) {
                 return {
                     id: e.id, date: e.date, category: e.category, amount: e.amount,
@@ -814,10 +814,12 @@ async function loadFromSupabase() {
                     storeName: e.store_name || '', referredBy: e.referred_by || '', note: e.note || ''
                 };
             });
+        } else if (entries.length > 0) {
+            await syncToSupabase();
         }
 
         var finResult = await supaClient.from('finance_entries').select('*').eq('user_id', currentUser.id).order('created_at');
-        if (finResult.data) {
+        if (finResult.data && finResult.data.length > 0) {
             financeEntries = finResult.data.map(function(e) {
                 return { id: e.id, date: e.date, type: e.type, amount: parseFloat(e.amount), note: e.note || '' };
             });
