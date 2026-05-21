@@ -910,6 +910,9 @@ async function handleAuth() {
 
 async function handleSignOut() {
     if (!supaClient) return;
+    if (_syncPending || _syncRunning) {
+        await syncToSupabase();
+    }
     await supaClient.auth.signOut();
     currentUser = null;
     updateAuthUI();
@@ -1288,7 +1291,9 @@ function renderLog() {
 
 function deleteEntry(id) {
     if (!confirm('Delete this entry?')) return;
-    entries = entries.filter(function(e) { return e.id !== id; }); save(); renderAll(); toast('Entry deleted.');
+    entries = entries.filter(function(e) { return e.id !== id; });
+    saveLocal(); renderAll(); toast('Entry deleted.');
+    syncToSupabase();
 }
 
 function editEntry(id) {
@@ -1559,7 +1564,9 @@ function renderFinanceLog() {
 
 function deleteFinanceEntry(id) {
     if (!confirm('Delete this finance entry?')) return;
-    financeEntries = financeEntries.filter(function(e) { return e.id !== id; }); save(); renderFinanceAll(); toast('Finance entry deleted.');
+    financeEntries = financeEntries.filter(function(e) { return e.id !== id; });
+    saveLocal(); renderFinanceAll(); toast('Finance entry deleted.');
+    syncToSupabase();
 }
 
 function editFinanceEntry(id) {
