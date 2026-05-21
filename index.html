@@ -940,10 +940,21 @@ var categories = JSON.parse(localStorage.getItem('fhd_categories')) || [
 var entries = JSON.parse(localStorage.getItem('fhd_entries')) || [];
 var financeEntries = JSON.parse(localStorage.getItem('fhd_finance')) || [];
 var currentPeriod = 'daily';
+var _syncPending = false;
+var _syncRunning = false;
 
 function save() {
     saveLocal();
-    syncToSupabase();
+    debouncedSync();
+}
+
+function debouncedSync() {
+    if (_syncRunning) { _syncPending = true; return; }
+    _syncRunning = true;
+    syncToSupabase().finally(function() {
+        _syncRunning = false;
+        if (_syncPending) { _syncPending = false; debouncedSync(); }
+    });
 }
 
 /* ═══════════════════════════════════════
