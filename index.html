@@ -357,6 +357,37 @@
             margin-top: 12px; font-size: 12px; color: #999; cursor: pointer;
         }
         .auth-box .auth-skip:hover { color: #666; }
+
+        /* Edit/Action buttons in log tables */
+        .btn-edit {
+            background: #f0ad4e; color: white; border: none; padding: 5px 10px;
+            border-radius: 6px; font-size: 12px; cursor: pointer; margin-right: 4px;
+            transition: background 0.2s;
+        }
+        .btn-edit:hover { background: #ec971f; }
+        .action-cell { white-space: nowrap; }
+
+        /* Edit Modal */
+        .edit-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6); z-index: 7000; justify-content: center; align-items: center;
+        }
+        .edit-overlay.active { display: flex; }
+        .edit-box {
+            background: white; border-radius: 16px; max-width: 520px; width: 92%;
+            padding: 32px 28px; box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+            max-height: 85vh; overflow-y: auto;
+        }
+        .edit-box h2 { font-size: 20px; margin-bottom: 20px; color: var(--primary); }
+        .edit-box .form-group { margin-bottom: 14px; }
+        .edit-box label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; }
+        .edit-box input, .edit-box select {
+            width: 100%; padding: 10px 14px; border: 2px solid var(--border);
+            border-radius: 8px; font-size: 14px; box-sizing: border-box;
+        }
+        .edit-box input:focus, .edit-box select:focus { outline: none; border-color: var(--accent); }
+        .edit-actions { display: flex; gap: 10px; margin-top: 20px; }
+        .edit-actions .btn { flex: 1; text-align: center; justify-content: center; }
     </style>
 </head>
 <body>
@@ -479,7 +510,7 @@
             <button class="btn btn-outline btn-sm" onclick="exportCSV()">&#128229; Export CSV</button>
             <button class="btn btn-outline btn-sm" onclick="document.getElementById('importFile').click()">&#128228; Import JSON</button>
             <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
-            <button class="btn btn-danger btn-sm" onclick="clearAllData()">&#128465; Clear All Data</button>
+
         </div>
     </div>
 
@@ -496,7 +527,7 @@
         <div style="overflow-x:auto;">
             <table>
                 <thead>
-                    <tr><th>Date</th><th>Category</th><th>Customer</th><th>Phone</th><th>Email</th><th>Details</th><th>Jobs</th><th>Note</th><th></th></tr>
+                    <tr><th>Date</th><th>Category</th><th>Customer</th><th>Phone</th><th>Email</th><th>Details</th><th>Jobs</th><th>Note</th><th>Actions</th></tr>
                 </thead>
                 <tbody id="logBody"></tbody>
             </table>
@@ -629,7 +660,7 @@
         <div style="overflow-x:auto;">
             <table class="finance-table">
                 <thead>
-                    <tr><th>Date</th><th>Type</th><th>Amount</th><th>Note</th><th></th></tr>
+                    <tr><th>Date</th><th>Type</th><th>Amount</th><th>Note</th><th>Actions</th></tr>
                 </thead>
                 <tbody id="financeLogBody"></tbody>
             </table>
@@ -673,6 +704,98 @@
             Don't have an account? <a onclick="toggleAuthMode()">Sign Up</a>
         </div>
         <div class="auth-skip" onclick="closeAuthModal()">Continue without account (local only)</div>
+    </div>
+</div>
+
+<!-- Edit Job Entry Modal -->
+<div class="edit-overlay" id="editJobModal">
+    <div class="edit-box">
+        <h2>&#9999;&#65039; Edit Job Entry</h2>
+        <input type="hidden" id="editJobId">
+        <div class="form-group">
+            <label for="editJobDate">Date</label>
+            <input type="date" id="editJobDate">
+        </div>
+        <div class="form-group">
+            <label for="editJobCategory">Category</label>
+            <select id="editJobCategory" onchange="updateEditConditionalFields()"></select>
+        </div>
+        <div class="form-group">
+            <label for="editJobAmount">Number of Jobs</label>
+            <input type="number" id="editJobAmount" min="1">
+        </div>
+        <div class="form-group">
+            <label for="editJobCustomer">Customer Name</label>
+            <input type="text" id="editJobCustomer">
+        </div>
+        <div class="form-group">
+            <label for="editJobPhone">Phone Number</label>
+            <input type="tel" id="editJobPhone">
+        </div>
+        <div class="form-group">
+            <label for="editJobEmail">Email</label>
+            <input type="email" id="editJobEmail">
+        </div>
+        <div class="form-group" id="editFurnitureStoreField" style="display:none;">
+            <label for="editJobStoreName">Furniture Store Name</label>
+            <input type="text" id="editJobStoreName">
+        </div>
+        <div class="form-group" id="editReferredByField" style="display:none;">
+            <label for="editJobReferredBy">Referred By</label>
+            <select id="editJobReferredBy">
+                <option value="">-- Select --</option>
+                <option value="Google">Google</option>
+                <option value="Website">Website</option>
+                <option value="Miscellaneous">Miscellaneous</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="editJobNote">Note</label>
+            <input type="text" id="editJobNote">
+        </div>
+        <div class="edit-actions">
+            <button class="btn btn-primary" onclick="saveJobEdit()">&#128190; Save Changes</button>
+            <button class="btn btn-outline" onclick="closeEditJobModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Finance Entry Modal -->
+<div class="edit-overlay" id="editFinanceModal">
+    <div class="edit-box">
+        <h2>&#9999;&#65039; Edit Finance Entry</h2>
+        <input type="hidden" id="editFinId">
+        <div class="form-group">
+            <label for="editFinDate">Date</label>
+            <input type="date" id="editFinDate">
+        </div>
+        <div class="form-group">
+            <label for="editFinType">Type</label>
+            <select id="editFinTypeSelect">
+                <option value="Money Received">Money Received</option>
+                <option value="Driver Pay">Driver Pay</option>
+                <option value="Gas">Gas</option>
+                <option value="Tolls">Tolls</option>
+                <option value="Supplies">Supplies</option>
+                <option value="Vehicle Insurance">Vehicle Insurance</option>
+                <option value="Liability Insurance">Liability Insurance</option>
+                <option value="Truck Repair/Maintenance">Truck Repair/Maintenance</option>
+                <option value="Commissions">Commissions</option>
+                <option value="Miscellaneous">Miscellaneous</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="editFinAmount">Amount ($)</label>
+            <input type="number" id="editFinAmount" min="0.01" step="0.01">
+        </div>
+        <div class="form-group">
+            <label for="editFinNote">Note</label>
+            <input type="text" id="editFinNote">
+        </div>
+        <div class="edit-actions">
+            <button class="btn btn-primary" onclick="saveFinanceEdit()">&#128190; Save Changes</button>
+            <button class="btn btn-outline" onclick="closeEditFinanceModal()">Cancel</button>
+        </div>
     </div>
 </div>
 
@@ -1159,13 +1282,60 @@ function renderLog() {
     if (!filtered.length) { body.innerHTML = '<tr><td colspan="9" class="empty-log">No entries yet &mdash; start logging above!</td></tr>'; return; }
     body.innerHTML = filtered.map(function(e) {
         var details = e.storeName ? 'Store: ' + e.storeName : (e.referredBy ? 'Ref: ' + e.referredBy : '');
-        return '<tr><td>' + e.date + '</td><td>' + esc(e.category) + '</td><td>' + esc(e.customer || '\u2014') + '</td><td>' + esc(e.phone || '\u2014') + '</td><td>' + esc(e.email || '\u2014') + '</td><td>' + esc(details || '\u2014') + '</td><td>' + e.amount + '</td><td>' + esc(e.note || '\u2014') + '</td><td><button class="btn btn-danger" onclick="deleteEntry(' + e.id + ')">&times;</button></td></tr>';
+        return '<tr><td>' + e.date + '</td><td>' + esc(e.category) + '</td><td>' + esc(e.customer || '\u2014') + '</td><td>' + esc(e.phone || '\u2014') + '</td><td>' + esc(e.email || '\u2014') + '</td><td>' + esc(details || '\u2014') + '</td><td>' + e.amount + '</td><td>' + esc(e.note || '\u2014') + '</td><td class="action-cell"><button class="btn-edit" onclick="editEntry(' + e.id + ')" title="Edit">&#9998;</button><button class="btn btn-danger" onclick="deleteEntry(' + e.id + ')" title="Delete">&times;</button></td></tr>';
     }).join('');
 }
 
 function deleteEntry(id) {
     if (!confirm('Delete this entry?')) return;
     entries = entries.filter(function(e) { return e.id !== id; }); save(); renderAll(); toast('Entry deleted.');
+}
+
+function editEntry(id) {
+    var entry = entries.find(function(e) { return e.id === id; });
+    if (!entry) return;
+    document.getElementById('editJobId').value = id;
+    document.getElementById('editJobDate').value = entry.date;
+    var catSelect = document.getElementById('editJobCategory');
+    catSelect.innerHTML = categories.map(function(c) {
+        return '<option value="' + esc(c) + '"' + (c === entry.category ? ' selected' : '') + '>' + esc(c) + '</option>';
+    }).join('');
+    document.getElementById('editJobAmount').value = entry.amount;
+    document.getElementById('editJobCustomer').value = entry.customer || '';
+    document.getElementById('editJobPhone').value = entry.phone || '';
+    document.getElementById('editJobEmail').value = entry.email || '';
+    document.getElementById('editJobStoreName').value = entry.storeName || '';
+    document.getElementById('editJobReferredBy').value = entry.referredBy || '';
+    document.getElementById('editJobNote').value = entry.note || '';
+    updateEditConditionalFields();
+    document.getElementById('editJobModal').classList.add('active');
+}
+
+function updateEditConditionalFields() {
+    var cat = document.getElementById('editJobCategory').value;
+    document.getElementById('editFurnitureStoreField').style.display = cat === 'Furniture Store Jobs' ? 'block' : 'none';
+    document.getElementById('editReferredByField').style.display = cat === 'Online Customers' ? 'block' : 'none';
+}
+
+function saveJobEdit() {
+    var id = parseInt(document.getElementById('editJobId').value, 10);
+    var entry = entries.find(function(e) { return e.id === id; });
+    if (!entry) return;
+    var cat = document.getElementById('editJobCategory').value;
+    entry.date = document.getElementById('editJobDate').value;
+    entry.category = cat;
+    entry.amount = parseInt(document.getElementById('editJobAmount').value, 10);
+    entry.customer = document.getElementById('editJobCustomer').value.trim();
+    entry.phone = document.getElementById('editJobPhone').value.trim();
+    entry.email = document.getElementById('editJobEmail').value.trim();
+    entry.storeName = cat === 'Furniture Store Jobs' ? document.getElementById('editJobStoreName').value.trim() : '';
+    entry.referredBy = cat === 'Online Customers' ? document.getElementById('editJobReferredBy').value : '';
+    entry.note = document.getElementById('editJobNote').value.trim();
+    save(); renderAll(); closeEditJobModal(); toast('Entry updated.');
+}
+
+function closeEditJobModal() {
+    document.getElementById('editJobModal').classList.remove('active');
 }
 
 function clearFilters() {
@@ -1379,13 +1549,39 @@ function renderFinanceLog() {
     body.innerHTML = filtered.map(function(e) {
         var cls = e.type === 'Money Received' ? 'amount-pos' : 'amount-neg';
         var prefix = e.type === 'Money Received' ? '+' : '-';
-        return '<tr><td>' + e.date + '</td><td>' + esc(e.type) + '</td><td class="' + cls + '">' + prefix + '$' + e.amount.toFixed(2) + '</td><td>' + esc(e.note || '\u2014') + '</td><td><button class="btn btn-danger" onclick="deleteFinanceEntry(' + e.id + ')">&times;</button></td></tr>';
+        return '<tr><td>' + e.date + '</td><td>' + esc(e.type) + '</td><td class="' + cls + '">' + prefix + '$' + e.amount.toFixed(2) + '</td><td>' + esc(e.note || '\u2014') + '</td><td class="action-cell"><button class="btn-edit" onclick="editFinanceEntry(' + e.id + ')" title="Edit">&#9998;</button><button class="btn btn-danger" onclick="deleteFinanceEntry(' + e.id + ')" title="Delete">&times;</button></td></tr>';
     }).join('');
 }
 
 function deleteFinanceEntry(id) {
     if (!confirm('Delete this finance entry?')) return;
     financeEntries = financeEntries.filter(function(e) { return e.id !== id; }); save(); renderFinanceAll(); toast('Finance entry deleted.');
+}
+
+function editFinanceEntry(id) {
+    var entry = financeEntries.find(function(e) { return e.id === id; });
+    if (!entry) return;
+    document.getElementById('editFinId').value = id;
+    document.getElementById('editFinDate').value = entry.date;
+    document.getElementById('editFinTypeSelect').value = entry.type;
+    document.getElementById('editFinAmount').value = entry.amount;
+    document.getElementById('editFinNote').value = entry.note || '';
+    document.getElementById('editFinanceModal').classList.add('active');
+}
+
+function saveFinanceEdit() {
+    var id = parseInt(document.getElementById('editFinId').value, 10);
+    var entry = financeEntries.find(function(e) { return e.id === id; });
+    if (!entry) return;
+    entry.date = document.getElementById('editFinDate').value;
+    entry.type = document.getElementById('editFinTypeSelect').value;
+    entry.amount = parseFloat(document.getElementById('editFinAmount').value);
+    entry.note = document.getElementById('editFinNote').value.trim();
+    save(); renderFinanceAll(); closeEditFinanceModal(); toast('Finance entry updated.');
+}
+
+function closeEditFinanceModal() {
+    document.getElementById('editFinanceModal').classList.remove('active');
 }
 
 function clearFinanceFilters() {
@@ -1435,13 +1631,6 @@ function importData(event) {
         } catch(err) { toast('Invalid file format.'); }
     };
     reader.readAsText(file); event.target.value = '';
-}
-
-function clearAllData() {
-    if (!confirm('This will permanently erase ALL data (jobs + finances). Continue?')) return;
-    categories = ['Furniture Store Jobs', 'Repeat Customers', 'Online Customers'];
-    entries = []; financeEntries = [];
-    save(); renderAll(); renderFinanceAll(); toast('All data cleared.');
 }
 
 /* ═══════════════════════════════════════
