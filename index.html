@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Full House Delivery — Dashboard</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <style>
         :root {
             --primary: #111111;
@@ -297,6 +298,65 @@
         .preview-table select { padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; }
         .preview-table .skip-row { opacity: 0.4; }
         .preview-check { width: 16px; height: 16px; cursor: pointer; }
+
+        /* Auth Bar */
+        .auth-bar {
+            background: #1a1a1a; color: #ccc; padding: 8px 24px;
+            display: flex; justify-content: flex-end; align-items: center; gap: 12px;
+            font-size: 13px; border-bottom: 1px solid #333;
+        }
+        .auth-bar .user-email { color: #aaa; font-size: 12px; }
+        .auth-bar button {
+            background: transparent; color: #e74c3c; border: 1px solid #e74c3c;
+            padding: 4px 14px; border-radius: 6px; font-size: 12px; cursor: pointer;
+            transition: all 0.2s;
+        }
+        .auth-bar button:hover { background: #e74c3c; color: white; }
+        .auth-bar .sync-status {
+            font-size: 11px; padding: 3px 10px; border-radius: 10px;
+            background: #333; color: #888;
+        }
+        .auth-bar .sync-status.online { background: #1a3a1a; color: #28a745; }
+
+        /* Auth Modal */
+        .auth-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6); z-index: 6000; justify-content: center; align-items: center;
+        }
+        .auth-overlay.active { display: flex; }
+        .auth-box {
+            background: white; border-radius: 16px; max-width: 420px; width: 92%;
+            padding: 36px 32px; box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+            text-align: center;
+        }
+        .auth-box h2 { font-size: 22px; margin-bottom: 6px; color: var(--primary); }
+        .auth-box .auth-subtitle { color: var(--text-light); font-size: 13px; margin-bottom: 24px; }
+        .auth-box input {
+            width: 100%; padding: 12px 14px; margin-bottom: 12px;
+            border: 2px solid var(--border); border-radius: 8px;
+            font-size: 14px; box-sizing: border-box;
+        }
+        .auth-box input:focus { outline: none; border-color: var(--accent); }
+        .auth-box .btn-auth {
+            width: 100%; padding: 12px; border: none; border-radius: 8px;
+            font-size: 15px; font-weight: 700; cursor: pointer;
+            background: linear-gradient(135deg, #c0392b, #e74c3c);
+            color: white; margin-top: 8px;
+        }
+        .auth-box .btn-auth:hover { opacity: 0.9; }
+        .auth-box .auth-toggle {
+            margin-top: 16px; font-size: 13px; color: var(--text-light);
+        }
+        .auth-box .auth-toggle a {
+            color: var(--accent); cursor: pointer; text-decoration: underline;
+        }
+        .auth-box .auth-error {
+            color: #c0392b; font-size: 13px; margin-top: 8px; min-height: 18px;
+        }
+        .auth-box .auth-skip {
+            margin-top: 12px; font-size: 12px; color: #999; cursor: pointer;
+        }
+        .auth-box .auth-skip:hover { color: #666; }
     </style>
 </head>
 <body>
@@ -311,6 +371,13 @@
         </div>
     </div>
 </header>
+
+<!-- Auth Bar -->
+<div class="auth-bar" id="authBar">
+    <span class="sync-status" id="syncStatus">Local Only</span>
+    <span class="user-email" id="userEmail"></span>
+    <button id="authBtn" onclick="showAuthModal()">Sign In</button>
+</div>
 
 <!-- Tab Bar -->
 <div class="tab-bar">
@@ -572,7 +639,7 @@
 </div><!-- end tab-finance -->
 
 <footer>
-    Fullhouse Delivery LLC &copy; <span id="footerYear"></span> &mdash; Data stored locally in your browser.
+    Fullhouse Delivery LLC &copy; <span id="footerYear"></span> &mdash; Data synced with Supabase &amp; stored locally.
 </footer>
 
 <!-- Bank Statement Preview Modal -->
@@ -593,9 +660,241 @@
     </div>
 </div>
 
+<!-- Auth Modal -->
+<div class="auth-overlay" id="authModal">
+    <div class="auth-box">
+        <h2 id="authTitle">Sign In</h2>
+        <p class="auth-subtitle">Sign in to sync your data across devices</p>
+        <input type="email" id="authEmail" placeholder="Email address">
+        <input type="password" id="authPassword" placeholder="Password" onkeydown="if(event.key==='Enter')handleAuth()">
+        <button class="btn-auth" onclick="handleAuth()" id="authSubmitBtn">Sign In</button>
+        <div class="auth-error" id="authError"></div>
+        <div class="auth-toggle" id="authToggle">
+            Don't have an account? <a onclick="toggleAuthMode()">Sign Up</a>
+        </div>
+        <div class="auth-skip" onclick="closeAuthModal()">Continue without account (local only)</div>
+    </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
+/* ═══════════════════════════════════════
+   SUPABASE CONFIGURATION
+   ═══════════════════════════════════════ */
+var SUPABASE_URL = 'https://pgjqfgkxbmlpvzcgqire.supabase.co';
+var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBnanFmZ2t4Ym1scHZ6Y2dxaXJlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzMjEzMDgsImV4cCI6MjA5NDg5NzMwOH0.z6IIvGl1g8pKRdjnUVX8S73jLFgDwnZCYny3cIZcL5w';
+
+var supaClient = null;
+var currentUser = null;
+var authMode = 'signin';
+
+if (typeof supabase !== 'undefined' && supabase.createClient) {
+    supaClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+}
+
+/* ═══════════════════════════════════════
+   AUTH UI
+   ═══════════════════════════════════════ */
+function showAuthModal() {
+    document.getElementById('authModal').classList.add('active');
+    document.getElementById('authError').textContent = '';
+    document.getElementById('authEmail').value = '';
+    document.getElementById('authPassword').value = '';
+    document.getElementById('authEmail').focus();
+}
+
+function closeAuthModal() {
+    document.getElementById('authModal').classList.remove('active');
+}
+
+function toggleAuthMode() {
+    authMode = authMode === 'signin' ? 'signup' : 'signin';
+    document.getElementById('authTitle').textContent = authMode === 'signin' ? 'Sign In' : 'Sign Up';
+    document.getElementById('authSubmitBtn').textContent = authMode === 'signin' ? 'Sign In' : 'Create Account';
+    document.getElementById('authToggle').innerHTML = authMode === 'signin'
+        ? 'Don\'t have an account? <a onclick="toggleAuthMode()">Sign Up</a>'
+        : 'Already have an account? <a onclick="toggleAuthMode()">Sign In</a>';
+    document.getElementById('authError').textContent = '';
+}
+
+function updateAuthUI() {
+    var emailEl = document.getElementById('userEmail');
+    var btnEl = document.getElementById('authBtn');
+    var statusEl = document.getElementById('syncStatus');
+
+    if (currentUser) {
+        emailEl.textContent = currentUser.email;
+        btnEl.textContent = 'Sign Out';
+        btnEl.onclick = handleSignOut;
+        statusEl.textContent = 'Synced';
+        statusEl.classList.add('online');
+    } else {
+        emailEl.textContent = '';
+        btnEl.textContent = 'Sign In';
+        btnEl.onclick = showAuthModal;
+        statusEl.textContent = 'Local Only';
+        statusEl.classList.remove('online');
+    }
+}
+
+async function handleAuth() {
+    if (!supaClient) { document.getElementById('authError').textContent = 'Supabase not loaded. Check your internet connection.'; return; }
+
+    var email = document.getElementById('authEmail').value.trim();
+    var password = document.getElementById('authPassword').value;
+    var errEl = document.getElementById('authError');
+    errEl.textContent = '';
+
+    if (!email || !password) { errEl.textContent = 'Please enter email and password.'; return; }
+    if (password.length < 6) { errEl.textContent = 'Password must be at least 6 characters.'; return; }
+
+    document.getElementById('authSubmitBtn').textContent = 'Please wait...';
+
+    try {
+        var result;
+        if (authMode === 'signup') {
+            result = await supaClient.auth.signUp({ email: email, password: password });
+        } else {
+            result = await supaClient.auth.signInWithPassword({ email: email, password: password });
+        }
+
+        if (result.error) {
+            errEl.textContent = result.error.message;
+            document.getElementById('authSubmitBtn').textContent = authMode === 'signin' ? 'Sign In' : 'Create Account';
+            return;
+        }
+
+        if (authMode === 'signup' && result.data.user && !result.data.session) {
+            errEl.style.color = '#28a745';
+            errEl.textContent = 'Account created! Check your email to confirm, then sign in.';
+            document.getElementById('authSubmitBtn').textContent = 'Create Account';
+            return;
+        }
+
+        currentUser = result.data.user;
+        closeAuthModal();
+        updateAuthUI();
+        await loadFromSupabase();
+        renderAll();
+        renderFinanceAll();
+        toast('Signed in! Data synced.');
+    } catch (err) {
+        errEl.textContent = 'Connection error. Please try again.';
+        document.getElementById('authSubmitBtn').textContent = authMode === 'signin' ? 'Sign In' : 'Create Account';
+    }
+}
+
+async function handleSignOut() {
+    if (!supaClient) return;
+    await supaClient.auth.signOut();
+    currentUser = null;
+    updateAuthUI();
+    toast('Signed out. Using local data.');
+}
+
+/* ═══════════════════════════════════════
+   SUPABASE DATA SYNC
+   ═══════════════════════════════════════ */
+async function loadFromSupabase() {
+    if (!supaClient || !currentUser) return;
+
+    try {
+        var catResult = await supaClient.from('categories').select('*').eq('user_id', currentUser.id).order('sort_order');
+        if (catResult.data && catResult.data.length > 0) {
+            categories = catResult.data.map(function(c) { return c.name; });
+        }
+
+        var jobResult = await supaClient.from('job_entries').select('*').eq('user_id', currentUser.id).order('created_at');
+        if (jobResult.data && jobResult.data.length > 0) {
+            entries = jobResult.data.map(function(e) {
+                return {
+                    id: e.id, date: e.date, category: e.category, amount: e.amount,
+                    customer: e.customer || '', phone: e.phone || '', email: e.email || '',
+                    storeName: e.store_name || '', referredBy: e.referred_by || '', note: e.note || ''
+                };
+            });
+        } else if (entries.length > 0) {
+            await syncToSupabase();
+        }
+
+        var finResult = await supaClient.from('finance_entries').select('*').eq('user_id', currentUser.id).order('created_at');
+        if (finResult.data && finResult.data.length > 0) {
+            financeEntries = finResult.data.map(function(e) {
+                return { id: e.id, date: e.date, type: e.type, amount: parseFloat(e.amount), note: e.note || '' };
+            });
+        }
+
+        saveLocal();
+    } catch (err) {
+        console.error('Load from Supabase failed:', err);
+    }
+}
+
+async function syncToSupabase() {
+    if (!supaClient || !currentUser) return;
+
+    try {
+        await supaClient.from('categories').delete().eq('user_id', currentUser.id);
+        if (categories.length > 0) {
+            var catRows = categories.map(function(name, i) {
+                return { user_id: currentUser.id, name: name, sort_order: i };
+            });
+            await supaClient.from('categories').insert(catRows);
+        }
+
+        await supaClient.from('job_entries').delete().eq('user_id', currentUser.id);
+        if (entries.length > 0) {
+            var jobRows = entries.map(function(e) {
+                return {
+                    user_id: currentUser.id, date: e.date, category: e.category, amount: e.amount,
+                    customer: e.customer || null, phone: e.phone || null, email: e.email || null,
+                    store_name: e.storeName || null, referred_by: e.referredBy || null, note: e.note || null
+                };
+            });
+            await supaClient.from('job_entries').insert(jobRows);
+        }
+
+        await supaClient.from('finance_entries').delete().eq('user_id', currentUser.id);
+        if (financeEntries.length > 0) {
+            var finRows = financeEntries.map(function(e) {
+                return {
+                    user_id: currentUser.id, date: e.date, type: e.type,
+                    amount: e.amount, note: e.note || null
+                };
+            });
+            await supaClient.from('finance_entries').insert(finRows);
+        }
+    } catch (err) {
+        console.error('Sync to Supabase failed:', err);
+    }
+}
+
+function saveLocal() {
+    localStorage.setItem('fhd_categories', JSON.stringify(categories));
+    localStorage.setItem('fhd_entries', JSON.stringify(entries));
+    localStorage.setItem('fhd_finance', JSON.stringify(financeEntries));
+}
+
+/* ═══════════════════════════════════════
+   SUPABASE INIT (check existing session)
+   ═══════════════════════════════════════ */
+(async function initAuth() {
+    if (!supaClient) return;
+    try {
+        var sessionResult = await supaClient.auth.getSession();
+        if (sessionResult.data.session) {
+            currentUser = sessionResult.data.session.user;
+            updateAuthUI();
+            await loadFromSupabase();
+            renderAll();
+            renderFinanceAll();
+        }
+    } catch (err) {
+        console.error('Auth init failed:', err);
+    }
+})();
+
 /* ═══════════════════════════════════════
    TAB SWITCHING
    ═══════════════════════════════════════ */
@@ -641,11 +940,21 @@ var categories = JSON.parse(localStorage.getItem('fhd_categories')) || [
 var entries = JSON.parse(localStorage.getItem('fhd_entries')) || [];
 var financeEntries = JSON.parse(localStorage.getItem('fhd_finance')) || [];
 var currentPeriod = 'daily';
+var _syncPending = false;
+var _syncRunning = false;
 
 function save() {
-    localStorage.setItem('fhd_categories', JSON.stringify(categories));
-    localStorage.setItem('fhd_entries', JSON.stringify(entries));
-    localStorage.setItem('fhd_finance', JSON.stringify(financeEntries));
+    saveLocal();
+    debouncedSync();
+}
+
+function debouncedSync() {
+    if (_syncRunning) { _syncPending = true; return; }
+    _syncRunning = true;
+    syncToSupabase().finally(function() {
+        _syncRunning = false;
+        if (_syncPending) { _syncPending = false; debouncedSync(); }
+    });
 }
 
 /* ═══════════════════════════════════════
