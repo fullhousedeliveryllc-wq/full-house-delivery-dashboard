@@ -1321,10 +1321,14 @@ function saveJobEdit() {
     var id = parseInt(document.getElementById('editJobId').value, 10);
     var entry = entries.find(function(e) { return e.id === id; });
     if (!entry) return;
+    var dateVal = document.getElementById('editJobDate').value;
+    var amountVal = parseInt(document.getElementById('editJobAmount').value, 10);
+    if (!dateVal) { toast('Date is required.'); return; }
+    if (isNaN(amountVal) || amountVal < 1) { toast('Number of jobs must be at least 1.'); return; }
     var cat = document.getElementById('editJobCategory').value;
-    entry.date = document.getElementById('editJobDate').value;
+    entry.date = dateVal;
     entry.category = cat;
-    entry.amount = parseInt(document.getElementById('editJobAmount').value, 10);
+    entry.amount = amountVal;
     entry.customer = document.getElementById('editJobCustomer').value.trim();
     entry.phone = document.getElementById('editJobPhone').value.trim();
     entry.email = document.getElementById('editJobEmail').value.trim();
@@ -1573,9 +1577,13 @@ function saveFinanceEdit() {
     var id = parseInt(document.getElementById('editFinId').value, 10);
     var entry = financeEntries.find(function(e) { return e.id === id; });
     if (!entry) return;
-    entry.date = document.getElementById('editFinDate').value;
+    var dateVal = document.getElementById('editFinDate').value;
+    var amountVal = parseFloat(document.getElementById('editFinAmount').value);
+    if (!dateVal) { toast('Date is required.'); return; }
+    if (isNaN(amountVal) || amountVal <= 0) { toast('Amount must be greater than 0.'); return; }
+    entry.date = dateVal;
     entry.type = document.getElementById('editFinTypeSelect').value;
-    entry.amount = parseFloat(document.getElementById('editFinAmount').value);
+    entry.amount = amountVal;
     entry.note = document.getElementById('editFinNote').value.trim();
     save(); renderFinanceAll(); closeEditFinanceModal(); toast('Finance entry updated.');
 }
