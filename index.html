@@ -408,7 +408,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v9</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v10</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="authBtn" onclick="showAuthModal()">Sign In</button>
@@ -1345,18 +1345,20 @@ async function deleteEntry(id) {
     var before = entries.length;
     entries = entries.filter(function(e) { return String(e.id) !== String(id); });
     var after = entries.length;
-    console.log('[DELETE] id=' + id + ' type=' + typeof id + ' before=' + before + ' after=' + after);
     if (before === after) {
         toast('Error: entry not found for deletion.');
         return;
     }
     saveLocal(); renderAll(); toast('Entry deleted.');
-    try {
-        await flushSync();
-        console.log('[DELETE] Sync completed successfully. Entries in Supabase should be: ' + entries.length);
-    } catch (err) {
-        console.error('[DELETE] Sync failed:', err);
-        toast('Sync failed — delete saved locally only.');
+    if (supaClient && currentUser) {
+        try {
+            var r = await supaClient.from('job_entries').delete().eq('user_id', currentUser.id).eq('id', id);
+            if (r.error) console.error('[DELETE] Targeted delete error:', r.error);
+            await flushSync();
+        } catch (err) {
+            console.error('[DELETE] Sync failed:', err);
+            toast('Sync failed. Please refresh and try again.');
+        }
     }
 }
 
@@ -1631,17 +1633,20 @@ async function deleteFinanceEntry(id) {
     var before = financeEntries.length;
     financeEntries = financeEntries.filter(function(e) { return String(e.id) !== String(id); });
     var after = financeEntries.length;
-    console.log('[DELETE-FIN] id=' + id + ' before=' + before + ' after=' + after);
     if (before === after) {
         toast('Error: entry not found for deletion.');
         return;
     }
     saveLocal(); renderFinanceAll(); toast('Finance entry deleted.');
-    try {
-        await flushSync();
-    } catch (err) {
-        console.error('[DELETE-FIN] Sync failed:', err);
-        toast('Sync failed — delete saved locally only.');
+    if (supaClient && currentUser) {
+        try {
+            var r = await supaClient.from('finance_entries').delete().eq('user_id', currentUser.id).eq('id', id);
+            if (r.error) console.error('[DELETE-FIN] Targeted delete error:', r.error);
+            await flushSync();
+        } catch (err) {
+            console.error('[DELETE-FIN] Sync failed:', err);
+            toast('Sync failed. Please refresh and try again.');
+        }
     }
 }
 
