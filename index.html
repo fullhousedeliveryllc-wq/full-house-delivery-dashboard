@@ -930,6 +930,12 @@ async function loadFromSupabase() {
     try {
         await _syncChain;
 
+        if (localStorage.getItem('fhd_dirty') === '1') {
+            console.log('Local data has unsynced changes — pushing to cloud instead of loading.');
+            await syncToSupabase();
+            return;
+        }
+
         var catResult = await supaClient.from('categories').select('*').eq('user_id', currentUser.id).order('sort_order');
         if (catResult.data && catResult.data.length > 0) {
             categories = catResult.data.map(function(c) { return c.name; });
@@ -956,6 +962,7 @@ async function loadFromSupabase() {
         }
 
         saveLocal();
+        localStorage.removeItem('fhd_dirty');
     } catch (err) {
         console.error('Load from Supabase failed:', err);
     }
@@ -1001,6 +1008,7 @@ async function syncToSupabase() {
             var r6 = await supaClient.from('finance_entries').insert(finRows);
             if (r6.error) throw r6.error;
         }
+        localStorage.removeItem('fhd_dirty');
     } catch (err) {
         console.error('Sync to Supabase failed:', err);
         throw err;
@@ -1011,6 +1019,7 @@ function saveLocal() {
     localStorage.setItem('fhd_categories', JSON.stringify(categories));
     localStorage.setItem('fhd_entries', JSON.stringify(entries));
     localStorage.setItem('fhd_finance', JSON.stringify(financeEntries));
+    localStorage.setItem('fhd_dirty', '1');
 }
 
 /* ═══════════════════════════════════════
