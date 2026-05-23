@@ -416,7 +416,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v12</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v13</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="authBtn" onclick="showAuthModal()">Sign In</button>
@@ -953,53 +953,91 @@ async function handleSignOut() {
 /* ═══════════════════════════════════════
    SUPABASE DATA SYNC
    ═══════════════════════════════════════ */
+
+function jobKey(e) {
+    return (e.date || '') + '|' + (e.category || '') + '|' + (e.customer || '') + '|' + e.amount + '|' + (e.revenue || 0);
+}
+function finKey(e) {
+    return (e.date || '') + '|' + (e.type || '') + '|' + e.amount + '|' + (e.note || '');
+}
+
 async function loadFromSupabase() {
     if (!supaClient || !currentUser) return;
 
     try {
         await _syncChain;
 
-        if (localStorage.getItem('fhd_dirty') === '1') {
-            console.log('Local data has unsynced changes — pushing to cloud instead of loading.');
-            await syncToSupabase();
+        var hasDirty = localStorage.getItem('fhd_dirty') === '1';
+
+        var catResult = await supaClient.from('categories').select('*').eq('user_id', currentUser.id).order('sort_order');
+        if (catResult.error) {
+            console.error('Load categories error:', catResult.error);
+            toast('Sync error: could not load categories.');
             return;
         }
 
-        var catResult = await supaClient.from('categories').select('*').eq('user_id', currentUser.id).order('sort_order');
-        if (catResult.error) { console.error('Load categories error:', catResult.error); }
-        if (catResult.data && catResult.data.length > 0) {
-            categories = catResult.data.map(function(c) { return c.name; });
-        }
-
         var jobResult = await supaClient.from('job_entries').select('*').eq('user_id', currentUser.id).order('created_at');
-        if (jobResult.error) { console.error('Load job entries error:', jobResult.error); }
-        if (jobResult.data && jobResult.data.length > 0) {
-            entries = jobResult.data.map(function(e) {
-                return {
-                    id: e.id, date: e.date, category: e.category, amount: e.amount,
-                    revenue: (typeof e.revenue === 'number') ? e.revenue : 0,
-                    customer: e.customer || '', phone: e.phone || '', email: e.email || '',
-                    storeName: e.store_name || '', referredBy: e.referred_by || '', note: e.note || ''
-                };
-            });
-        } else if (!jobResult.error && entries.length > 0) {
-            await syncToSupabase();
+        if (jobResult.error) {
+            console.error('Load job entries error:', jobResult.error);
+            toast('Sync error: could not load job entries. ' + (jobResult.error.message || ''));
+            return;
         }
 
         var finResult = await supaClient.from('finance_entries').select('*').eq('user_id', currentUser.id).order('created_at');
-        if (finResult.error) { console.error('Load finance entries error:', finResult.error); }
-        if (finResult.data && finResult.data.length > 0) {
-            financeEntries = finResult.data.map(function(e) {
-                return { id: e.id, date: e.date, type: e.type, amount: parseFloat(e.amount), note: e.note || '' };
+        if (finResult.error) {
+            console.error('Load finance entries error:', finResult.error);
+            toast('Sync error: could not load finance entries.');
+            return;
+        }
+
+        var cloudJobs = (jobResult.data || []).map(function(e) {
+            return {
+                id: e.id, date: e.date, category: e.category, amount: e.amount,
+                revenue: (typeof e.revenue === 'number') ? e.revenue : 0,
+                customer: e.customer || '', phone: e.phone || '', email: e.email || '',
+                storeName: e.store_name || '', referredBy: e.referred_by || '', note: e.note || ''
+            };
+        });
+
+        var cloudFinance = (finResult.data || []).map(function(e) {
+            return { id: e.id, date: e.date, type: e.type, amount: parseFloat(e.amount), note: e.note || '' };
+        });
+
+        var cloudCats = (catResult.data || []).map(function(c) { return c.name; });
+
+        if (hasDirty && entries.length > 0) {
+            var cloudJobKeys = {};
+            cloudJobs.forEach(function(e) { cloudJobKeys[jobKey(e)] = true; });
+            entries.forEach(function(e) {
+                if (!cloudJobKeys[jobKey(e)]) {
+                    cloudJobs.push(e);
+                }
+            });
+
+            var cloudFinKeys = {};
+            cloudFinance.forEach(function(e) { cloudFinKeys[finKey(e)] = true; });
+            financeEntries.forEach(function(e) {
+                if (!cloudFinKeys[finKey(e)]) {
+                    cloudFinance.push(e);
+                }
             });
         }
+
+        if (cloudCats.length > 0) categories = cloudCats;
+        entries = cloudJobs;
+        financeEntries = cloudFinance;
 
         localStorage.setItem('fhd_categories', JSON.stringify(categories));
         localStorage.setItem('fhd_entries', JSON.stringify(entries));
         localStorage.setItem('fhd_finance', JSON.stringify(financeEntries));
         localStorage.removeItem('fhd_dirty');
+
+        if (hasDirty) {
+            await syncToSupabase();
+        }
     } catch (err) {
         console.error('Load from Supabase failed:', err);
+        toast('Sync error: ' + (err.message || 'could not connect to cloud.'));
     }
 }
 
@@ -1021,15 +1059,24 @@ async function syncToSupabase() {
         if (r3.error) throw r3.error;
         if (entries.length > 0) {
             var jobRows = entries.map(function(e) {
-                return {
+                var row = {
                     user_id: currentUser.id, date: e.date, category: e.category, amount: e.amount,
-                    revenue: (typeof e.revenue === 'number') ? e.revenue : 0,
                     customer: e.customer || null, phone: e.phone || null, email: e.email || null,
                     store_name: e.storeName || null, referred_by: e.referredBy || null, note: e.note || null
                 };
+                if (typeof e.revenue === 'number') row.revenue = e.revenue;
+                return row;
             });
             var r4 = await supaClient.from('job_entries').insert(jobRows);
-            if (r4.error) throw r4.error;
+            if (r4.error) {
+                if (r4.error.message && r4.error.message.indexOf('revenue') !== -1) {
+                    var fallbackRows = jobRows.map(function(r) { var c = Object.assign({}, r); delete c.revenue; return c; });
+                    var r4b = await supaClient.from('job_entries').insert(fallbackRows);
+                    if (r4b.error) throw r4b.error;
+                } else {
+                    throw r4.error;
+                }
+            }
         }
 
         var r5 = await supaClient.from('finance_entries').delete().eq('user_id', currentUser.id);
@@ -1047,6 +1094,7 @@ async function syncToSupabase() {
         localStorage.removeItem('fhd_dirty');
     } catch (err) {
         console.error('Sync to Supabase failed:', err);
+        toast('Sync failed: ' + (err.message || 'unknown error') + '. Your data is saved locally.');
         throw err;
     }
 }
@@ -1165,6 +1213,19 @@ function _flushSync() {
     });
     return _syncChain;
 }
+
+var _lastCloudRefresh = 0;
+document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible' && currentUser && supaClient) {
+        var now = Date.now();
+        if (now - _lastCloudRefresh < 5000) return;
+        _lastCloudRefresh = now;
+        loadFromSupabase().then(function() {
+            renderAll();
+            renderFinanceAll();
+        });
+    }
+});
 
 function flushSync() {
     if (_syncTimer) { clearTimeout(_syncTimer); _syncTimer = null; }
