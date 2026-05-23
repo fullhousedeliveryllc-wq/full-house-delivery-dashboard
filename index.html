@@ -910,8 +910,10 @@ async function handleAuth() {
 
 async function handleSignOut() {
     if (!supaClient) return;
-    if (_syncPending || _syncRunning) {
+    try {
         await syncToSupabase();
+    } catch (err) {
+        console.error('Flush sync before sign-out failed:', err);
     }
     await supaClient.auth.signOut();
     currentUser = null;
@@ -961,15 +963,18 @@ async function syncToSupabase() {
     if (!supaClient || !currentUser) return;
 
     try {
-        await supaClient.from('categories').delete().eq('user_id', currentUser.id);
+        var r1 = await supaClient.from('categories').delete().eq('user_id', currentUser.id);
+        if (r1.error) throw r1.error;
         if (categories.length > 0) {
             var catRows = categories.map(function(name, i) {
                 return { user_id: currentUser.id, name: name, sort_order: i };
             });
-            await supaClient.from('categories').insert(catRows);
+            var r2 = await supaClient.from('categories').insert(catRows);
+            if (r2.error) throw r2.error;
         }
 
-        await supaClient.from('job_entries').delete().eq('user_id', currentUser.id);
+        var r3 = await supaClient.from('job_entries').delete().eq('user_id', currentUser.id);
+        if (r3.error) throw r3.error;
         if (entries.length > 0) {
             var jobRows = entries.map(function(e) {
                 return {
@@ -978,10 +983,12 @@ async function syncToSupabase() {
                     store_name: e.storeName || null, referred_by: e.referredBy || null, note: e.note || null
                 };
             });
-            await supaClient.from('job_entries').insert(jobRows);
+            var r4 = await supaClient.from('job_entries').insert(jobRows);
+            if (r4.error) throw r4.error;
         }
 
-        await supaClient.from('finance_entries').delete().eq('user_id', currentUser.id);
+        var r5 = await supaClient.from('finance_entries').delete().eq('user_id', currentUser.id);
+        if (r5.error) throw r5.error;
         if (financeEntries.length > 0) {
             var finRows = financeEntries.map(function(e) {
                 return {
@@ -989,10 +996,12 @@ async function syncToSupabase() {
                     amount: e.amount, note: e.note || null
                 };
             });
-            await supaClient.from('finance_entries').insert(finRows);
+            var r6 = await supaClient.from('finance_entries').insert(finRows);
+            if (r6.error) throw r6.error;
         }
     } catch (err) {
         console.error('Sync to Supabase failed:', err);
+        throw err;
     }
 }
 
@@ -1077,7 +1086,7 @@ function save() {
 function debouncedSync() {
     if (_syncRunning) { _syncPending = true; return; }
     _syncRunning = true;
-    syncToSupabase().finally(function() {
+    syncToSupabase().catch(function() {}).finally(function() {
         _syncRunning = false;
         if (_syncPending) { _syncPending = false; debouncedSync(); }
     });
@@ -1289,11 +1298,15 @@ function renderLog() {
     }).join('');
 }
 
-function deleteEntry(id) {
+async function deleteEntry(id) {
     if (!confirm('Delete this entry?')) return;
     entries = entries.filter(function(e) { return e.id !== id; });
     saveLocal(); renderAll(); toast('Entry deleted.');
-    syncToSupabase();
+    try {
+        await syncToSupabase();
+    } catch (err) {
+        toast('Sync failed — delete saved locally only.');
+    }
 }
 
 function editEntry(id) {
@@ -1562,11 +1575,15 @@ function renderFinanceLog() {
     }).join('');
 }
 
-function deleteFinanceEntry(id) {
+async function deleteFinanceEntry(id) {
     if (!confirm('Delete this finance entry?')) return;
     financeEntries = financeEntries.filter(function(e) { return e.id !== id; });
     saveLocal(); renderFinanceAll(); toast('Finance entry deleted.');
-    syncToSupabase();
+    try {
+        await syncToSupabase();
+    } catch (err) {
+        toast('Sync failed — delete saved locally only.');
+    }
 }
 
 function editFinanceEntry(id) {
