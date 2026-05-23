@@ -416,9 +416,10 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v13</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v14</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
+    <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:#2196F3;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
     <button id="authBtn" onclick="showAuthModal()">Sign In</button>
 </div>
 
@@ -874,6 +875,7 @@ function updateAuthUI() {
     var emailEl = document.getElementById('userEmail');
     var btnEl = document.getElementById('authBtn');
     var statusEl = document.getElementById('syncStatus');
+    var syncBtn = document.getElementById('syncNowBtn');
 
     if (currentUser) {
         emailEl.textContent = currentUser.email;
@@ -881,12 +883,14 @@ function updateAuthUI() {
         btnEl.onclick = handleSignOut;
         statusEl.textContent = 'Synced';
         statusEl.classList.add('online');
+        syncBtn.style.display = 'inline-block';
     } else {
         emailEl.textContent = '';
         btnEl.textContent = 'Sign In';
         btnEl.onclick = showAuthModal;
         statusEl.textContent = 'Local Only';
         statusEl.classList.remove('online');
+        syncBtn.style.display = 'none';
     }
 }
 
@@ -924,12 +928,14 @@ async function handleAuth() {
             return;
         }
 
+        _isSigningIn = true;
         currentUser = result.data.user;
         closeAuthModal();
         updateAuthUI();
         await loadFromSupabase();
         renderAll();
         renderFinanceAll();
+        _isSigningIn = false;
         toast('Signed in! Data synced.');
     } catch (err) {
         errEl.textContent = 'Connection error. Please try again.';
@@ -954,6 +960,9 @@ async function handleSignOut() {
    SUPABASE DATA SYNC
    ═══════════════════════════════════════ */
 
+var _isSigningIn = false;
+var _lastSyncTime = 0;
+
 function jobKey(e) {
     return (e.date || '') + '|' + (e.category || '') + '|' + (e.customer || '') + '|' + e.amount + '|' + (e.revenue || 0);
 }
@@ -961,8 +970,15 @@ function finKey(e) {
     return (e.date || '') + '|' + (e.type || '') + '|' + e.amount + '|' + (e.note || '');
 }
 
+function setSyncStatus(msg) {
+    var el = document.getElementById('syncStatus');
+    if (el && currentUser) el.textContent = msg;
+}
+
 async function loadFromSupabase() {
     if (!supaClient || !currentUser) return;
+
+    setSyncStatus('Syncing...');
 
     try {
         await _syncChain;
@@ -972,21 +988,24 @@ async function loadFromSupabase() {
         var catResult = await supaClient.from('categories').select('*').eq('user_id', currentUser.id).order('sort_order');
         if (catResult.error) {
             console.error('Load categories error:', catResult.error);
-            toast('Sync error: could not load categories.');
+            toast('Sync error: could not load categories. ' + (catResult.error.message || ''), true);
+            setSyncStatus('Sync Error');
             return;
         }
 
         var jobResult = await supaClient.from('job_entries').select('*').eq('user_id', currentUser.id).order('created_at');
         if (jobResult.error) {
             console.error('Load job entries error:', jobResult.error);
-            toast('Sync error: could not load job entries. ' + (jobResult.error.message || ''));
+            toast('Sync error: could not load job entries. ' + (jobResult.error.message || ''), true);
+            setSyncStatus('Sync Error');
             return;
         }
 
         var finResult = await supaClient.from('finance_entries').select('*').eq('user_id', currentUser.id).order('created_at');
         if (finResult.error) {
             console.error('Load finance entries error:', finResult.error);
-            toast('Sync error: could not load finance entries.');
+            toast('Sync error: could not load finance entries. ' + (finResult.error.message || ''), true);
+            setSyncStatus('Sync Error');
             return;
         }
 
@@ -1005,22 +1024,29 @@ async function loadFromSupabase() {
 
         var cloudCats = (catResult.data || []).map(function(c) { return c.name; });
 
+        console.log('[SYNC] Cloud data: ' + cloudJobs.length + ' jobs, ' + cloudFinance.length + ' finance, ' + cloudCats.length + ' categories. Local dirty: ' + hasDirty + ', local jobs: ' + entries.length);
+
         if (hasDirty && entries.length > 0) {
             var cloudJobKeys = {};
             cloudJobs.forEach(function(e) { cloudJobKeys[jobKey(e)] = true; });
+            var localOnlyJobs = 0;
             entries.forEach(function(e) {
                 if (!cloudJobKeys[jobKey(e)]) {
                     cloudJobs.push(e);
+                    localOnlyJobs++;
                 }
             });
 
             var cloudFinKeys = {};
             cloudFinance.forEach(function(e) { cloudFinKeys[finKey(e)] = true; });
+            var localOnlyFin = 0;
             financeEntries.forEach(function(e) {
                 if (!cloudFinKeys[finKey(e)]) {
                     cloudFinance.push(e);
+                    localOnlyFin++;
                 }
             });
+            console.log('[SYNC] Merged ' + localOnlyJobs + ' local-only jobs, ' + localOnlyFin + ' local-only finance entries');
         }
 
         if (cloudCats.length > 0) categories = cloudCats;
@@ -1030,19 +1056,26 @@ async function loadFromSupabase() {
         localStorage.setItem('fhd_categories', JSON.stringify(categories));
         localStorage.setItem('fhd_entries', JSON.stringify(entries));
         localStorage.setItem('fhd_finance', JSON.stringify(financeEntries));
-        localStorage.removeItem('fhd_dirty');
 
         if (hasDirty) {
             await syncToSupabase();
+        } else {
+            localStorage.removeItem('fhd_dirty');
         }
+
+        _lastSyncTime = Date.now();
+        setSyncStatus('Synced');
     } catch (err) {
         console.error('Load from Supabase failed:', err);
-        toast('Sync error: ' + (err.message || 'could not connect to cloud.'));
+        toast('Sync error: ' + (err.message || 'could not connect to cloud.'), true);
+        setSyncStatus('Sync Error');
     }
 }
 
 async function syncToSupabase() {
     if (!supaClient || !currentUser) return;
+
+    setSyncStatus('Uploading...');
 
     try {
         var r1 = await supaClient.from('categories').delete().eq('user_id', currentUser.id);
@@ -1092,12 +1125,54 @@ async function syncToSupabase() {
             if (r6.error) throw r6.error;
         }
         localStorage.removeItem('fhd_dirty');
+        _lastSyncTime = Date.now();
+        setSyncStatus('Synced');
+        console.log('[SYNC] Upload complete: ' + entries.length + ' jobs, ' + financeEntries.length + ' finance entries');
     } catch (err) {
         console.error('Sync to Supabase failed:', err);
-        toast('Sync failed: ' + (err.message || 'unknown error') + '. Your data is saved locally.');
+        toast('Sync failed: ' + (err.message || 'unknown error') + '. Your data is saved locally.', true);
+        setSyncStatus('Sync Error');
         throw err;
     }
 }
+
+async function manualSync() {
+    if (!supaClient || !currentUser) {
+        toast('Sign in first to sync data.');
+        return;
+    }
+    toast('Syncing...');
+    try {
+        await flushSync();
+        await loadFromSupabase();
+        renderAll();
+        renderFinanceAll();
+        toast('Sync complete! ' + entries.length + ' jobs, ' + financeEntries.length + ' finance entries.');
+    } catch (err) {
+        toast('Sync failed: ' + (err.message || 'unknown error'), true);
+    }
+}
+
+window.syncDebug = async function() {
+    if (!supaClient || !currentUser) {
+        console.log('[SYNC DEBUG] Not signed in. currentUser:', currentUser, 'supaClient:', !!supaClient);
+        return;
+    }
+    console.log('[SYNC DEBUG] User:', currentUser.email, 'ID:', currentUser.id);
+    console.log('[SYNC DEBUG] Local jobs:', entries.length, 'Local finance:', financeEntries.length);
+    console.log('[SYNC DEBUG] Dirty flag:', localStorage.getItem('fhd_dirty'));
+    console.log('[SYNC DEBUG] Last sync:', _lastSyncTime ? new Date(_lastSyncTime).toISOString() : 'never');
+
+    var j = await supaClient.from('job_entries').select('*').eq('user_id', currentUser.id);
+    var f = await supaClient.from('finance_entries').select('*').eq('user_id', currentUser.id);
+    console.log('[SYNC DEBUG] Cloud jobs:', j.data ? j.data.length : 'error: ' + JSON.stringify(j.error));
+    console.log('[SYNC DEBUG] Cloud finance:', f.data ? f.data.length : 'error: ' + JSON.stringify(f.error));
+
+    if (j.data && j.data.length > 0) {
+        console.log('[SYNC DEBUG] First cloud job:', JSON.stringify(j.data[0]));
+    }
+    return { localJobs: entries.length, cloudJobs: j.data ? j.data.length : 0, localFinance: financeEntries.length, cloudFinance: f.data ? f.data.length : 0, dirty: localStorage.getItem('fhd_dirty') };
+};
 
 function saveLocal() {
     localStorage.setItem('fhd_categories', JSON.stringify(categories));
@@ -1125,7 +1200,7 @@ function saveLocal() {
     }
 
     supaClient.auth.onAuthStateChange(function(event, session) {
-        if (event === 'SIGNED_IN' && session && !currentUser) {
+        if (event === 'SIGNED_IN' && session && !currentUser && !_isSigningIn) {
             currentUser = session.user;
             updateAuthUI();
             loadFromSupabase().then(function() {
@@ -2256,10 +2331,11 @@ function dl(blob, name) {
 }
 function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 function today() { return new Date().toISOString().slice(0, 10); }
-function toast(msg) {
+function toast(msg, isError) {
     var t = document.getElementById('toast'); t.textContent = msg;
+    t.style.background = isError ? '#c0392b' : '#333';
     t.classList.add('show'); clearTimeout(t._tm);
-    t._tm = setTimeout(function() { t.classList.remove('show'); }, 2500);
+    t._tm = setTimeout(function() { t.classList.remove('show'); }, isError ? 6000 : 2500);
 }
 
 /* ═══════════════════════════════════════
