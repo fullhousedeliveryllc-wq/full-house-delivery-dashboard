@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS job_entries (
     date        DATE NOT NULL,
     category    TEXT NOT NULL,
     amount      INT NOT NULL DEFAULT 1,
+    revenue     NUMERIC(12,2) NOT NULL DEFAULT 0,
     customer    TEXT,
     phone       TEXT,
     email       TEXT,
@@ -28,6 +29,9 @@ CREATE TABLE IF NOT EXISTS job_entries (
     note        TEXT,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Migration: add revenue column if table already exists
+ALTER TABLE job_entries ADD COLUMN IF NOT EXISTS revenue NUMERIC(12,2) NOT NULL DEFAULT 0;
 
 -- 3. Finance entries table
 CREATE TABLE IF NOT EXISTS finance_entries (

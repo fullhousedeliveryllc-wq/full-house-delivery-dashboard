@@ -159,6 +159,14 @@
 
         /* Forms */
         .form-group { margin-bottom: 16px; }
+        .form-group.highlight-field label { color: var(--accent); font-weight: 700; font-size: 14px; }
+        .form-group.highlight-field input,
+        .form-group.highlight-field select { border-color: var(--accent); border-width: 2px; background: #fff8f7; }
+        .form-group.highlight-field input:focus,
+        .form-group.highlight-field select:focus { border-color: #e74c3c; box-shadow: 0 0 0 3px rgba(192,57,43,0.12); }
+        .currency-input-wrap { position: relative; }
+        .currency-input-wrap .currency-symbol { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-size: 15px; font-weight: 700; color: var(--accent); pointer-events: none; }
+        .currency-input-wrap input { padding-left: 28px; }
         label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
         input, select {
             width: 100%; padding: 10px 14px; border: 2px solid var(--border);
@@ -408,7 +416,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v10</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v11</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="authBtn" onclick="showAuthModal()">Sign In</button>
@@ -452,13 +460,20 @@
                 <label for="entryDate">Date</label>
                 <input type="date" id="entryDate" required>
             </div>
-            <div class="form-group">
+            <div class="form-group highlight-field">
                 <label for="entryCategory">Category</label>
                 <select id="entryCategory" required></select>
             </div>
             <div class="form-group">
                 <label for="entryAmount">Number of Jobs</label>
                 <input type="number" id="entryAmount" min="1" value="1" required>
+            </div>
+            <div class="form-group highlight-field">
+                <label for="entryRevenue">Revenue ($)</label>
+                <div class="currency-input-wrap">
+                    <span class="currency-symbol">$</span>
+                    <input type="number" id="entryRevenue" min="0" step="0.01" placeholder="0.00" required>
+                </div>
             </div>
             <div class="form-group">
                 <label for="entryCustomer">Customer Name</label>
@@ -531,7 +546,7 @@
         <div style="overflow-x:auto;">
             <table>
                 <thead>
-                    <tr><th>Date</th><th>Category</th><th>Customer</th><th>Phone</th><th>Email</th><th>Details</th><th>Jobs</th><th>Note</th><th>Actions</th></tr>
+                    <tr><th>Date</th><th>Category</th><th>Customer</th><th>Phone</th><th>Email</th><th>Details</th><th>Jobs</th><th>Revenue</th><th>Note</th><th>Actions</th></tr>
                 </thead>
                 <tbody id="logBody"></tbody>
             </table>
@@ -720,13 +735,20 @@
             <label for="editJobDate">Date</label>
             <input type="date" id="editJobDate">
         </div>
-        <div class="form-group">
+        <div class="form-group highlight-field">
             <label for="editJobCategory">Category</label>
             <select id="editJobCategory" onchange="updateEditConditionalFields()"></select>
         </div>
         <div class="form-group">
             <label for="editJobAmount">Number of Jobs</label>
             <input type="number" id="editJobAmount" min="1">
+        </div>
+        <div class="form-group highlight-field">
+            <label for="editJobRevenue">Revenue ($)</label>
+            <div class="currency-input-wrap">
+                <span class="currency-symbol">$</span>
+                <input type="number" id="editJobRevenue" min="0" step="0.01">
+            </div>
         </div>
         <div class="form-group">
             <label for="editJobCustomer">Customer Name</label>
@@ -950,6 +972,7 @@ async function loadFromSupabase() {
             entries = jobResult.data.map(function(e) {
                 return {
                     id: e.id, date: e.date, category: e.category, amount: e.amount,
+                    revenue: (typeof e.revenue === 'number') ? e.revenue : 0,
                     customer: e.customer || '', phone: e.phone || '', email: e.email || '',
                     storeName: e.store_name || '', referredBy: e.referred_by || '', note: e.note || ''
                 };
@@ -992,6 +1015,7 @@ async function syncToSupabase() {
             var jobRows = entries.map(function(e) {
                 return {
                     user_id: currentUser.id, date: e.date, category: e.category, amount: e.amount,
+                    revenue: (typeof e.revenue === 'number') ? e.revenue : 0,
                     customer: e.customer || null, phone: e.phone || null, email: e.email || null,
                     store_name: e.storeName || null, referred_by: e.referredBy || null, note: e.note || null
                 };
@@ -1252,8 +1276,10 @@ window.addEventListener('resize', function() { if (animProgress >= 1) drawPie(1)
    ═══════════════════════════════════════ */
 function renderSummary() {
     var total = entries.reduce(function(s, e) { return s + e.amount; }, 0);
+    var totalRevenue = entries.reduce(function(s, e) { return s + ((typeof e.revenue === 'number') ? e.revenue : 0); }, 0);
     document.getElementById('summaryStrip').innerHTML =
         '<div class="summary-card"><div class="num">' + total + '</div><div class="label">Total Jobs</div></div>' +
+        '<div class="summary-card green"><div class="num">$' + totalRevenue.toFixed(2) + '</div><div class="label">Total Revenue</div></div>' +
         '<div class="summary-card"><div class="num">' + categories.length + '</div><div class="label">Categories</div></div>' +
         '<div class="summary-card"><div class="num">' + entries.length + '</div><div class="label">Log Entries</div></div>';
 }
@@ -1306,9 +1332,12 @@ document.getElementById('entryCategory').addEventListener('change', updateCondit
 document.getElementById('entryForm').addEventListener('submit', function(e) {
     e.preventDefault();
     var cat = document.getElementById('entryCategory').value;
+    var revenueVal = parseFloat(document.getElementById('entryRevenue').value);
+    if (isNaN(revenueVal) || revenueVal < 0) { toast('Please enter a valid revenue amount.'); return; }
     var entry = {
         id: Date.now(), date: document.getElementById('entryDate').value, category: cat,
         amount: parseInt(document.getElementById('entryAmount').value, 10),
+        revenue: revenueVal,
         customer: document.getElementById('entryCustomer').value.trim(),
         phone: document.getElementById('entryPhone').value.trim(),
         email: document.getElementById('entryEmail').value.trim(),
@@ -1316,10 +1345,11 @@ document.getElementById('entryForm').addEventListener('submit', function(e) {
         referredBy: cat === 'Online Customers' ? document.getElementById('entryReferredBy').value : '',
         note: document.getElementById('entryNote').value.trim()
     };
-    entries.push(entry); save(); renderAll();
+    entries.push(entry); save(); renderAll(); renderFinanceAll();
     ['entryCustomer','entryPhone','entryEmail','entryStoreName','entryReferredBy','entryNote'].forEach(function(id) { document.getElementById(id).value = ''; });
     document.getElementById('entryAmount').value = 1;
-    toast('+' + entry.amount + ' job(s) logged for ' + entry.category);
+    document.getElementById('entryRevenue').value = '';
+    toast('+' + entry.amount + ' job(s) logged — $' + revenueVal.toFixed(2) + ' revenue');
 });
 
 /* ═══════════════════════════════════════
@@ -1333,10 +1363,11 @@ function renderLog() {
     if (monthFilter) filtered = filtered.filter(function(e) { return e.date.startsWith(monthFilter); });
     filtered.sort(function(a, b) { return b.date.localeCompare(a.date) || b.id - a.id; });
     var body = document.getElementById('logBody');
-    if (!filtered.length) { body.innerHTML = '<tr><td colspan="9" class="empty-log">No entries yet &mdash; start logging above!</td></tr>'; return; }
+    if (!filtered.length) { body.innerHTML = '<tr><td colspan="10" class="empty-log">No entries yet &mdash; start logging above!</td></tr>'; return; }
     body.innerHTML = filtered.map(function(e) {
         var details = e.storeName ? 'Store: ' + e.storeName : (e.referredBy ? 'Ref: ' + e.referredBy : '');
-        return '<tr><td>' + e.date + '</td><td>' + esc(e.category) + '</td><td>' + esc(e.customer || '\u2014') + '</td><td>' + esc(e.phone || '\u2014') + '</td><td>' + esc(e.email || '\u2014') + '</td><td>' + esc(details || '\u2014') + '</td><td>' + e.amount + '</td><td>' + esc(e.note || '\u2014') + '</td><td class="action-cell"><button class="btn-edit" onclick="editEntry(' + e.id + ')" title="Edit">&#9998;</button><button class="btn btn-danger" onclick="deleteEntry(' + e.id + ')" title="Delete">&times;</button></td></tr>';
+        var rev = (typeof e.revenue === 'number') ? '$' + e.revenue.toFixed(2) : '\u2014';
+        return '<tr><td>' + e.date + '</td><td>' + esc(e.category) + '</td><td>' + esc(e.customer || '\u2014') + '</td><td>' + esc(e.phone || '\u2014') + '</td><td>' + esc(e.email || '\u2014') + '</td><td>' + esc(details || '\u2014') + '</td><td>' + e.amount + '</td><td>' + rev + '</td><td>' + esc(e.note || '\u2014') + '</td><td class="action-cell"><button class="btn-edit" onclick="editEntry(' + e.id + ')" title="Edit">&#9998;</button><button class="btn btn-danger" onclick="deleteEntry(' + e.id + ')" title="Delete">&times;</button></td></tr>';
     }).join('');
 }
 
@@ -1349,7 +1380,7 @@ async function deleteEntry(id) {
         toast('Error: entry not found for deletion.');
         return;
     }
-    saveLocal(); renderAll(); toast('Entry deleted.');
+    saveLocal(); renderAll(); renderFinanceAll(); toast('Entry deleted.');
     if (supaClient && currentUser) {
         try {
             var r = await supaClient.from('job_entries').delete().eq('user_id', currentUser.id).eq('id', id);
@@ -1372,6 +1403,7 @@ function editEntry(id) {
         return '<option value="' + esc(c) + '"' + (c === entry.category ? ' selected' : '') + '>' + esc(c) + '</option>';
     }).join('');
     document.getElementById('editJobAmount').value = entry.amount;
+    document.getElementById('editJobRevenue').value = (typeof entry.revenue === 'number') ? entry.revenue : '';
     document.getElementById('editJobCustomer').value = entry.customer || '';
     document.getElementById('editJobPhone').value = entry.phone || '';
     document.getElementById('editJobEmail').value = entry.email || '';
@@ -1396,17 +1428,20 @@ function saveJobEdit() {
     var amountVal = parseInt(document.getElementById('editJobAmount').value, 10);
     if (!dateVal) { toast('Date is required.'); return; }
     if (isNaN(amountVal) || amountVal < 1) { toast('Number of jobs must be at least 1.'); return; }
+    var revenueVal = parseFloat(document.getElementById('editJobRevenue').value);
+    if (isNaN(revenueVal) || revenueVal < 0) { toast('Please enter a valid revenue amount.'); return; }
     var cat = document.getElementById('editJobCategory').value;
     entry.date = dateVal;
     entry.category = cat;
     entry.amount = amountVal;
+    entry.revenue = revenueVal;
     entry.customer = document.getElementById('editJobCustomer').value.trim();
     entry.phone = document.getElementById('editJobPhone').value.trim();
     entry.email = document.getElementById('editJobEmail').value.trim();
     entry.storeName = cat === 'Furniture Store Jobs' ? document.getElementById('editJobStoreName').value.trim() : '';
     entry.referredBy = cat === 'Online Customers' ? document.getElementById('editJobReferredBy').value : '';
     entry.note = document.getElementById('editJobNote').value.trim();
-    save(); renderAll(); closeEditJobModal(); toast('Entry updated.');
+    save(); renderAll(); renderFinanceAll(); closeEditJobModal(); toast('Entry updated.');
 }
 
 function closeEditJobModal() {
@@ -1473,20 +1508,30 @@ function getFilteredFinance() {
     return financeEntries;
 }
 
+function getJobRevenueTotals() {
+    var totalRevenue = entries.reduce(function(s, e) { return s + ((typeof e.revenue === 'number') ? e.revenue : 0); }, 0);
+    var totalJobs = entries.reduce(function(s, e) { return s + e.amount; }, 0);
+    return { revenue: totalRevenue, jobs: totalJobs, entries: entries.length };
+}
+
 /* ═══════════════════════════════════════
    FINANCE: SUMMARY
    ═══════════════════════════════════════ */
 function renderFinanceSummary() {
     var all = getFilteredFinance();
-    var revenue = all.filter(function(e) { return e.type === 'Money Received'; }).reduce(function(s, e) { return s + e.amount; }, 0);
+    var jobTotals = getJobRevenueTotals();
+    var manualRevenue = all.filter(function(e) { return e.type === 'Money Received'; }).reduce(function(s, e) { return s + e.amount; }, 0);
+    var revenue = manualRevenue + jobTotals.revenue;
     var expenses = all.filter(function(e) { return e.type !== 'Money Received'; }).reduce(function(s, e) { return s + e.amount; }, 0);
     var net = revenue - expenses;
     var netClass = net >= 0 ? 'green' : 'red';
+    var totalTransactions = all.length + jobTotals.entries;
     document.getElementById('financeSummaryStrip').innerHTML =
         '<div class="summary-card green"><div class="num">$' + revenue.toFixed(2) + '</div><div class="label">Total Revenue</div></div>' +
         '<div class="summary-card red"><div class="num">$' + expenses.toFixed(2) + '</div><div class="label">Total Expenses</div></div>' +
         '<div class="summary-card ' + netClass + '"><div class="num">$' + net.toFixed(2) + '</div><div class="label">Net Profit</div></div>' +
-        '<div class="summary-card gold"><div class="num">' + all.length + '</div><div class="label">Transactions</div></div>';
+        '<div class="summary-card gold"><div class="num">' + totalTransactions + '</div><div class="label">Transactions</div></div>' +
+        '<div class="summary-card"><div class="num">' + jobTotals.jobs + '</div><div class="label">Total Jobs</div></div>';
 }
 
 /* ═══════════════════════════════════════
@@ -1495,12 +1540,19 @@ function renderFinanceSummary() {
 function renderFinanceBreakdown() {
     document.getElementById('periodLabel').textContent = getPeriodLabel();
     var all = getFilteredFinance();
-    var types = ['Money Received', 'Driver Pay', 'Gas', 'Tolls', 'Supplies', 'Vehicle Insurance', 'Liability Insurance', 'Truck Repair/Maintenance', 'Commissions', 'Miscellaneous'];
+    var jobTotals = getJobRevenueTotals();
+    var types = ['Money Received', 'Job Revenue', 'Driver Pay', 'Gas', 'Tolls', 'Supplies', 'Vehicle Insurance', 'Liability Insurance', 'Truck Repair/Maintenance', 'Commissions', 'Miscellaneous'];
     var html = '';
     types.forEach(function(type) {
-        var total = all.filter(function(e) { return e.type === type; }).reduce(function(s, e) { return s + e.amount; }, 0);
-        var isRevenue = type === 'Money Received';
-        var cls = isRevenue ? 'fi-green' : 'fi-red';
+        var total, isRevenue, cls;
+        if (type === 'Job Revenue') {
+            total = jobTotals.revenue;
+            isRevenue = true;
+        } else {
+            total = all.filter(function(e) { return e.type === type; }).reduce(function(s, e) { return s + e.amount; }, 0);
+            isRevenue = type === 'Money Received';
+        }
+        cls = isRevenue ? 'fi-green' : 'fi-red';
         html += '<div class="finance-item"><span class="fi-label">' + type + '</span><span class="fi-value ' + cls + '">$' + total.toFixed(2) + '</span></div>';
     });
     document.getElementById('financeGrid').innerHTML = html;
@@ -1513,7 +1565,7 @@ function drawFinanceChart() {
     var fc = document.getElementById('financeBarChart');
     var fctx = fc.getContext('2d');
     var all = getFilteredFinance();
-    var hasData = all.length > 0;
+    var hasData = all.length > 0 || entries.length > 0;
 
     document.getElementById('noFinanceMsg').style.display = hasData ? 'none' : 'block';
     fc.style.display = hasData ? 'block' : 'none';
@@ -1525,6 +1577,13 @@ function drawFinanceChart() {
         if (!periodKeys[key]) periodKeys[key] = { revenue: 0, expenses: 0 };
         if (e.type === 'Money Received') periodKeys[key].revenue += e.amount;
         else periodKeys[key].expenses += e.amount;
+    });
+    entries.forEach(function(e) {
+        if (typeof e.revenue === 'number' && e.revenue > 0) {
+            var key = getPeriodKey(e.date, currentPeriod);
+            if (!periodKeys[key]) periodKeys[key] = { revenue: 0, expenses: 0 };
+            periodKeys[key].revenue += e.revenue;
+        }
     });
 
     var keys = Object.keys(periodKeys).sort();
