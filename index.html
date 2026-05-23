@@ -911,7 +911,7 @@ async function handleAuth() {
 async function handleSignOut() {
     if (!supaClient) return;
     try {
-        await syncToSupabase();
+        await flushSync();
     } catch (err) {
         console.error('Flush sync before sign-out failed:', err);
     }
@@ -928,6 +928,8 @@ async function loadFromSupabase() {
     if (!supaClient || !currentUser) return;
 
     try {
+        await _syncChain;
+
         var catResult = await supaClient.from('categories').select('*').eq('user_id', currentUser.id).order('sort_order');
         if (catResult.data && catResult.data.length > 0) {
             categories = catResult.data.map(function(c) { return c.name; });
@@ -1075,22 +1077,49 @@ var categories = JSON.parse(localStorage.getItem('fhd_categories')) || [
 var entries = JSON.parse(localStorage.getItem('fhd_entries')) || [];
 var financeEntries = JSON.parse(localStorage.getItem('fhd_finance')) || [];
 var currentPeriod = 'daily';
-var _syncPending = false;
-var _syncRunning = false;
+var _syncChain = Promise.resolve();
+var _syncScheduled = false;
+var _syncTimer = null;
 
 function save() {
     saveLocal();
-    debouncedSync();
+    scheduleSync();
 }
 
-function debouncedSync() {
-    if (_syncRunning) { _syncPending = true; return; }
-    _syncRunning = true;
-    syncToSupabase().catch(function() {}).finally(function() {
-        _syncRunning = false;
-        if (_syncPending) { _syncPending = false; debouncedSync(); }
-    });
+function scheduleSync() {
+    _syncScheduled = true;
+    if (_syncTimer) clearTimeout(_syncTimer);
+    _syncTimer = setTimeout(function() {
+        _syncTimer = null;
+        _flushSync();
+    }, 500);
 }
+
+function _flushSync() {
+    _syncScheduled = false;
+    _syncChain = _syncChain.then(function() {
+        return syncToSupabase();
+    }).catch(function(err) {
+        console.error('Background sync error:', err);
+    });
+    return _syncChain;
+}
+
+function flushSync() {
+    if (_syncTimer) { clearTimeout(_syncTimer); _syncTimer = null; }
+    _syncScheduled = false;
+    _syncChain = _syncChain.then(function() {
+        return syncToSupabase();
+    });
+    return _syncChain;
+}
+
+window.addEventListener('beforeunload', function(e) {
+    if (_syncScheduled || _syncTimer) {
+        e.preventDefault();
+        e.returnValue = '';
+    }
+});
 
 /* ═══════════════════════════════════════
    CUSTOM PIE CHART
@@ -1303,7 +1332,7 @@ async function deleteEntry(id) {
     entries = entries.filter(function(e) { return e.id !== id; });
     saveLocal(); renderAll(); toast('Entry deleted.');
     try {
-        await syncToSupabase();
+        await flushSync();
     } catch (err) {
         toast('Sync failed — delete saved locally only.');
     }
@@ -1580,7 +1609,7 @@ async function deleteFinanceEntry(id) {
     financeEntries = financeEntries.filter(function(e) { return e.id !== id; });
     saveLocal(); renderFinanceAll(); toast('Finance entry deleted.');
     try {
-        await syncToSupabase();
+        await flushSync();
     } catch (err) {
         toast('Sync failed — delete saved locally only.');
     }
