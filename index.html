@@ -416,7 +416,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v11</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v12</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="authBtn" onclick="showAuthModal()">Sign In</button>
@@ -610,6 +610,7 @@
                     <option value="Liability Insurance">Liability Insurance</option>
                     <option value="Truck Repair/Maintenance">Truck Repair/Maintenance</option>
                     <option value="Commissions">Commissions</option>
+                    <option value="Trash Removal Fee">Trash Removal Fee</option>
                     <option value="Miscellaneous">Miscellaneous</option>
                 </select>
             </div>
@@ -671,6 +672,7 @@
                 <option value="Liability Insurance">Liability Insurance</option>
                 <option value="Truck Repair/Maintenance">Truck Repair/Maintenance</option>
                 <option value="Commissions">Commissions</option>
+                <option value="Trash Removal Fee">Trash Removal Fee</option>
                 <option value="Miscellaneous">Miscellaneous</option>
             </select>
             <input type="month" id="filterFinMonth" onchange="renderFinanceLog()">
@@ -807,6 +809,7 @@
                 <option value="Liability Insurance">Liability Insurance</option>
                 <option value="Truck Repair/Maintenance">Truck Repair/Maintenance</option>
                 <option value="Commissions">Commissions</option>
+                <option value="Trash Removal Fee">Trash Removal Fee</option>
                 <option value="Miscellaneous">Miscellaneous</option>
             </select>
         </div>
@@ -963,11 +966,13 @@ async function loadFromSupabase() {
         }
 
         var catResult = await supaClient.from('categories').select('*').eq('user_id', currentUser.id).order('sort_order');
+        if (catResult.error) { console.error('Load categories error:', catResult.error); }
         if (catResult.data && catResult.data.length > 0) {
             categories = catResult.data.map(function(c) { return c.name; });
         }
 
         var jobResult = await supaClient.from('job_entries').select('*').eq('user_id', currentUser.id).order('created_at');
+        if (jobResult.error) { console.error('Load job entries error:', jobResult.error); }
         if (jobResult.data && jobResult.data.length > 0) {
             entries = jobResult.data.map(function(e) {
                 return {
@@ -977,18 +982,21 @@ async function loadFromSupabase() {
                     storeName: e.store_name || '', referredBy: e.referred_by || '', note: e.note || ''
                 };
             });
-        } else if (entries.length > 0) {
+        } else if (!jobResult.error && entries.length > 0) {
             await syncToSupabase();
         }
 
         var finResult = await supaClient.from('finance_entries').select('*').eq('user_id', currentUser.id).order('created_at');
+        if (finResult.error) { console.error('Load finance entries error:', finResult.error); }
         if (finResult.data && finResult.data.length > 0) {
             financeEntries = finResult.data.map(function(e) {
                 return { id: e.id, date: e.date, type: e.type, amount: parseFloat(e.amount), note: e.note || '' };
             });
         }
 
-        saveLocal();
+        localStorage.setItem('fhd_categories', JSON.stringify(categories));
+        localStorage.setItem('fhd_entries', JSON.stringify(entries));
+        localStorage.setItem('fhd_finance', JSON.stringify(financeEntries));
         localStorage.removeItem('fhd_dirty');
     } catch (err) {
         console.error('Load from Supabase failed:', err);
@@ -1067,6 +1075,22 @@ function saveLocal() {
     } catch (err) {
         console.error('Auth init failed:', err);
     }
+
+    supaClient.auth.onAuthStateChange(function(event, session) {
+        if (event === 'SIGNED_IN' && session && !currentUser) {
+            currentUser = session.user;
+            updateAuthUI();
+            loadFromSupabase().then(function() {
+                renderAll();
+                renderFinanceAll();
+            });
+        } else if (event === 'TOKEN_REFRESHED' && session) {
+            currentUser = session.user;
+        } else if (event === 'SIGNED_OUT') {
+            currentUser = null;
+            updateAuthUI();
+        }
+    });
 })();
 
 /* ═══════════════════════════════════════
@@ -1541,7 +1565,7 @@ function renderFinanceBreakdown() {
     document.getElementById('periodLabel').textContent = getPeriodLabel();
     var all = getFilteredFinance();
     var jobTotals = getJobRevenueTotals();
-    var types = ['Money Received', 'Job Revenue', 'Driver Pay', 'Gas', 'Tolls', 'Supplies', 'Vehicle Insurance', 'Liability Insurance', 'Truck Repair/Maintenance', 'Commissions', 'Miscellaneous'];
+    var types = ['Money Received', 'Job Revenue', 'Driver Pay', 'Gas', 'Tolls', 'Supplies', 'Vehicle Insurance', 'Liability Insurance', 'Truck Repair/Maintenance', 'Commissions', 'Trash Removal Fee', 'Miscellaneous'];
     var html = '';
     types.forEach(function(type) {
         var total, isRevenue, cls;
@@ -1803,7 +1827,8 @@ var CATEGORY_RULES = [
     { pattern: /home\s*depot|lowe|u.?haul|uline|moving\s*blanket|dolly|strap|bubble\s*wrap|packing|box|tape|supply|supplies/i, type: 'Supplies' },
     { pattern: /payroll|driver\s*pay|wage|salary|pay\s*to|compensation|contractor\s*pay/i, type: 'Driver Pay' },
     { pattern: /deposit|payment\s*received|income|revenue|customer\s*pay|zelle\s*from|venmo\s*from|cash\s*app\s*from|direct\s*dep/i, type: 'Money Received' },
-    { pattern: /commission|referral\s*fee|finder.?s?\s*fee|sales\s*bonus/i, type: 'Commissions' }
+    { pattern: /commission|referral\s*fee|finder.?s?\s*fee|sales\s*bonus/i, type: 'Commissions' },
+    { pattern: /trash\s*remov|waste\s*remov|junk\s*remov|debris\s*remov|hauling|dump\s*fee|landfill|waste\s*manage/i, type: 'Trash Removal Fee' }
 ];
 
 function categorizeTransaction(description) {
@@ -1902,8 +1927,9 @@ function handlePDFUpload(file) {
         toast('PDF support is loading. Please try again in a moment.');
         return;
     }
-    pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
+    toast('Processing PDF...');
     var reader = new FileReader();
     reader.onload = function() {
         var typedArray = new Uint8Array(reader.result);
@@ -1912,6 +1938,11 @@ function handlePDFUpload(file) {
             var allText = [];
             var pages = pdf.numPages;
             var processed = 0;
+
+            if (pages === 0) {
+                toast('PDF has no pages.');
+                return;
+            }
 
             function processPage(pageNum) {
                 pdf.getPage(pageNum).then(function(page) {
@@ -1923,7 +1954,11 @@ function handlePDFUpload(file) {
                             var fullText = allText.join('\n');
                             parsePDFText(fullText);
                         }
+                    }).catch(function(err) {
+                        toast('Error reading PDF page ' + pageNum + ': ' + err.message);
                     });
+                }).catch(function(err) {
+                    toast('Error reading PDF page ' + pageNum + ': ' + err.message);
                 });
             }
 
@@ -1931,6 +1966,9 @@ function handlePDFUpload(file) {
         }).catch(function(err) {
             toast('Error reading PDF: ' + err.message);
         });
+    };
+    reader.onerror = function() {
+        toast('Error reading file. Please try again.');
     };
     reader.readAsArrayBuffer(file);
 }
@@ -2050,7 +2088,7 @@ function parseBankCSV(csvText) {
 }
 
 function showBankPreview() {
-    var types = ['Money Received', 'Driver Pay', 'Gas', 'Tolls', 'Supplies', 'Vehicle Insurance', 'Liability Insurance', 'Truck Repair/Maintenance', 'Commissions', 'Miscellaneous'];
+    var types = ['Money Received', 'Driver Pay', 'Gas', 'Tolls', 'Supplies', 'Vehicle Insurance', 'Liability Insurance', 'Truck Repair/Maintenance', 'Commissions', 'Trash Removal Fee', 'Miscellaneous'];
     var optionsHtml = types.map(function(t) { return '<option value="' + t + '">' + t + '</option>'; }).join('');
 
     var html = '<table class="preview-table"><thead><tr><th style="width:30px"><input type="checkbox" class="preview-check" checked onchange="toggleAllBankRows(this)"></th><th>Date</th><th>Description</th><th>Amount</th><th>Category</th></tr></thead><tbody>';
