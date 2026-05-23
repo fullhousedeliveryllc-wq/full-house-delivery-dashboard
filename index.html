@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Full House Delivery — Dashboard</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -405,6 +408,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v9</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="authBtn" onclick="showAuthModal()">Sign In</button>
@@ -1338,17 +1342,26 @@ function renderLog() {
 
 async function deleteEntry(id) {
     if (!confirm('Delete this entry?')) return;
-    entries = entries.filter(function(e) { return e.id !== id; });
+    var before = entries.length;
+    entries = entries.filter(function(e) { return String(e.id) !== String(id); });
+    var after = entries.length;
+    console.log('[DELETE] id=' + id + ' type=' + typeof id + ' before=' + before + ' after=' + after);
+    if (before === after) {
+        toast('Error: entry not found for deletion.');
+        return;
+    }
     saveLocal(); renderAll(); toast('Entry deleted.');
     try {
         await flushSync();
+        console.log('[DELETE] Sync completed successfully. Entries in Supabase should be: ' + entries.length);
     } catch (err) {
+        console.error('[DELETE] Sync failed:', err);
         toast('Sync failed — delete saved locally only.');
     }
 }
 
 function editEntry(id) {
-    var entry = entries.find(function(e) { return e.id === id; });
+    var entry = entries.find(function(e) { return String(e.id) === String(id); });
     if (!entry) return;
     document.getElementById('editJobId').value = id;
     document.getElementById('editJobDate').value = entry.date;
@@ -1374,8 +1387,8 @@ function updateEditConditionalFields() {
 }
 
 function saveJobEdit() {
-    var id = parseInt(document.getElementById('editJobId').value, 10);
-    var entry = entries.find(function(e) { return e.id === id; });
+    var id = document.getElementById('editJobId').value;
+    var entry = entries.find(function(e) { return String(e.id) === String(id); });
     if (!entry) return;
     var dateVal = document.getElementById('editJobDate').value;
     var amountVal = parseInt(document.getElementById('editJobAmount').value, 10);
@@ -1615,17 +1628,25 @@ function renderFinanceLog() {
 
 async function deleteFinanceEntry(id) {
     if (!confirm('Delete this finance entry?')) return;
-    financeEntries = financeEntries.filter(function(e) { return e.id !== id; });
+    var before = financeEntries.length;
+    financeEntries = financeEntries.filter(function(e) { return String(e.id) !== String(id); });
+    var after = financeEntries.length;
+    console.log('[DELETE-FIN] id=' + id + ' before=' + before + ' after=' + after);
+    if (before === after) {
+        toast('Error: entry not found for deletion.');
+        return;
+    }
     saveLocal(); renderFinanceAll(); toast('Finance entry deleted.');
     try {
         await flushSync();
     } catch (err) {
+        console.error('[DELETE-FIN] Sync failed:', err);
         toast('Sync failed — delete saved locally only.');
     }
 }
 
 function editFinanceEntry(id) {
-    var entry = financeEntries.find(function(e) { return e.id === id; });
+    var entry = financeEntries.find(function(e) { return String(e.id) === String(id); });
     if (!entry) return;
     document.getElementById('editFinId').value = id;
     document.getElementById('editFinDate').value = entry.date;
@@ -1636,8 +1657,8 @@ function editFinanceEntry(id) {
 }
 
 function saveFinanceEdit() {
-    var id = parseInt(document.getElementById('editFinId').value, 10);
-    var entry = financeEntries.find(function(e) { return e.id === id; });
+    var id = document.getElementById('editFinId').value;
+    var entry = financeEntries.find(function(e) { return String(e.id) === String(id); });
     if (!entry) return;
     var dateVal = document.getElementById('editFinDate').value;
     var amountVal = parseFloat(document.getElementById('editFinAmount').value);
