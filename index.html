@@ -662,6 +662,17 @@
         .expand-toggle { display: inline-block; margin-top: 8px; padding: 5px 14px; background: none; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; font-size: 11px; color: var(--text-light); font-weight: 500; transition: all 0.15s; }
         .expand-toggle:hover { background: #f5f5f5; border-color: #bbb; }
 
+        /* Duplicate warning modal */
+        .dupe-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999; display: flex; align-items: center; justify-content: center; }
+        .dupe-modal { background: #fff; border-radius: 16px; padding: 24px; max-width: 440px; width: 90%; box-shadow: 0 12px 40px rgba(0,0,0,0.2); }
+        .dupe-modal h3 { margin: 0 0 12px; font-size: 16px; color: #e67e22; display: flex; align-items: center; gap: 8px; }
+        .dupe-modal .dupe-match { background: #fff8e1; border: 1px solid #ffd54f; border-radius: 8px; padding: 10px; margin-bottom: 10px; font-size: 12px; }
+        .dupe-modal .dupe-match .dupe-label { font-weight: 600; color: #f57f17; font-size: 10px; text-transform: uppercase; margin-bottom: 4px; }
+        .dupe-modal .dupe-actions { display: flex; gap: 8px; margin-top: 14px; }
+        .dupe-modal .dupe-actions button { flex: 1; padding: 10px; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; }
+        .dupe-btn-cancel { background: #f0f0f0; color: #333; }
+        .dupe-btn-submit { background: var(--accent); color: #fff; }
+
         /* Google Reviews */
         .reviews-card { background: #fff; border-top: 3px solid #fbbc04; }
         .reviews-header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
@@ -735,7 +746,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v36</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v37</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:#2196F3;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -2224,6 +2235,88 @@ function moveFinType(i, dir) {
 }
 
 /* ═══════════════════════════════════════
+   DUPLICATE DETECTION
+   ═══════════════════════════════════════ */
+function findDuplicateEntry(newEntry) {
+    var dupes = [];
+    entries.forEach(function(e) {
+        var score = 0;
+        if (e.date === newEntry.date) score += 3;
+        if (e.category === newEntry.category) score += 2;
+        if (e.customer && newEntry.customer && e.customer.toLowerCase() === newEntry.customer.toLowerCase()) score += 3;
+        if (e.revenue === newEntry.revenue && newEntry.revenue > 0) score += 2;
+        if (e.amount === newEntry.amount) score += 1;
+        if (e.phone && newEntry.phone && e.phone === newEntry.phone) score += 2;
+        if (e.email && newEntry.email && e.email.toLowerCase() === newEntry.email.toLowerCase()) score += 2;
+        if (score >= 6) dupes.push({ entry: e, score: score });
+    });
+    dupes.sort(function(a, b) { return b.score - a.score; });
+    return dupes.slice(0, 3);
+}
+
+function findDuplicateFinance(newEntry) {
+    var dupes = [];
+    financeEntries.forEach(function(e) {
+        var score = 0;
+        if (e.date === newEntry.date) score += 3;
+        if (e.type === newEntry.type) score += 2;
+        if (e.amount === newEntry.amount) score += 3;
+        if (e.note && newEntry.note && e.note.toLowerCase() === newEntry.note.toLowerCase()) score += 3;
+        if (score >= 6) dupes.push({ entry: e, score: score });
+    });
+    dupes.sort(function(a, b) { return b.score - a.score; });
+    return dupes.slice(0, 3);
+}
+
+function findDuplicateBankRow(row) {
+    var dupes = [];
+    financeEntries.forEach(function(e) {
+        if (e.date === row.date && Math.abs(e.amount - row.amount) < 0.01) {
+            var noteMatch = e.note && row.description && e.note.toLowerCase().indexOf(row.description.substring(0, 30).toLowerCase()) !== -1;
+            if (e.type === row.type || noteMatch) dupes.push(e);
+        }
+    });
+    return dupes;
+}
+
+var pendingDupeAction = null;
+function showDupeWarning(dupes, onConfirm, entryType) {
+    var overlay = document.createElement('div');
+    overlay.className = 'dupe-overlay';
+    overlay.id = 'dupeOverlay';
+    var matchHtml = '';
+    dupes.forEach(function(d) {
+        var e = d.entry || d;
+        if (entryType === 'job') {
+            matchHtml += '<div class="dupe-match"><div class="dupe-label">Existing Entry</div>' +
+                '<div>' + e.date + ' — ' + esc(e.category) + ' — ' + (e.customer ? esc(e.customer) : '') + ' — $' + (e.revenue || 0).toFixed(2) + '</div></div>';
+        } else {
+            matchHtml += '<div class="dupe-match"><div class="dupe-label">Existing Entry</div>' +
+                '<div>' + e.date + ' — ' + esc(e.type) + ' — $' + e.amount.toFixed(2) + (e.note ? ' — ' + esc(e.note) : '') + '</div></div>';
+        }
+    });
+    overlay.innerHTML = '<div class="dupe-modal"><h3>&#9888;&#65039; Possible Duplicate</h3>' +
+        '<p style="font-size:13px;color:#555;margin:0 0 12px;">This looks similar to an existing entry. Are you sure you want to submit it?</p>' +
+        matchHtml +
+        '<div class="dupe-actions"><button class="dupe-btn-cancel" onclick="closeDupeWarning()">Cancel</button>' +
+        '<button class="dupe-btn-submit" onclick="confirmDupeSubmit()">Submit Anyway</button></div></div>';
+    document.body.appendChild(overlay);
+    pendingDupeAction = onConfirm;
+}
+
+function closeDupeWarning() {
+    var o = document.getElementById('dupeOverlay');
+    if (o) o.remove();
+    pendingDupeAction = null;
+}
+
+function confirmDupeSubmit() {
+    var action = pendingDupeAction;
+    closeDupeWarning();
+    if (action) action();
+}
+
+/* ═══════════════════════════════════════
    CONDITIONAL FIELDS
    ═══════════════════════════════════════ */
 function updateConditionalFields() {
@@ -2238,6 +2331,17 @@ document.getElementById('entryCategory').addEventListener('change', updateCondit
 /* ═══════════════════════════════════════
    JOB ENTRY FORM
    ═══════════════════════════════════════ */
+function commitJobEntry(entry) {
+    entries.push(entry); save(); renderAll(); renderFinanceAll();
+    ['entryCustomer','entryPhone','entryEmail','entryStoreName','entryReferredBy','entryNote'].forEach(function(id) { document.getElementById(id).value = ''; });
+    document.getElementById('entryAmount').value = 1;
+    document.getElementById('entryRevenue').value = '';
+    pendingInvoices = [];
+    document.getElementById('invoicePreview').innerHTML = '';
+    document.getElementById('entryInvoices').value = '';
+    toast('+' + entry.amount + ' job(s) logged — $' + entry.revenue.toFixed(2) + ' revenue');
+}
+
 document.getElementById('entryForm').addEventListener('submit', function(e) {
     e.preventDefault();
     var cat = document.getElementById('entryCategory').value;
@@ -2257,14 +2361,12 @@ document.getElementById('entryForm').addEventListener('submit', function(e) {
         note: noteVal,
         invoices: pendingInvoices.slice()
     };
-    entries.push(entry); save(); renderAll(); renderFinanceAll();
-    ['entryCustomer','entryPhone','entryEmail','entryStoreName','entryReferredBy','entryNote'].forEach(function(id) { document.getElementById(id).value = ''; });
-    document.getElementById('entryAmount').value = 1;
-    document.getElementById('entryRevenue').value = '';
-    pendingInvoices = [];
-    document.getElementById('invoicePreview').innerHTML = '';
-    document.getElementById('entryInvoices').value = '';
-    toast('+' + entry.amount + ' job(s) logged — $' + revenueVal.toFixed(2) + ' revenue');
+    var dupes = findDuplicateEntry(entry);
+    if (dupes.length > 0) {
+        showDupeWarning(dupes, function() { commitJobEntry(entry); }, 'job');
+        return;
+    }
+    commitJobEntry(entry);
 });
 
 /* ═══════════════════════════════════════
@@ -2553,6 +2655,13 @@ function clearFilters() {
 /* ═══════════════════════════════════════
    FINANCE: ENTRY FORM
    ═══════════════════════════════════════ */
+function commitFinanceEntry(fe) {
+    financeEntries.push(fe); save(); renderFinanceAll();
+    document.getElementById('finAmount').value = '';
+    document.getElementById('finNote').value = '';
+    toast('$' + fe.amount.toFixed(2) + ' logged as ' + fe.type);
+}
+
 document.getElementById('financeForm').addEventListener('submit', function(e) {
     e.preventDefault();
     var fe = {
@@ -2562,10 +2671,12 @@ document.getElementById('financeForm').addEventListener('submit', function(e) {
         amount: parseFloat(document.getElementById('finAmount').value),
         note: document.getElementById('finNote').value.trim()
     };
-    financeEntries.push(fe); save(); renderFinanceAll();
-    document.getElementById('finAmount').value = '';
-    document.getElementById('finNote').value = '';
-    toast('$' + fe.amount.toFixed(2) + ' logged as ' + fe.type);
+    var dupes = findDuplicateFinance(fe);
+    if (dupes.length > 0) {
+        showDupeWarning(dupes, function() { commitFinanceEntry(fe); }, 'finance');
+        return;
+    }
+    commitFinanceEntry(fe);
 });
 
 /* ═══════════════════════════════════════
@@ -3405,16 +3516,19 @@ function showBankPreview() {
     bankParsedRows.forEach(function(row, idx) {
         var cls = 'amount-neg';
         var prefix = '-';
-        var rowStyle = row.needsSelect ? ' style="background:#fff0f0;border-left:3px solid #e74c3c;"' : '';
+        var isDupe = findDuplicateBankRow(row).length > 0;
+        var rowStyle = row.needsSelect ? ' style="background:#fff0f0;border-left:3px solid #e74c3c;"' : (isDupe ? ' style="background:#fff8e1;border-left:3px solid #f9a825;"' : '');
         var selectOpts = row.needsSelect ? '<option value="" disabled selected style="color:#c0392b;font-weight:700;">— Select —</option>' + optionsHtml : optionsHtml.replace('value="' + row.type + '"', 'value="' + row.type + '" selected');
         var onChangeHandler = row.needsSelect ? 'bankParsedRows[' + idx + '].type=this.value;bankParsedRows[' + idx + '].needsSelect=false;this.closest(\"tr\").style.background=\"\";this.closest(\"tr\").style.borderLeft=\"\"' : 'bankParsedRows[' + idx + '].type=this.value';
+        var dupeTag = isDupe ? '<span style="font-size:9px;background:#f9a825;color:#fff;padding:1px 5px;border-radius:4px;margin-left:4px;font-weight:600;">DUPLICATE?</span>' : '';
         html += '<tr id="bankRow' + idx + '"' + rowStyle + '>' +
-            '<td><input type="checkbox" class="preview-check" checked onchange="toggleBankRow(' + idx + ', this)"></td>' +
+            '<td><input type="checkbox" class="preview-check"' + (isDupe ? '' : ' checked') + ' onchange="toggleBankRow(' + idx + ', this)"></td>' +
             '<td>' + row.date + '</td>' +
-            '<td>' + esc(row.description.substring(0, 60)) + '</td>' +
+            '<td>' + esc(row.description.substring(0, 60)) + dupeTag + '</td>' +
             '<td class="' + cls + '">' + prefix + '$' + row.amount.toFixed(2) + '</td>' +
             '<td><select onchange="' + onChangeHandler + '">' + selectOpts + '</select></td>' +
             '</tr>';
+        if (isDupe) row.include = false;
     });
     html += '</tbody></table>';
 
@@ -4015,6 +4129,77 @@ function addEmployee() {
 }
 
 var dayLabels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function getEmployeePay(name, type) {
+    var nameLower = name.toLowerCase();
+    var payType = type === 'driver' ? 'Driver Pay' : 'Distributions';
+    var total = 0;
+    var payments = [];
+    financeEntries.forEach(function(e) {
+        if (e.type === payType && e.note && e.note.toLowerCase().indexOf(nameLower) !== -1) {
+            total += e.amount;
+            payments.push({ date: e.date, amount: e.amount, source: 'bank' });
+        }
+        if (type === 'driver' && e.type === 'Commissions' && e.note && e.note.toLowerCase().indexOf(nameLower) !== -1) {
+            total += e.amount;
+            payments.push({ date: e.date, amount: e.amount, source: 'bank' });
+        }
+    });
+    var manual = JSON.parse(localStorage.getItem('fhd_manualPay')) || {};
+    var manualList = manual[name] || [];
+    manualList.forEach(function(p) {
+        total += p.amount;
+        payments.push({ date: p.date, amount: p.amount, source: 'manual' });
+    });
+    payments.sort(function(a, b) { return b.date > a.date ? 1 : -1; });
+    return { total: total, payments: payments };
+}
+
+function addManualPay(name) {
+    var amtInput = document.getElementById('cpManualPayAmt');
+    var dateInput = document.getElementById('cpManualPayDate');
+    var amt = parseFloat(amtInput.value);
+    if (isNaN(amt) || amt <= 0) { toast('Enter a valid amount', true); return; }
+    var manual = JSON.parse(localStorage.getItem('fhd_manualPay')) || {};
+    if (!manual[name]) manual[name] = [];
+    manual[name].push({ date: dateInput.value, amount: amt, id: Date.now() });
+    localStorage.setItem('fhd_manualPay', JSON.stringify(manual));
+    amtInput.value = '';
+    toast('$' + amt.toFixed(2) + ' pay added for ' + name);
+    var payInfo = getEmployeePay(name, document.getElementById('contactPopover').dataset.type);
+    document.getElementById('cpPayTotal').textContent = '$' + payInfo.total.toFixed(2);
+    renderPayHistory(payInfo.payments, name);
+}
+
+function removeManualPay(name, payId) {
+    var manual = JSON.parse(localStorage.getItem('fhd_manualPay')) || {};
+    if (manual[name]) {
+        manual[name] = manual[name].filter(function(p) { return p.id !== payId; });
+        localStorage.setItem('fhd_manualPay', JSON.stringify(manual));
+    }
+    var type = document.getElementById('contactPopover').dataset.type;
+    var payInfo = getEmployeePay(name, type);
+    document.getElementById('cpPayTotal').textContent = '$' + payInfo.total.toFixed(2);
+    renderPayHistory(payInfo.payments, name);
+    toast('Payment removed');
+}
+
+function renderPayHistory(payments, name) {
+    var el = document.getElementById('cpPayHistory');
+    if (!payments.length) { el.innerHTML = '<span style="color:#999;font-size:11px;">No payments recorded</span>'; return; }
+    var recent = payments.slice(0, 10);
+    var html = '<div style="max-height:120px;overflow-y:auto;">';
+    recent.forEach(function(p) {
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;font-size:11px;border-bottom:1px solid #f0f0f0;">';
+        html += '<span>' + p.date + '</span><span style="font-weight:600;">$' + p.amount.toFixed(2) + '</span>';
+        html += '<span style="font-size:9px;color:#999;">' + p.source + '</span>';
+        if (p.source === 'manual') html += '<button onclick="removeManualPay(\'' + esc(name).replace(/'/g, "\\'") + '\',' + (p.id || 0) + ')" style="background:none;border:none;color:#c0392b;cursor:pointer;font-size:10px;padding:0 2px;" title="Remove">&times;</button>';
+        html += '</div>';
+    });
+    if (payments.length > 10) html += '<div style="font-size:10px;color:#999;text-align:center;margin-top:4px;">+ ' + (payments.length - 10) + ' more</div>';
+    html += '</div>';
+    el.innerHTML = html;
+}
+
 function openContactPopover(type, index, evt) {
     evt.stopPropagation();
     var existing = document.getElementById('contactPopover');
@@ -4028,18 +4213,31 @@ function openContactPopover(type, index, evt) {
         var c = ownerContacts[name] || {};
         phone = c.phone || ''; email = c.email || ''; unavailDays = ownerUnavailDays[name] || [];
     }
+    var payInfo = getEmployeePay(name, type);
     var pop = document.createElement('div');
     pop.className = 'contact-popover'; pop.id = 'contactPopover';
+    pop.dataset.type = type;
     var dayChecks = '';
     for (var d = 0; d < 7; d++) {
         dayChecks += '<label style="display:inline-flex;align-items:center;gap:3px;margin-right:8px;font-size:11px;cursor:pointer;"><input type="checkbox" class="unavail-day-cb" value="' + d + '"' + (unavailDays.indexOf(d) !== -1 ? ' checked' : '') + '> ' + dayLabels[d] + '</label>';
     }
+    var escapedName = esc(name).replace(/'/g, "\\'");
     pop.innerHTML = '<h4>' + esc(name) + '</h4>' +
         '<div class="contact-field"><label>Phone</label><input type="tel" id="cpPhone" value="' + esc(phone) + '" placeholder="(555) 123-4567"></div>' +
         '<div class="contact-field"><label>Email</label><input type="email" id="cpEmail" value="' + esc(email) + '" placeholder="name@email.com"></div>' +
+        '<div style="margin-top:12px;padding:10px;background:#f8f9fa;border-radius:8px;border:1px solid #e9ecef;">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;"><span style="font-size:11px;font-weight:600;color:var(--text-light);text-transform:uppercase;">Total Pay</span><span id="cpPayTotal" style="font-size:18px;font-weight:700;color:var(--success);">$' + payInfo.total.toFixed(2) + '</span></div>' +
+            '<div id="cpPayHistory" style="margin-bottom:8px;"></div>' +
+            '<div style="display:flex;gap:4px;align-items:center;">' +
+                '<input type="date" id="cpManualPayDate" value="' + fmtDate(new Date()) + '" style="padding:4px 6px;border:1px solid #ddd;border-radius:4px;font-size:11px;width:120px;">' +
+                '<input type="number" id="cpManualPayAmt" placeholder="Amount" step="0.01" min="0" style="padding:4px 6px;border:1px solid #ddd;border-radius:4px;font-size:11px;width:80px;">' +
+                '<button onclick="addManualPay(\'' + escapedName + '\')" style="padding:4px 8px;background:var(--success);color:#fff;border:none;border-radius:4px;font-size:10px;cursor:pointer;white-space:nowrap;">+ Add</button>' +
+            '</div>' +
+        '</div>' +
         '<div style="margin-top:10px;"><div style="font-size:11px;font-weight:600;color:var(--text-light);text-transform:uppercase;margin-bottom:4px;">Days Not Available</div>' + dayChecks + '</div>' +
         '<div class="contact-actions"><button style="background:var(--accent);color:#fff;" onclick="saveContactPopover(\'' + type + '\',' + index + ')">Save</button><button style="background:#f0f0f0;color:#333;" onclick="closeContactPopover()">Cancel</button></div>';
     document.body.appendChild(pop);
+    renderPayHistory(payInfo.payments, name);
     requestAnimationFrame(function() {
         var r = pop.getBoundingClientRect(), vw = window.innerWidth, vh = window.innerHeight;
         var x = evt.clientX || vw / 2, y = evt.clientY || vh / 2;
@@ -4604,17 +4802,10 @@ function loadPlaceDetails(service, placeId) {
 function saveGoogleApiKey() {
     var key = document.getElementById('googleApiKeyInput').value.trim();
     if (!key) { toast('Please enter an API key', true); return; }
-    googleApiKey = key;
     localStorage.setItem('fhd_google_api_key', key);
-    googlePlaceId = null;
     localStorage.removeItem('fhd_google_place_id');
-    mapsJsLoaded = false;
-    // Remove old Maps JS script so new key takes effect
-    var oldScripts = document.querySelectorAll('script[src*="maps.googleapis.com"]');
-    oldScripts.forEach(function(s) { s.remove(); });
-    document.getElementById('reviewApiSetup').style.display = 'none';
-    toast('API key saved! Loading Google Maps...');
-    fetchGoogleReviews();
+    toast('API key saved! Reloading page to connect to Google...');
+    setTimeout(function() { location.reload(); }, 800);
 }
 
 function showChangeApiKey() {
