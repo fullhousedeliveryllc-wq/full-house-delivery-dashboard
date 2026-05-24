@@ -613,6 +613,63 @@
 
         .avail-legend { display: flex; gap: 14px; margin: 10px 0; flex-wrap: wrap; font-size: 12px; color: #666; }
         .avail-legend span { display: flex; align-items: center; gap: 4px; }
+
+        /* Google Reviews */
+        .reviews-card { background: linear-gradient(135deg, #ffffff 0%, #fafafa 100%); border-top: 4px solid #fbbc04; }
+        .reviews-header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+        .reviews-header .google-g { width: 36px; height: 36px; }
+        .reviews-overall { display: flex; align-items: center; gap: 16px; padding: 16px; background: linear-gradient(135deg, #f8f9fa, #fff); border-radius: 12px; margin-bottom: 18px; border: 1px solid #e8e8e8; }
+        .reviews-rating-big { font-size: 48px; font-weight: 800; color: #202124; line-height: 1; }
+        .reviews-rating-info { display: flex; flex-direction: column; gap: 4px; }
+        .reviews-stars { color: #fbbc04; font-size: 22px; letter-spacing: 2px; }
+        .reviews-count { font-size: 13px; color: #70757a; }
+        .review-carousel { position: relative; min-height: 100px; overflow: hidden; margin-bottom: 14px; }
+        .review-slide { padding: 16px; background: #f8f9fa; border-radius: 12px; border-left: 4px solid #fbbc04; transition: opacity 0.5s ease, transform 0.5s ease; }
+        .review-slide.fade-out { opacity: 0; transform: translateY(-10px); }
+        .review-slide.fade-in { opacity: 1; transform: translateY(0); }
+        .review-author { font-weight: 700; color: #202124; font-size: 14px; margin-bottom: 4px; }
+        .review-date { font-size: 11px; color: #70757a; margin-bottom: 8px; }
+        .review-text { font-size: 13px; color: #3c4043; line-height: 1.5; font-style: italic; }
+        .review-text::before { content: '\201C'; font-size: 24px; color: #fbbc04; vertical-align: text-top; line-height: 0.5; margin-right: 2px; }
+        .review-text::after { content: '\201D'; font-size: 24px; color: #fbbc04; vertical-align: text-bottom; line-height: 0.5; margin-left: 2px; }
+        .review-no-data { text-align: center; padding: 24px; color: #999; font-size: 13px; }
+        .review-dots { display: flex; justify-content: center; gap: 6px; margin: 10px 0; }
+        .review-dot { width: 8px; height: 8px; border-radius: 50%; background: #ddd; cursor: pointer; transition: background 0.2s; }
+        .review-dot.active { background: #fbbc04; }
+        .reviews-actions { display: flex; gap: 8px; margin-top: 12px; }
+        .reviews-actions button { flex: 1; padding: 10px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .btn-add-review { background: linear-gradient(135deg, #4285f4, #356ac3); color: #fff; }
+        .btn-add-review:hover { box-shadow: 0 4px 12px rgba(66,133,244,0.3); }
+        .btn-manage-reviews { background: #f1f3f4; color: #3c4043; }
+        .btn-manage-reviews:hover { background: #e8eaed; }
+        .review-form-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+        .review-form-overlay.show { display: flex; }
+        .review-form-modal { background: #fff; border-radius: 16px; padding: 28px; width: 90%; max-width: 420px; box-shadow: 0 16px 48px rgba(0,0,0,0.2); }
+        .review-form-modal h3 { margin-bottom: 16px; font-size: 18px; color: #202124; }
+        .review-form-modal .form-group { margin-bottom: 14px; }
+        .review-form-modal label { display: block; font-size: 13px; font-weight: 600; color: #5f6368; margin-bottom: 5px; }
+        .review-form-modal input, .review-form-modal textarea { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; font-family: inherit; }
+        .review-form-modal textarea { resize: vertical; min-height: 80px; }
+        .star-picker { display: flex; gap: 6px; font-size: 28px; cursor: pointer; }
+        .star-picker .star { color: #ddd; transition: color 0.15s; user-select: none; }
+        .star-picker .star.active { color: #fbbc04; }
+        .star-picker .star:hover { color: #f4a900; }
+        .review-form-actions { display: flex; gap: 8px; margin-top: 18px; }
+        .review-form-actions button { flex: 1; padding: 10px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+        .review-alert { display: none; padding: 12px 16px; background: linear-gradient(135deg, #fff3cd, #ffeeba); border: 1px solid #ffc107; border-radius: 10px; margin-bottom: 14px; animation: alertPulse 2s ease-in-out; }
+        .review-alert.show { display: flex; align-items: center; gap: 10px; }
+        .review-alert .alert-icon { font-size: 22px; }
+        .review-alert .alert-text { flex: 1; font-size: 13px; color: #856404; }
+        .review-alert .alert-text strong { color: #664d03; }
+        .review-alert .alert-dismiss { background: none; border: none; font-size: 18px; cursor: pointer; color: #856404; padding: 0 4px; }
+        @keyframes alertPulse { 0%, 100% { box-shadow: 0 0 0 rgba(255,193,7,0); } 50% { box-shadow: 0 0 16px rgba(255,193,7,0.4); } }
+        .review-manage-list { max-height: 250px; overflow-y: auto; margin-top: 10px; }
+        .review-manage-item { display: flex; align-items: center; gap: 10px; padding: 8px; border-bottom: 1px solid #f0f0f0; font-size: 12px; }
+        .review-manage-item:last-child { border-bottom: none; }
+        .review-manage-item .rm-stars { color: #fbbc04; font-size: 14px; white-space: nowrap; }
+        .review-manage-item .rm-author { font-weight: 600; color: #333; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .review-manage-item .rm-delete { background: none; border: none; color: #c0392b; cursor: pointer; font-size: 16px; padding: 2px 6px; }
+        .review-manage-item .rm-delete:hover { background: #fdeaea; border-radius: 4px; }
     </style>
 </head>
 <body>
@@ -630,7 +687,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v27</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v28</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:#2196F3;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -667,6 +724,47 @@
             </div>
         </div>
         <div class="chart-legend" id="chartLegend"></div>
+    </div>
+
+    <!-- Google Reviews -->
+    <div class="card reviews-card">
+        <div class="reviews-header">
+            <svg class="google-g" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+            <div>
+                <h2 style="margin:0;font-size:18px;">Google Reviews</h2>
+                <span style="font-size:11px;color:#70757a;">Full House Delivery LLC</span>
+            </div>
+        </div>
+
+        <div class="review-alert" id="reviewAlert">
+            <span class="alert-icon">&#9888;&#65039;</span>
+            <div class="alert-text" id="reviewAlertText"></div>
+            <button class="alert-dismiss" onclick="dismissReviewAlert()">&times;</button>
+        </div>
+
+        <div class="reviews-overall" id="reviewsOverall">
+            <div class="reviews-rating-big" id="reviewsRatingBig">—</div>
+            <div class="reviews-rating-info">
+                <div class="reviews-stars" id="reviewsStars">&#9734;&#9734;&#9734;&#9734;&#9734;</div>
+                <div class="reviews-count" id="reviewsCount">No reviews yet</div>
+            </div>
+        </div>
+
+        <div class="review-carousel" id="reviewCarousel">
+            <div class="review-no-data" id="reviewNoData">
+                <span style="font-size:32px;">&#11088;</span><br>
+                Add your first Google review to see it displayed here!
+            </div>
+        </div>
+        <div class="review-dots" id="reviewDots"></div>
+
+        <div class="reviews-actions">
+            <button class="btn-add-review" onclick="openReviewForm()">&#43; Add Review</button>
+            <button class="btn-manage-reviews" onclick="toggleManageReviews()">&#9881; Manage</button>
+        </div>
+        <div id="reviewManagePanel" style="display:none;">
+            <div class="review-manage-list" id="reviewManageList"></div>
+        </div>
     </div>
 
     <!-- Data Entry -->
@@ -806,8 +904,7 @@
     <div class="card full-width">
         <h2><span class="icon">&#128200;</span> Financial Overview</h2>
         <div class="period-selector" id="periodSelector">
-            <button class="period-btn active" onclick="setFinancePeriod('daily')">Daily</button>
-            <button class="period-btn" onclick="setFinancePeriod('weekly')">Weekly</button>
+            <button class="period-btn active" onclick="setFinancePeriod('weekly')">Weekly</button>
             <button class="period-btn" onclick="setFinancePeriod('monthly')">Monthly</button>
             <button class="period-btn" onclick="setFinancePeriod('quarterly')">Quarterly</button>
         </div>
@@ -822,7 +919,7 @@
 
     <!-- Finance Breakdown -->
     <div class="card full-width">
-        <h2><span class="icon">&#128200;</span> Breakdown (<span id="periodLabel">Daily</span>)</h2>
+        <h2><span class="icon">&#128200;</span> Breakdown (<span id="periodLabel">Weekly</span>)</h2>
         <div class="finance-grid" id="financeGrid"></div>
     </div>
 
@@ -1274,6 +1371,39 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- Review Form Modal -->
+<div class="review-form-overlay" id="reviewFormOverlay">
+    <div class="review-form-modal">
+        <h3 id="reviewFormTitle">Add Google Review</h3>
+        <div class="form-group">
+            <label>Rating</label>
+            <div class="star-picker" id="starPicker">
+                <span class="star" data-val="1" onclick="setReviewRating(1)">&#9733;</span>
+                <span class="star" data-val="2" onclick="setReviewRating(2)">&#9733;</span>
+                <span class="star" data-val="3" onclick="setReviewRating(3)">&#9733;</span>
+                <span class="star" data-val="4" onclick="setReviewRating(4)">&#9733;</span>
+                <span class="star" data-val="5" onclick="setReviewRating(5)">&#9733;</span>
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="reviewAuthor">Reviewer Name</label>
+            <input type="text" id="reviewAuthor" placeholder="e.g., John Smith" autocomplete="off">
+        </div>
+        <div class="form-group">
+            <label for="reviewDate">Date</label>
+            <input type="date" id="reviewDate">
+        </div>
+        <div class="form-group">
+            <label for="reviewComment">Review Comment</label>
+            <textarea id="reviewComment" placeholder="What did the customer say?"></textarea>
+        </div>
+        <div class="review-form-actions">
+            <button type="button" style="background:#e0e0e0;color:#333;" onclick="closeReviewForm()">Cancel</button>
+            <button type="button" style="background:linear-gradient(135deg,#4285f4,#356ac3);color:#fff;" onclick="saveReview()">Save Review</button>
+        </div>
+    </div>
+</div>
 
 <script>
 /* ═══════════════════════════════════════
@@ -1730,7 +1860,7 @@ if (financeTypes.indexOf('Insurance') === -1) { financeTypes.splice(financeTypes
 if (financeTypes.indexOf('Advertisement') === -1) { financeTypes.splice(financeTypes.length - 1, 0, 'Advertisement'); localStorage.setItem('fhd_financeTypes', JSON.stringify(financeTypes)); }
 
 var chimeEntries = JSON.parse(localStorage.getItem('fhd_chime')) || [];
-var currentPeriod = 'daily';
+var currentPeriod = 'weekly';
 var chimePeriod = 'daily';
 var pendingInvoices = [];
 var _syncChain = Promise.resolve();
@@ -3997,6 +4127,238 @@ document.addEventListener('click', function(e) {
 });
 
 /* ═══════════════════════════════════════
+   GOOGLE REVIEWS
+   ═══════════════════════════════════════ */
+var googleReviews = JSON.parse(localStorage.getItem('fhd_reviews')) || [];
+var reviewRotateTimer = null;
+var currentReviewIndex = 0;
+var reviewFormRating = 5;
+var dismissedAlerts = JSON.parse(localStorage.getItem('fhd_review_dismissed')) || [];
+
+function saveReviews() {
+    localStorage.setItem('fhd_reviews', JSON.stringify(googleReviews));
+}
+
+function renderReviewsSection() {
+    var ratingEl = document.getElementById('reviewsRatingBig');
+    var starsEl = document.getElementById('reviewsStars');
+    var countEl = document.getElementById('reviewsCount');
+    var carouselEl = document.getElementById('reviewCarousel');
+    var dotsEl = document.getElementById('reviewDots');
+    var noDataEl = document.getElementById('reviewNoData');
+    if (!ratingEl) return;
+
+    if (googleReviews.length === 0) {
+        ratingEl.textContent = '\u2014';
+        starsEl.innerHTML = '\u2606\u2606\u2606\u2606\u2606';
+        countEl.textContent = 'No reviews yet';
+        carouselEl.innerHTML = '';
+        carouselEl.appendChild(noDataEl || createNoDataEl());
+        dotsEl.innerHTML = '';
+        return;
+    }
+
+    var sum = googleReviews.reduce(function(s, r) { return s + r.rating; }, 0);
+    var avg = sum / googleReviews.length;
+    ratingEl.textContent = avg.toFixed(1);
+    starsEl.innerHTML = renderStarsHTML(avg);
+    countEl.textContent = googleReviews.length + ' review' + (googleReviews.length !== 1 ? 's' : '') + ' on Google';
+
+    var fiveStars = googleReviews.filter(function(r) { return r.rating === 5; });
+    if (fiveStars.length === 0) {
+        carouselEl.innerHTML = '<div class="review-no-data">No 5-star reviews yet. Add one to see it displayed here!</div>';
+        dotsEl.innerHTML = '';
+        return;
+    }
+
+    if (currentReviewIndex >= fiveStars.length) currentReviewIndex = 0;
+    var review = fiveStars[currentReviewIndex];
+    carouselEl.innerHTML = '<div class="review-slide fade-in">' +
+        '<div class="review-author">' + escapeHTML(review.author) + ' <span style="color:#fbbc04;font-size:16px;">\u2605\u2605\u2605\u2605\u2605</span></div>' +
+        '<div class="review-date">' + formatReviewDate(review.date) + '</div>' +
+        (review.text ? '<div class="review-text">' + escapeHTML(review.text) + '</div>' : '') +
+        '</div>';
+
+    dotsEl.innerHTML = '';
+    for (var i = 0; i < fiveStars.length; i++) {
+        var dot = document.createElement('span');
+        dot.className = 'review-dot' + (i === currentReviewIndex ? ' active' : '');
+        dot.setAttribute('data-idx', i);
+        dot.onclick = (function(idx) { return function() { currentReviewIndex = idx; renderReviewsSection(); resetReviewRotation(); }; })(i);
+        dotsEl.appendChild(dot);
+    }
+
+    checkReviewAlerts();
+}
+
+function createNoDataEl() {
+    var d = document.createElement('div');
+    d.className = 'review-no-data';
+    d.id = 'reviewNoData';
+    d.innerHTML = '<span style="font-size:32px;">\u2B50</span><br>Add your first Google review to see it displayed here!';
+    return d;
+}
+
+function renderStarsHTML(rating) {
+    var html = '';
+    for (var i = 1; i <= 5; i++) {
+        if (rating >= i) html += '\u2605';
+        else if (rating >= i - 0.5) html += '\u2605';
+        else html += '\u2606';
+    }
+    return html;
+}
+
+function formatReviewDate(dateStr) {
+    if (!dateStr) return '';
+    var d = new Date(dateStr + 'T00:00:00');
+    var months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    return months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+}
+
+function rotateReview() {
+    var fiveStars = googleReviews.filter(function(r) { return r.rating === 5; });
+    if (fiveStars.length <= 1) return;
+    var slide = document.querySelector('.review-slide');
+    if (slide) slide.className = 'review-slide fade-out';
+    setTimeout(function() {
+        currentReviewIndex = (currentReviewIndex + 1) % fiveStars.length;
+        renderReviewsSection();
+    }, 500);
+}
+
+function startReviewRotation() {
+    if (reviewRotateTimer) clearInterval(reviewRotateTimer);
+    reviewRotateTimer = setInterval(rotateReview, 6000);
+}
+
+function resetReviewRotation() {
+    if (reviewRotateTimer) clearInterval(reviewRotateTimer);
+    startReviewRotation();
+}
+
+function checkReviewAlerts() {
+    var alertEl = document.getElementById('reviewAlert');
+    var alertTextEl = document.getElementById('reviewAlertText');
+    if (!alertEl) return;
+    var belowFive = googleReviews.filter(function(r) {
+        return r.rating < 5 && dismissedAlerts.indexOf(r.id) === -1;
+    });
+    if (belowFive.length > 0) {
+        var latest = belowFive[belowFive.length - 1];
+        alertTextEl.innerHTML = '<strong>Alert:</strong> ' + escapeHTML(latest.author) + ' left a <strong>' + latest.rating + '-star</strong> review' +
+            (latest.text ? ' — "' + escapeHTML(latest.text.substring(0, 80)) + (latest.text.length > 80 ? '...' : '') + '"' : '') +
+            ' <span style="font-size:11px;color:#888;">(' + belowFive.length + ' below 5\u2605)</span>';
+        alertEl.className = 'review-alert show';
+    } else {
+        alertEl.className = 'review-alert';
+    }
+}
+
+function dismissReviewAlert() {
+    var belowFive = googleReviews.filter(function(r) {
+        return r.rating < 5 && dismissedAlerts.indexOf(r.id) === -1;
+    });
+    belowFive.forEach(function(r) { dismissedAlerts.push(r.id); });
+    localStorage.setItem('fhd_review_dismissed', JSON.stringify(dismissedAlerts));
+    checkReviewAlerts();
+}
+
+function setReviewRating(n) {
+    reviewFormRating = n;
+    var stars = document.querySelectorAll('#starPicker .star');
+    stars.forEach(function(s) {
+        s.classList.toggle('active', parseInt(s.getAttribute('data-val')) <= n);
+    });
+}
+
+function openReviewForm() {
+    document.getElementById('reviewFormOverlay').classList.add('show');
+    document.getElementById('reviewAuthor').value = '';
+    document.getElementById('reviewDate').value = today();
+    document.getElementById('reviewComment').value = '';
+    reviewFormRating = 5;
+    setReviewRating(5);
+}
+
+function closeReviewForm() {
+    document.getElementById('reviewFormOverlay').classList.remove('show');
+}
+
+function saveReview() {
+    var author = document.getElementById('reviewAuthor').value.trim();
+    var date = document.getElementById('reviewDate').value;
+    var text = document.getElementById('reviewComment').value.trim();
+    if (!author) { toast('Please enter the reviewer name', true); return; }
+    if (!date) { toast('Please select a date', true); return; }
+
+    var review = {
+        id: Date.now() + '-' + Math.random().toString(36).substr(2, 5),
+        rating: reviewFormRating,
+        author: author,
+        date: date,
+        text: text,
+        addedAt: new Date().toISOString()
+    };
+    googleReviews.push(review);
+    saveReviews();
+    closeReviewForm();
+    renderReviewsSection();
+    renderManageReviewList();
+
+    if (reviewFormRating < 5) {
+        toast('Review added — below 5 stars!', true);
+    } else {
+        toast('5-star review added!');
+    }
+}
+
+function toggleManageReviews() {
+    var panel = document.getElementById('reviewManagePanel');
+    if (panel.style.display === 'none') {
+        panel.style.display = 'block';
+        renderManageReviewList();
+    } else {
+        panel.style.display = 'none';
+    }
+}
+
+function renderManageReviewList() {
+    var list = document.getElementById('reviewManageList');
+    if (!list) return;
+    if (googleReviews.length === 0) {
+        list.innerHTML = '<div style="text-align:center;padding:12px;color:#999;font-size:12px;">No reviews added yet.</div>';
+        return;
+    }
+    var sorted = googleReviews.slice().sort(function(a, b) { return b.date > a.date ? 1 : -1; });
+    list.innerHTML = sorted.map(function(r) {
+        var stars = '';
+        for (var i = 0; i < r.rating; i++) stars += '\u2605';
+        for (var j = r.rating; j < 5; j++) stars += '\u2606';
+        return '<div class="review-manage-item">' +
+            '<span class="rm-stars">' + stars + '</span>' +
+            '<span class="rm-author">' + escapeHTML(r.author) + '</span>' +
+            '<span style="color:#999;font-size:11px;">' + r.date + '</span>' +
+            '<button class="rm-delete" onclick="deleteReview(\'' + r.id + '\')" title="Delete">&times;</button>' +
+            '</div>';
+    }).join('');
+}
+
+function deleteReview(id) {
+    googleReviews = googleReviews.filter(function(r) { return r.id !== id; });
+    saveReviews();
+    renderReviewsSection();
+    renderManageReviewList();
+    toast('Review deleted');
+}
+
+function escapeHTML(str) {
+    var d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+}
+
+/* ═══════════════════════════════════════
    INIT
    ═══════════════════════════════════════ */
 function renderAll() {
@@ -4012,6 +4374,8 @@ document.getElementById('chimeDate').value = today();
 document.getElementById('footerYear').textContent = new Date().getFullYear();
 renderAll();
 renderFinanceAll();
+renderReviewsSection();
+startReviewRotation();
 </script>
 </body>
 </html>
