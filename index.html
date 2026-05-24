@@ -530,6 +530,51 @@
             .container { padding: 10px 8px; gap: 12px; }
             .card { padding: 12px; }
         }
+
+        /* Team & Schedule Tab */
+        .team-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 768px) { .team-grid { grid-template-columns: 1fr; } }
+        .roster-card { border: 1px solid #e0e0e0; border-radius: 10px; padding: 16px; }
+        .roster-card h3 { margin: 0 0 12px; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+        .roster-list { list-style: none; padding: 0; margin: 0; }
+        .roster-list li { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
+        .roster-list li:last-child { border-bottom: none; }
+        .roster-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+        .badge-owner { background: #e8f5e9; color: #2e7d32; }
+        .badge-driver { background: #e3f2fd; color: #1565c0; }
+        .badge-active { background: #e8f5e9; color: #2e7d32; }
+        .add-emp-row { display: flex; gap: 8px; margin-top: 10px; }
+        .add-emp-row input { flex: 1; padding: 7px 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 13px; }
+        .add-emp-row select { padding: 7px 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 13px; }
+
+        .schedule-nav { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 16px; }
+        .schedule-nav button { background: none; border: 1px solid #ccc; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 14px; }
+        .schedule-nav button:hover { background: #f0f0f0; }
+        .schedule-nav .week-label { font-weight: 600; font-size: 15px; min-width: 200px; text-align: center; }
+
+        .schedule-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 13px; }
+        .schedule-table th { background: #2c3e50; color: #fff; padding: 10px 6px; text-align: center; font-size: 12px; font-weight: 600; }
+        .schedule-table th .day-date { display: block; font-size: 10px; font-weight: 400; opacity: 0.8; margin-top: 2px; }
+        .schedule-table td { border: 1px solid #e0e0e0; padding: 6px; vertical-align: top; min-height: 80px; }
+        .schedule-cell { min-height: 70px; position: relative; }
+        .sched-chip { display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 11px; margin: 2px; font-weight: 500; cursor: pointer; }
+        .sched-chip:hover { opacity: 0.8; }
+        .sched-chip.driver { background: #e3f2fd; color: #1565c0; }
+        .sched-chip.owner { background: #fff3e0; color: #e65100; }
+        .sched-dispatcher { display: block; margin-top: 6px; padding: 3px 6px; background: #fce4ec; color: #c62828; border-radius: 8px; font-size: 10px; font-weight: 600; text-align: center; }
+        .sched-add-btn { display: block; margin-top: 4px; background: none; border: 1px dashed #bbb; border-radius: 6px; padding: 3px; width: 100%; cursor: pointer; font-size: 11px; color: #888; }
+        .sched-add-btn:hover { border-color: #888; color: #444; }
+
+        .sched-popup { position: fixed; background: #fff; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); padding: 14px; z-index: 999; min-width: 200px; }
+        .sched-popup h4 { margin: 0 0 10px; font-size: 14px; }
+        .sched-popup label { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13px; cursor: pointer; }
+        .sched-popup label input { accent-color: #e94560; }
+        .sched-popup .popup-section { margin-bottom: 10px; }
+        .sched-popup .popup-section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #888; margin-bottom: 4px; }
+        .sched-popup .popup-actions { display: flex; gap: 8px; margin-top: 10px; }
+        .sched-popup .popup-actions button { flex: 1; padding: 6px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; }
+        .sched-popup .btn-save { background: #28a745; color: #fff; }
+        .sched-popup .btn-cancel { background: #e0e0e0; color: #333; }
     </style>
 </head>
 <body>
@@ -547,7 +592,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v24</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v25</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:#2196F3;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -559,6 +604,7 @@
     <button class="tab-btn active" onclick="switchTab('jobs')">&#128203; Customer &amp; Jobs</button>
     <button class="tab-btn" onclick="switchTab('finance')">&#128176; Revenues &amp; Expenses</button>
     <button class="tab-btn" onclick="switchTab('chime')">&#128179; Square Payments</button>
+    <button class="tab-btn" onclick="switchTab('team')">&#128101; Team &amp; Schedule</button>
 </div>
 
 <!-- ═══════════════════════════════════════════════
@@ -948,6 +994,53 @@
     </div>
 </div>
 </div><!-- end tab-chime -->
+
+<!-- ═══════════════════════════════════════════════
+     TAB 4: TEAM & SCHEDULE
+     ═══════════════════════════════════════════════ -->
+<div class="tab-content" id="tab-team">
+<div class="container flush-top">
+    <div class="full-width summary-strip" id="teamSummaryStrip"></div>
+</div>
+<div class="container">
+    <div class="card full-width">
+        <h2><span class="icon">&#128101;</span> Team Roster</h2>
+        <div class="team-grid">
+            <div class="roster-card">
+                <h3>&#128663; Drivers <span class="roster-badge badge-driver" id="driverCount">0</span></h3>
+                <ul class="roster-list" id="driverList"></ul>
+                <div class="add-emp-row">
+                    <input type="text" id="newDriverName" placeholder="Driver name">
+                    <button class="btn btn-sm" onclick="addEmployee('driver')">+ Add</button>
+                </div>
+            </div>
+            <div class="roster-card">
+                <h3>&#128081; Owners</h3>
+                <ul class="roster-list" id="ownerList"></ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="card full-width">
+        <h2><span class="icon">&#128197;</span> Weekly Schedule</h2>
+        <div class="schedule-nav">
+            <button onclick="changeWeek(-1)">&larr; Prev</button>
+            <span class="week-label" id="weekLabel"></span>
+            <button onclick="changeWeek(1)">Next &rarr;</button>
+            <button class="btn btn-sm" onclick="goToday()">Today</button>
+        </div>
+        <div style="overflow-x:auto;">
+            <table class="schedule-table">
+                <thead id="schedHead"></thead>
+                <tbody id="schedBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+</div><!-- end tab-team -->
+
+<!-- Schedule Popup (injected dynamically) -->
+<div class="sched-popup" id="schedPopup" style="display:none;"></div>
 
 <footer>
     Fullhouse Delivery LLC &copy; <span id="footerYear"></span> &mdash; Data synced with Supabase &amp; stored locally.
@@ -1525,7 +1618,7 @@ function saveLocal() {
    TAB SWITCHING
    ═══════════════════════════════════════ */
 function switchTab(tab) {
-    var tabs = ['jobs', 'finance', 'chime'];
+    var tabs = ['jobs', 'finance', 'chime', 'team'];
     document.querySelectorAll('.tab-btn').forEach(function(b, i) {
         b.classList.toggle('active', tabs[i] === tab);
     });
@@ -1534,6 +1627,7 @@ function switchTab(tab) {
     });
     if (tab === 'finance') { setTimeout(function() { renderFinanceAll(); }, 50); }
     if (tab === 'chime') renderChimeAll();
+    if (tab === 'team') renderTeamAll();
 }
 
 /* ═══════════════════════════════════════
@@ -2592,6 +2686,8 @@ var CATEGORY_RULES = [
     { pattern: /vehicle\s*tag|tag\s*renew|dmv|registration|title/i, type: 'Miscellaneous' }
 ];
 
+var COMMISSION_NAMES = ['jt', 'jorge t', 'jorge torrens'];
+
 function categorizeZellePayment(description, amount) {
     var desc = (description || '').toLowerCase();
     var zelleMatch = desc.match(/zelle\s*payment\s*to\s+(.+?)(?:\s+(?:jpm|29\d|\d{11}|\w{12,}))/i);
@@ -2610,11 +2706,12 @@ function categorizeZellePayment(description, amount) {
     for (var di = 0; di < DRIVER_NAMES.length; di++) {
         if (recipient.indexOf(DRIVER_NAMES[di]) !== -1) return 'Driver Pay';
     }
+    for (var ci = 0; ci < COMMISSION_NAMES.length; ci++) {
+        if (recipient.indexOf(COMMISSION_NAMES[ci]) !== -1) return 'Commissions';
+    }
 
-    if (absAmt >= 8 && absAmt <= 120) return 'Commissions';
-    if (absAmt > 120 && absAmt <= 200) return null;
-
-    return null;
+    // Any other Zelle to an individual defaults to Commissions
+    return 'Commissions';
 }
 
 function categorizeTransaction(description) {
@@ -3424,6 +3521,199 @@ function parseChimeCSV(csvText) {
 function renderChimeAll() {
     renderChimeSummary(); renderChimeBreakdown(); drawChimeChart(); renderChimeLog();
 }
+
+/* ═══════════════════════════════════════
+   TEAM & SCHEDULE
+   ═══════════════════════════════════════ */
+var teamDrivers = JSON.parse(localStorage.getItem('fhd_teamDrivers')) || ['Oslain', 'Danny Lopez', 'Jose', 'Ricky', 'Dayron'];
+var teamOwners = ['Jorge Lopez', 'Angel Orbe', 'Emanuel Salinas', 'David Garcia', 'Josh Verde'];
+var scheduleData = JSON.parse(localStorage.getItem('fhd_schedule')) || {};
+var schedWeekOffset = 0;
+
+function saveTeam() {
+    localStorage.setItem('fhd_teamDrivers', JSON.stringify(teamDrivers));
+    localStorage.setItem('fhd_schedule', JSON.stringify(scheduleData));
+}
+
+function getWeekDates(offset) {
+    var now = new Date();
+    var day = now.getDay();
+    var monday = new Date(now);
+    monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1) + (offset || 0) * 7);
+    var dates = [];
+    for (var i = 0; i < 7; i++) {
+        var d = new Date(monday);
+        d.setDate(monday.getDate() + i);
+        dates.push(d);
+    }
+    return dates;
+}
+
+function fmtDate(d) { return d.toISOString().slice(0, 10); }
+function fmtShort(d) { return (d.getMonth() + 1) + '/' + d.getDate(); }
+
+var dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+function renderTeamRoster() {
+    var dl = document.getElementById('driverList');
+    dl.innerHTML = teamDrivers.map(function(name, i) {
+        return '<li><span>' + esc(name) + '</span><span><span class="roster-badge badge-active">Active</span> <button class="btn btn-danger btn-sm" onclick="removeEmployee(' + i + ')" style="margin-left:6px;padding:2px 8px;font-size:11px;">&times;</button></span></li>';
+    }).join('');
+    document.getElementById('driverCount').textContent = teamDrivers.length;
+
+    var ol = document.getElementById('ownerList');
+    ol.innerHTML = teamOwners.map(function(name) {
+        return '<li><span>' + esc(name) + '</span><span class="roster-badge badge-owner">Owner</span></li>';
+    }).join('');
+}
+
+function addEmployee(role) {
+    if (role === 'driver') {
+        var nameInput = document.getElementById('newDriverName');
+        var name = nameInput.value.trim();
+        if (!name) { toast('Enter a driver name.'); return; }
+        teamDrivers.push(name);
+        nameInput.value = '';
+    }
+    saveTeam(); renderTeamAll();
+}
+
+function removeEmployee(index) {
+    if (!confirm('Remove ' + teamDrivers[index] + ' from the roster?')) return;
+    teamDrivers.splice(index, 1);
+    saveTeam(); renderTeamAll();
+}
+
+function changeWeek(dir) { schedWeekOffset += dir; renderSchedule(); }
+function goToday() { schedWeekOffset = 0; renderSchedule(); }
+
+function renderSchedule() {
+    var dates = getWeekDates(schedWeekOffset);
+    var startStr = fmtShort(dates[0]);
+    var endStr = fmtShort(dates[6]);
+    var monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    document.getElementById('weekLabel').textContent = monthNames[dates[0].getMonth()] + ' ' + dates[0].getDate() + ' — ' + monthNames[dates[6].getMonth()] + ' ' + dates[6].getDate() + ', ' + dates[6].getFullYear();
+
+    var thead = document.getElementById('schedHead');
+    thead.innerHTML = '<tr>' + dates.map(function(d, i) {
+        var isToday = fmtDate(d) === fmtDate(new Date());
+        return '<th' + (isToday ? ' style="background:#e94560;"' : '') + '>' + dayNames[i] + '<span class="day-date">' + fmtShort(d) + '</span></th>';
+    }).join('') + '</tr>';
+
+    var tbody = document.getElementById('schedBody');
+    var row = '<tr>';
+    dates.forEach(function(d) {
+        var key = fmtDate(d);
+        var dayData = scheduleData[key] || { drivers: [], dispatcher: '' };
+        var isToday = key === fmtDate(new Date());
+
+        var chips = '';
+        (dayData.drivers || []).forEach(function(name) {
+            chips += '<span class="sched-chip driver" onclick="removeFromDay(\'' + key + '\',\'' + esc(name).replace(/'/g, "\\'") + '\')" title="Click to remove">' + esc(name) + '</span>';
+        });
+
+        var dispLabel = '';
+        if (dayData.dispatcher) {
+            dispLabel = '<span class="sched-dispatcher">&#128225; ' + esc(dayData.dispatcher) + '</span>';
+        }
+
+        row += '<td' + (isToday ? ' style="background:#fff5f5;"' : '') + '><div class="schedule-cell">' +
+            chips + dispLabel +
+            '<button class="sched-add-btn" onclick="openSchedPopup(\'' + key + '\', event)">+ Assign</button>' +
+            '</div></td>';
+    });
+    row += '</tr>';
+    tbody.innerHTML = row;
+}
+
+function openSchedPopup(dateKey, evt) {
+    var popup = document.getElementById('schedPopup');
+    var dayData = scheduleData[dateKey] || { drivers: [], dispatcher: '' };
+    var assignedDrivers = dayData.drivers || [];
+    var currentDispatcher = dayData.dispatcher || '';
+
+    var html = '<h4>Assign — ' + dateKey + '</h4>';
+    html += '<div class="popup-section"><div class="popup-section-title">Drivers</div>';
+    teamDrivers.forEach(function(name) {
+        var checked = assignedDrivers.indexOf(name) !== -1 ? ' checked' : '';
+        html += '<label><input type="checkbox" value="' + esc(name) + '" class="sched-drv-cb"' + checked + '> ' + esc(name) + '</label>';
+    });
+    html += '</div>';
+
+    html += '<div class="popup-section"><div class="popup-section-title">Dispatcher / Router (Owner)</div>';
+    html += '<label><input type="radio" name="sched-disp" value="" ' + (!currentDispatcher ? 'checked' : '') + '> None</label>';
+    teamOwners.forEach(function(name) {
+        var checked = currentDispatcher === name ? ' checked' : '';
+        html += '<label><input type="radio" name="sched-disp" value="' + esc(name) + '"' + checked + '> ' + esc(name) + '</label>';
+    });
+    html += '</div>';
+
+    html += '<div class="popup-actions"><button class="btn-save" onclick="saveSchedPopup(\'' + dateKey + '\')">Save</button><button class="btn-cancel" onclick="closeSchedPopup()">Cancel</button></div>';
+
+    popup.innerHTML = html;
+    popup.style.display = 'block';
+
+    var rect = evt.target.getBoundingClientRect();
+    var popW = 220;
+    var left = Math.min(rect.left, window.innerWidth - popW - 20);
+    var top = Math.min(rect.bottom + 4, window.innerHeight - 300);
+    popup.style.left = Math.max(10, left) + 'px';
+    popup.style.top = Math.max(10, top) + 'px';
+}
+
+function saveSchedPopup(dateKey) {
+    var cbs = document.querySelectorAll('.sched-drv-cb');
+    var drivers = [];
+    cbs.forEach(function(cb) { if (cb.checked) drivers.push(cb.value); });
+
+    var dispRadios = document.querySelectorAll('input[name="sched-disp"]');
+    var dispatcher = '';
+    dispRadios.forEach(function(r) { if (r.checked) dispatcher = r.value; });
+
+    if (!scheduleData[dateKey]) scheduleData[dateKey] = {};
+    scheduleData[dateKey].drivers = drivers;
+    scheduleData[dateKey].dispatcher = dispatcher;
+
+    saveTeam(); closeSchedPopup(); renderSchedule();
+}
+
+function closeSchedPopup() {
+    document.getElementById('schedPopup').style.display = 'none';
+}
+
+function removeFromDay(dateKey, name) {
+    var dayData = scheduleData[dateKey];
+    if (!dayData) return;
+    dayData.drivers = (dayData.drivers || []).filter(function(n) { return n !== name; });
+    saveTeam(); renderSchedule();
+}
+
+function renderTeamSummary() {
+    var todayKey = fmtDate(new Date());
+    var todayData = scheduleData[todayKey] || { drivers: [], dispatcher: '' };
+    var todayDriverCount = (todayData.drivers || []).length;
+    var todayDispatcher = todayData.dispatcher || 'None';
+
+    var strip = document.getElementById('teamSummaryStrip');
+    strip.innerHTML = '<div class="summary-card" style="background:#2e7d32;"><span class="num">' + teamDrivers.length + '</span><span class="label">ACTIVE DRIVERS</span></div>' +
+        '<div class="summary-card" style="background:#1565c0;"><span class="num">' + teamOwners.length + '</span><span class="label">OWNERS</span></div>' +
+        '<div class="summary-card" style="background:#e65100;"><span class="num">' + todayDriverCount + '</span><span class="label">ON DUTY TODAY</span></div>' +
+        '<div class="summary-card" style="background:#c62828;"><span class="num" style="font-size:16px;">' + esc(todayDispatcher) + '</span><span class="label">TODAY\'S DISPATCHER</span></div>';
+}
+
+function renderTeamAll() {
+    renderTeamRoster(); renderSchedule(); renderTeamSummary();
+}
+
+// Close popup on outside click
+document.addEventListener('click', function(e) {
+    var popup = document.getElementById('schedPopup');
+    if (popup && popup.style.display === 'block') {
+        if (!popup.contains(e.target) && !e.target.classList.contains('sched-add-btn')) {
+            closeSchedPopup();
+        }
+    }
+});
 
 /* ═══════════════════════════════════════
    INIT
