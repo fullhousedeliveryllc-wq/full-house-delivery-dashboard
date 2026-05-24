@@ -547,7 +547,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v23</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v24</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:#2196F3;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -2298,8 +2298,14 @@ function drawFinanceChart() {
     barData.forEach(function(d) { maxVal = Math.max(maxVal, d.value); });
     maxVal = maxVal || 1;
 
-    var rowHeight = 36;
-    var canvasH = Math.max(200, barData.length * rowHeight + 40);
+    function fmtDollar(v) {
+        var parts = v.toFixed(2).split('.');
+        parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        return '$' + parts.join('.');
+    }
+
+    var rowHeight = 40;
+    var canvasH = Math.max(200, barData.length * rowHeight + 30);
     fc.style.height = canvasH + 'px';
 
     var dpr = window.devicePixelRatio || 1;
@@ -2309,31 +2315,49 @@ function drawFinanceChart() {
     fctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     fctx.clearRect(0, 0, w, h);
 
-    var pad = { top: 10, right: 20, bottom: 10, left: 160 };
+    // Measure the widest value label to reserve right padding
+    fctx.font = 'bold 12px "Segoe UI", system-ui, sans-serif';
+    var maxLabelW = 0;
+    barData.forEach(function(d) {
+        var tw = fctx.measureText(fmtDollar(d.value)).width;
+        if (tw > maxLabelW) maxLabelW = tw;
+    });
+
+    var pad = { top: 12, right: Math.ceil(maxLabelW) + 20, bottom: 12, left: 140 };
     var chartW = w - pad.left - pad.right;
-    var barH = Math.min(28, (h - pad.top - pad.bottom) / barData.length - 6);
+    var barH = Math.min(26, (h - pad.top - pad.bottom) / barData.length - 10);
+    var gap = (h - pad.top - pad.bottom - barData.length * barH) / (barData.length + 1);
 
     barData.forEach(function(item, i) {
-        var y = pad.top + i * (barH + 8);
+        var y = pad.top + gap + i * (barH + gap);
         var barLen = (item.value / maxVal) * chartW;
 
+        // Subtle row background
+        if (i % 2 === 0) {
+            fctx.fillStyle = 'rgba(0,0,0,0.02)';
+            fctx.fillRect(0, y - gap / 2, w, barH + gap);
+        }
+
         // Category label
-        fctx.fillStyle = '#333';
+        fctx.fillStyle = '#444';
         fctx.font = '12px "Segoe UI", system-ui, sans-serif';
         fctx.textAlign = 'right'; fctx.textBaseline = 'middle';
-        fctx.fillText(item.label, pad.left - 10, y + barH / 2);
+        fctx.fillText(item.label, pad.left - 12, y + barH / 2);
 
-        // Bar
-        fctx.fillStyle = item.color;
+        // Bar with gradient
+        var grad = fctx.createLinearGradient(pad.left, 0, pad.left + Math.max(barLen, 2), 0);
+        grad.addColorStop(0, item.color);
+        grad.addColorStop(1, item.color === '#28a745' ? '#20c997' : '#ff6b81');
+        fctx.fillStyle = grad;
         fctx.beginPath();
-        roundRect(fctx, pad.left, y, Math.max(barLen, 2), barH, 4);
+        roundRect(fctx, pad.left, y, Math.max(barLen, 2), barH, 5);
         fctx.fill();
 
         // Value label
-        fctx.fillStyle = '#333';
-        fctx.font = '11px "Segoe UI", system-ui, sans-serif';
+        fctx.fillStyle = '#222';
+        fctx.font = 'bold 12px "Segoe UI", system-ui, sans-serif';
         fctx.textAlign = 'left'; fctx.textBaseline = 'middle';
-        fctx.fillText('$' + item.value.toFixed(2), pad.left + barLen + 6, y + barH / 2);
+        fctx.fillText(fmtDollar(item.value), pad.left + barLen + 8, y + barH / 2);
     });
 }
 
@@ -2538,7 +2562,13 @@ function importData(event) {
    ═══════════════════════════════════════ */
 var bankParsedRows = [];
 
-var OWNER_NAMES = ['jorge lopez perez', 'angel orbe', 'david garcia', 'josh verde'];
+var OWNER_DISTRIB = [
+    { names: ['jorge', 'jorge lopez perez'], min: 225 },
+    { names: ['angel', 'angel orbe'], min: 200 },
+    { names: ['david', 'david garcia'], min: 70 },
+    { names: ['manny', 'emanuel salinas'], min: 100 },
+    { names: ['josh', 'josh verde'], min: 70 }
+];
 var DRIVER_NAMES = ['oslain', 'danny lopez', 'jose', 'ricky', 'dayron'];
 
 var CATEGORY_RULES = [
@@ -2567,15 +2597,20 @@ function categorizeZellePayment(description, amount) {
     var zelleMatch = desc.match(/zelle\s*payment\s*to\s+(.+?)(?:\s+(?:jpm|29\d|\d{11}|\w{12,}))/i);
     if (!zelleMatch) return null;
     var recipient = zelleMatch[1].trim().toLowerCase();
+    var absAmt = Math.abs(amount || 0);
 
-    for (var oi = 0; oi < OWNER_NAMES.length; oi++) {
-        if (recipient.indexOf(OWNER_NAMES[oi]) !== -1) return 'Distributions';
+    for (var oi = 0; oi < OWNER_DISTRIB.length; oi++) {
+        var owner = OWNER_DISTRIB[oi];
+        for (var ni = 0; ni < owner.names.length; ni++) {
+            if (recipient.indexOf(owner.names[ni]) !== -1) {
+                return absAmt >= owner.min ? 'Distributions' : null;
+            }
+        }
     }
     for (var di = 0; di < DRIVER_NAMES.length; di++) {
         if (recipient.indexOf(DRIVER_NAMES[di]) !== -1) return 'Driver Pay';
     }
 
-    var absAmt = Math.abs(amount || 0);
     if (absAmt >= 8 && absAmt <= 120) return 'Commissions';
     if (absAmt > 120 && absAmt <= 200) return null;
 
