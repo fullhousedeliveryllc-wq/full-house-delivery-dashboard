@@ -610,7 +610,12 @@
         .avail-dot.not-willing { background: #bdbdbd; }
         .avail-dot.vacation { background: #9c27b0; }
 
-        .sched-popup { position: fixed; background: #fff; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.18); padding: 18px; z-index: 999; min-width: 240px; max-width: 320px; max-height: 80vh; overflow-y: auto; }
+        .sched-popup { position: fixed; background: #fff; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.18); padding: 18px; z-index: 999; min-width: 240px; max-width: 360px; max-height: 80vh; overflow-y: auto; }
+        .sched-popup .popup-close-x { position: sticky; top: 0; float: right; background: none; border: none; font-size: 22px; cursor: pointer; color: #999; padding: 0 4px; line-height: 1; z-index: 1; }
+        .sched-popup .popup-close-x:hover { color: #333; }
+        @media (max-width: 768px) {
+            .sched-popup { position: fixed !important; top: 2vh !important; left: 2vw !important; right: 2vw !important; bottom: 2vh !important; width: auto !important; max-width: none !important; max-height: none !important; border-radius: 16px; padding: 20px; overflow-y: auto; }
+        }
         .sched-popup h4 { margin: 0 0 12px; font-size: 15px; color: var(--text); border-bottom: 2px solid var(--accent); padding-bottom: 8px; }
         .sched-popup label { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 13px; cursor: pointer; }
         .sched-popup label input { accent-color: #e94560; }
@@ -730,7 +735,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v31</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v32</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:#2196F3;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -2016,13 +2021,32 @@ function drawPie(progress) {
         if (progress >= 1) {
             var pct = ((val / grand) * 100).toFixed(1);
             var mid = startAngle + sliceAngle / 2;
-            var labelR = radius * 0.65;
-            ctx.save(); ctx.fillStyle = '#fff';
-            ctx.font = 'bold 14px "Segoe UI", system-ui, sans-serif';
-            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 4;
-            ctx.fillText(pct + '%', cx + Math.cos(mid) * labelR, cy + Math.sin(mid) * labelR);
-            ctx.restore();
+            var sliceTooSmall = sliceAngle < 0.35;
+            if (sliceTooSmall) {
+                var innerX = cx + Math.cos(mid) * radius;
+                var innerY = cy + Math.sin(mid) * radius;
+                var outerX = cx + Math.cos(mid) * (radius + 22);
+                var outerY = cy + Math.sin(mid) * (radius + 22);
+                var labelX = cx + Math.cos(mid) * (radius + 34);
+                var labelY = cy + Math.sin(mid) * (radius + 34);
+                ctx.save();
+                ctx.strokeStyle = '#888'; ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(innerX, innerY); ctx.lineTo(outerX, outerY); ctx.stroke();
+                ctx.fillStyle = '#333';
+                ctx.font = 'bold 11px -apple-system, system-ui, sans-serif';
+                ctx.textAlign = Math.cos(mid) >= 0 ? 'left' : 'right';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(pct + '%', labelX, labelY);
+                ctx.restore();
+            } else {
+                var labelR = radius * 0.65;
+                ctx.save(); ctx.fillStyle = '#fff';
+                ctx.font = 'bold 14px -apple-system, system-ui, sans-serif';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 4;
+                ctx.fillText(pct + '%', cx + Math.cos(mid) * labelR, cy + Math.sin(mid) * labelR);
+                ctx.restore();
+            }
         }
         startAngle = endAngle;
     });
@@ -4188,7 +4212,8 @@ function openSchedPopup(dateKey, evt) {
     var currentDispatcher = dayData.dispatcher || '';
     var dOfWeek = new Date(dateKey + 'T00:00:00').getDay();
 
-    var html = '<h4>&#128197; ' + dateKey + '</h4>';
+    var html = '<button class="popup-close-x" onclick="closeSchedPopup()" title="Close">&times;</button>';
+    html += '<h4>&#128197; ' + dateKey + '</h4>';
 
     // Crew 1 section
     html += '<div class="popup-section"><div class="popup-section-title">Crew 1</div>';
