@@ -418,7 +418,7 @@
         .invoice-viewer { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
         .invoice-viewer img { max-width: 100%; max-height: 400px; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.15); }
 
-        /* Chime tab */
+        /* Square tab */
         .chime-balance-card { background: linear-gradient(135deg, #2196F3, #1565C0); color: white; border-radius: 12px; padding: 24px; text-align: center; border-left: 5px solid #000; }
         .chime-balance-card .num { font-size: 32px; font-weight: 800; }
         .chime-balance-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.85; margin-top: 4px; }
@@ -547,7 +547,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v19</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v20</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:#2196F3;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -558,7 +558,7 @@
 <div class="tab-bar">
     <button class="tab-btn active" onclick="switchTab('jobs')">&#128203; Customer &amp; Jobs</button>
     <button class="tab-btn" onclick="switchTab('finance')">&#128176; Revenues &amp; Expenses</button>
-    <button class="tab-btn" onclick="switchTab('chime')">&#128179; Chime Payments</button>
+    <button class="tab-btn" onclick="switchTab('chime')">&#128179; Square Payments</button>
 </div>
 
 <!-- ═══════════════════════════════════════════════
@@ -837,9 +837,9 @@
 
 <div class="container">
 
-    <!-- Chime Chart -->
+    <!-- Square Chart -->
     <div class="card full-width">
-        <h2><span class="icon">&#128200;</span> Chime Overview</h2>
+        <h2><span class="icon">&#128200;</span> Square Overview</h2>
         <div class="period-selector" id="chimePeriodSelector">
             <button class="period-btn active" onclick="setChimePeriod('daily')">Daily</button>
             <button class="period-btn" onclick="setChimePeriod('weekly')">Weekly</button>
@@ -850,20 +850,20 @@
             <canvas id="chimeBarChart" width="600" height="320"></canvas>
             <div class="no-data-msg" id="noChimeMsg">
                 <span class="big-icon">&#128179;</span>
-                Log your first Chime transaction below or import from CSV!
+                Log your first Square transaction below or import from CSV!
             </div>
         </div>
     </div>
 
-    <!-- Chime Breakdown -->
+    <!-- Square Breakdown -->
     <div class="card full-width">
-        <h2><span class="icon">&#128200;</span> Chime Breakdown (<span id="chimePeriodLabel">Daily</span>)</h2>
+        <h2><span class="icon">&#128200;</span> Square Breakdown (<span id="chimePeriodLabel">Daily</span>)</h2>
         <div class="finance-grid" id="chimeGrid"></div>
     </div>
 
-    <!-- Log Chime Entry -->
+    <!-- Log Square Entry -->
     <div class="card">
-        <h2><span class="icon">&#128179;</span> Log Chime Transaction</h2>
+        <h2><span class="icon">&#128179;</span> Log Square Transaction</h2>
         <form id="chimeForm">
             <div class="form-group">
                 <label for="chimeDate">Date</label>
@@ -889,31 +889,31 @@
             </div>
             <div class="form-group">
                 <label for="chimeDesc">Description</label>
-                <input type="text" id="chimeDesc" placeholder="e.g. 'Customer payment via Chime'">
+                <input type="text" id="chimeDesc" placeholder="e.g. 'Customer payment via Square'">
             </div>
             <button type="submit" class="btn btn-primary">&#10133; Add Transaction</button>
         </form>
     </div>
 
-    <!-- Chime CSV Import -->
+    <!-- Square CSV Import -->
     <div class="card">
-        <h2><span class="icon">&#128196;</span> Import Chime CSV</h2>
+        <h2><span class="icon">&#128196;</span> Import Square CSV</h2>
         <div class="upload-zone" id="chimeUploadZone" onclick="document.getElementById('chimeFileInput').click()">
             <span class="upload-icon">&#128179;</span>
-            <p><strong>Click to upload</strong> your Chime transaction export</p>
-            <p class="formats">Supports CSV (.csv) files exported from Chime</p>
+            <p><strong>Click to upload</strong> your Square transaction export</p>
+            <p class="formats">Supports CSV (.csv) files exported from Square</p>
         </div>
         <input type="file" id="chimeFileInput" accept=".csv,text/csv" style="display:none" onchange="handleChimeCSV(event)">
         <div class="upload-hint">
-            <strong>How to export from Chime:</strong> Log in to your Chime account &rarr; Go to Transaction History &rarr;
-            Click &ldquo;Export&rdquo; or &ldquo;Download&rdquo; &rarr; Select CSV format &rarr; Upload the file here.
-            Transactions will be categorized automatically as deposits or withdrawals.
+            <strong>How to export from Square:</strong> Log in to your Square Dashboard &rarr; Go to Transactions &rarr;
+            Click &ldquo;Export&rdquo; &rarr; Select CSV format &rarr; Upload the file here.
+            Transactions will be categorized automatically.
         </div>
     </div>
 
-    <!-- Chime Log -->
+    <!-- Square Log -->
     <div class="card full-width">
-        <h2><span class="icon">&#128210;</span> Chime Transaction Log</h2>
+        <h2><span class="icon">&#128210;</span> Square Transaction Log</h2>
         <div class="log-controls">
             <select id="filterChimeType" onchange="renderChimeLog()">
                 <option value="all">All Types</option>
@@ -1086,10 +1086,10 @@
     </div>
 </div>
 
-<!-- Edit Chime Entry Modal -->
+<!-- Edit Square Entry Modal -->
 <div class="edit-overlay" id="editChimeModal">
     <div class="edit-box">
-        <h2>&#9999;&#65039; Edit Chime Transaction</h2>
+        <h2>&#9999;&#65039; Edit Square Transaction</h2>
         <input type="hidden" id="editChimeId">
         <div class="form-group">
             <label for="editChimeDate">Date</label>
@@ -1561,11 +1561,13 @@ var financeEntries = JSON.parse(localStorage.getItem('fhd_finance')) || [];
 var financeTypes = JSON.parse(localStorage.getItem('fhd_financeTypes')) || [
     'Driver Pay', 'Gas', 'Tolls', 'Supplies',
     'Vehicle Insurance', 'Liability Insurance', 'Truck Repair/Maintenance',
-    'Commissions', 'Trash Removal Fee', 'Miscellaneous'
+    'Commissions', 'Trash Removal Fee', 'Distributions', 'Miscellaneous'
 ];
 // Remove legacy Money Received if present
 var mrIdx = financeTypes.indexOf('Money Received');
 if (mrIdx !== -1) { financeTypes.splice(mrIdx, 1); localStorage.setItem('fhd_financeTypes', JSON.stringify(financeTypes)); }
+// Auto-add Distributions if missing from existing localStorage
+if (financeTypes.indexOf('Distributions') === -1) { financeTypes.splice(financeTypes.length - 1, 0, 'Distributions'); localStorage.setItem('fhd_financeTypes', JSON.stringify(financeTypes)); }
 
 var chimeEntries = JSON.parse(localStorage.getItem('fhd_chime')) || [];
 var currentPeriod = 'daily';
@@ -2489,19 +2491,49 @@ function importData(event) {
    ═══════════════════════════════════════ */
 var bankParsedRows = [];
 
+var OWNER_NAMES = ['jorge lopez perez', 'angel orbe', 'david garcia', 'josh verde'];
+var DRIVER_NAMES = ['oslain', 'danny lopez', 'jose', 'ricky', 'dayron'];
+
 var CATEGORY_RULES = [
+    { pattern: /juan family mechanic/i, type: 'Truck Repair/Maintenance' },
+    { pattern: /advance auto|autozone|tire kingdom|firestone|napa auto|o'?reilly|pep\s*boys|jiffy lube|meineke|midas|valvoline|maaco|caliber collision/i, type: 'Truck Repair/Maintenance' },
     { pattern: /vehicle\s*insur|auto\s*insur|car\s*insur/i, type: 'Vehicle Insurance' },
     { pattern: /liability\s*insur|general\s*insur|commercial\s*insur/i, type: 'Liability Insurance' },
     { pattern: /insur/i, type: 'Vehicle Insurance' },
     { pattern: /truck\s*repair|maintenance|mechanic|auto\s*repair|body\s*shop|oil\s*change|tire|brake|transmission|alignment/i, type: 'Truck Repair/Maintenance' },
-    { pattern: /gas\b|fuel|shell|exxon|mobil|chevron|bp\b|sunoco|wawa\s*fuel|speedway|circle\s*k|pilot|love.?s|marathon|7.?eleven|sheetz|racetrac|getgo|casey|murphy/i, type: 'Gas' },
+    { pattern: /costco\s*gas|gas\b|fuel|shell|exxon|mobil|chevron|bp\b|sunoco|wawa\s*fuel|speedway|circle\s*k|pilot|love.?s|marathon|7.?eleven|sheetz|racetrac|getgo|casey|murphy/i, type: 'Gas' },
     { pattern: /toll|e.?z.?pass|sun.?pass|ez\s*tag|i.?pass|fast.?trak|pike|turnpike|expressway\s*auth/i, type: 'Tolls' },
     { pattern: /home\s*depot|lowe|u.?haul|uline|moving\s*blanket|dolly|strap|bubble\s*wrap|packing|box|tape|supply|supplies/i, type: 'Supplies' },
-    { pattern: /payroll|driver\s*pay|wage|salary|pay\s*to|compensation|contractor\s*pay/i, type: 'Driver Pay' },
+    { pattern: /payroll|driver\s*pay|wage|salary|compensation|contractor\s*pay/i, type: 'Driver Pay' },
     { pattern: /deposit|payment\s*received|income|revenue|customer\s*pay|zelle\s*from|venmo\s*from|cash\s*app\s*from|direct\s*dep/i, type: 'Money Received' },
     { pattern: /commission|referral\s*fee|finder.?s?\s*fee|sales\s*bonus/i, type: 'Commissions' },
-    { pattern: /trash\s*remov|waste\s*remov|junk\s*remov|debris\s*remov|hauling|dump\s*fee|landfill|waste\s*manage/i, type: 'Trash Removal Fee' }
+    { pattern: /trash\s*remov|waste\s*remov|junk\s*remov|debris\s*remov|hauling|dump\s*fee|landfill|waste\s*manage/i, type: 'Trash Removal Fee' },
+    { pattern: /distribution/i, type: 'Distributions' },
+    { pattern: /google|adwords|advertising|marketing|facebook\s*ads|meta\s*ads|yelp\s*ads/i, type: 'Miscellaneous' },
+    { pattern: /zenbusiness|business\s*registration|llc|corp\s*filing/i, type: 'Miscellaneous' },
+    { pattern: /payment\s*to\s*chase\s*card|loan|credit\s*card\s*payment/i, type: 'Miscellaneous' },
+    { pattern: /vehicle\s*tag|tag\s*renew|dmv|registration|title/i, type: 'Miscellaneous' }
 ];
+
+function categorizeZellePayment(description, amount) {
+    var desc = (description || '').toLowerCase();
+    var zelleMatch = desc.match(/zelle\s*payment\s*to\s+(.+?)(?:\s+(?:jpm|29\d|\d{11}|\w{12,}))/i);
+    if (!zelleMatch) return null;
+    var recipient = zelleMatch[1].trim().toLowerCase();
+
+    for (var oi = 0; oi < OWNER_NAMES.length; oi++) {
+        if (recipient.indexOf(OWNER_NAMES[oi]) !== -1) return 'Distributions';
+    }
+    for (var di = 0; di < DRIVER_NAMES.length; di++) {
+        if (recipient.indexOf(DRIVER_NAMES[di]) !== -1) return 'Driver Pay';
+    }
+
+    var absAmt = Math.abs(amount || 0);
+    if (absAmt >= 8 && absAmt <= 120) return 'Commissions';
+    if (absAmt > 120 && absAmt <= 200) return null;
+
+    return null;
+}
 
 function categorizeTransaction(description) {
     var desc = (description || '').toLowerCase();
@@ -2788,14 +2820,30 @@ function parseBankCSV(csvText) {
             isCredit = cols.credit !== -1 && parseAmount(fields[cols.credit]) > 0;
         }
 
-        var autoType = isCredit ? 'Money Received' : categorizeTransaction(desc);
+        if (isCredit) continue;
+
+        var autoType = null;
+        var needsSelect = false;
+        var isZelle = /zelle\s*payment\s*to\s/i.test(desc);
+        if (isZelle) {
+            autoType = categorizeZellePayment(desc, amount);
+        }
+        if (!autoType) {
+            autoType = categorizeTransaction(desc);
+        }
+        if (autoType === 'Money Received') continue;
+
+        if (autoType === 'Miscellaneous' && isZelle) {
+            needsSelect = true;
+        }
 
         bankParsedRows.push({
             date: dateStr,
             description: desc,
             amount: amount,
             type: autoType,
-            include: true
+            include: true,
+            needsSelect: needsSelect
         });
     }
 
@@ -2810,15 +2858,17 @@ function showBankPreview() {
 
     var html = '<table class="preview-table"><thead><tr><th style="width:30px"><input type="checkbox" class="preview-check" checked onchange="toggleAllBankRows(this)"></th><th>Date</th><th>Description</th><th>Amount</th><th>Category</th></tr></thead><tbody>';
     bankParsedRows.forEach(function(row, idx) {
-        var cls = row.type === 'Money Received' ? 'amount-pos' : 'amount-neg';
-        var prefix = row.type === 'Money Received' ? '+' : '-';
-        var selected = optionsHtml.replace('value="' + row.type + '"', 'value="' + row.type + '" selected');
-        html += '<tr id="bankRow' + idx + '">' +
+        var cls = 'amount-neg';
+        var prefix = '-';
+        var rowStyle = row.needsSelect ? ' style="background:#fff0f0;border-left:3px solid #e74c3c;"' : '';
+        var selectOpts = row.needsSelect ? '<option value="" disabled selected style="color:#c0392b;font-weight:700;">— Select —</option>' + optionsHtml : optionsHtml.replace('value="' + row.type + '"', 'value="' + row.type + '" selected');
+        var onChangeHandler = row.needsSelect ? 'bankParsedRows[' + idx + '].type=this.value;bankParsedRows[' + idx + '].needsSelect=false;this.closest(\"tr\").style.background=\"\";this.closest(\"tr\").style.borderLeft=\"\"' : 'bankParsedRows[' + idx + '].type=this.value';
+        html += '<tr id="bankRow' + idx + '"' + rowStyle + '>' +
             '<td><input type="checkbox" class="preview-check" checked onchange="toggleBankRow(' + idx + ', this)"></td>' +
             '<td>' + row.date + '</td>' +
             '<td>' + esc(row.description.substring(0, 60)) + '</td>' +
             '<td class="' + cls + '">' + prefix + '$' + row.amount.toFixed(2) + '</td>' +
-            '<td><select onchange="bankParsedRows[' + idx + '].type=this.value">' + selected + '</select></td>' +
+            '<td><select onchange="' + onChangeHandler + '">' + selectOpts + '</select></td>' +
             '</tr>';
     });
     html += '</tbody></table>';
@@ -2830,12 +2880,14 @@ function showBankPreview() {
 
 function updateBankPreviewStats() {
     var included = bankParsedRows.filter(function(r) { return r.include; });
-    var rev = included.filter(function(r) { return r.type === 'Money Received'; }).reduce(function(s, r) { return s + r.amount; }, 0);
-    var exp = included.filter(function(r) { return r.type !== 'Money Received'; }).reduce(function(s, r) { return s + r.amount; }, 0);
-    document.getElementById('bankPreviewStats').innerHTML =
-        included.length + ' of ' + bankParsedRows.length + ' transactions selected &nbsp;|&nbsp; ' +
-        'Revenue: <strong style="color:#28a745">$' + rev.toFixed(2) + '</strong> &nbsp;|&nbsp; ' +
-        'Expenses: <strong style="color:#c0392b">$' + exp.toFixed(2) + '</strong>';
+    var exp = included.reduce(function(s, r) { return s + r.amount; }, 0);
+    var needsSelect = included.filter(function(r) { return r.needsSelect; }).length;
+    var statsHtml = included.length + ' of ' + bankParsedRows.length + ' expenses selected &nbsp;|&nbsp; ' +
+        'Total: <strong style="color:#c0392b">$' + exp.toFixed(2) + '</strong>';
+    if (needsSelect > 0) {
+        statsHtml += ' &nbsp;|&nbsp; <strong style="color:#e74c3c">' + needsSelect + ' need category selection</strong>';
+    }
+    document.getElementById('bankPreviewStats').innerHTML = statsHtml;
 }
 
 function toggleBankRow(idx, cb) {
@@ -2865,6 +2917,8 @@ function closeBankPreview() {
 function confirmBankImport() {
     var toImport = bankParsedRows.filter(function(r) { return r.include; });
     if (toImport.length === 0) { toast('No transactions selected.'); return; }
+    var unselected = toImport.filter(function(r) { return r.needsSelect; });
+    if (unselected.length > 0) { toast(unselected.length + ' transaction(s) still need a category. Look for rows highlighted in red.', true); return; }
 
     toImport.forEach(function(row) {
         financeEntries.push({
@@ -3241,7 +3295,7 @@ function parseChimeCSV(csvText) {
             date: dateStr,
             type: isDeposit ? 'Deposit' : 'Withdrawal',
             amount: Math.abs(amt),
-            description: desc.substring(0, 80) || 'Chime Transaction'
+            description: desc.substring(0, 80) || 'Square Transaction'
         });
         imported++;
     }
