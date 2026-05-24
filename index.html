@@ -547,7 +547,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v22</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v23</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:#2196F3;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -809,6 +809,10 @@
     <!-- Finance Log -->
     <div class="card full-width">
         <h2><span class="icon">&#128210;</span> Finance Log</h2>
+        <div class="search-bar-wrap">
+            <span class="search-icon">&#128269;</span>
+            <input type="text" id="financeSearchBar" placeholder="Search by date, type, amount, note..." oninput="renderFinanceLog()" autocomplete="off" name="finance-search-nofill">
+        </div>
         <div class="log-controls">
             <select id="filterFinType" onchange="renderFinanceLog()"></select>
             <input type="month" id="filterFinMonth" onchange="renderFinanceLog()">
@@ -817,7 +821,13 @@
         <div style="overflow-x:auto;">
             <table class="finance-table">
                 <thead>
-                    <tr><th>Date</th><th>Type</th><th>Amount</th><th>Note</th><th>Actions</th></tr>
+                    <tr>
+                        <th class="sortable" onclick="sortFinLog('date')">Date <span class="sort-arrow" id="fsort-date">&#9660;</span></th>
+                        <th class="sortable" onclick="sortFinLog('type')">Type <span class="sort-arrow" id="fsort-type">&#9650;&#9660;</span></th>
+                        <th class="sortable" onclick="sortFinLog('amount')">Amount <span class="sort-arrow" id="fsort-amount">&#9650;&#9660;</span></th>
+                        <th class="sortable" onclick="sortFinLog('note')">Note <span class="sort-arrow" id="fsort-note">&#9650;&#9660;</span></th>
+                        <th>Actions</th>
+                    </tr>
                 </thead>
                 <tbody id="financeLogBody"></tbody>
             </table>
@@ -1560,7 +1570,7 @@ var financeEntries = JSON.parse(localStorage.getItem('fhd_finance')) || [];
 var financeTypes = JSON.parse(localStorage.getItem('fhd_financeTypes')) || [
     'Driver Pay', 'Gas', 'Tolls', 'Supplies',
     'Insurance', 'Truck Repair/Maintenance',
-    'Commissions', 'Trash Removal Fee', 'Distributions', 'Miscellaneous'
+    'Commissions', 'Trash Removal Fee', 'Distributions', 'Advertisement', 'Miscellaneous'
 ];
 // Remove legacy Money Received if present
 var mrIdx = financeTypes.indexOf('Money Received');
@@ -1573,6 +1583,8 @@ if (viIdx !== -1) { financeTypes.splice(viIdx, 1); if (financeTypes.indexOf('Ins
 var liIdx = financeTypes.indexOf('Liability Insurance');
 if (liIdx !== -1) { financeTypes.splice(liIdx, 1); if (financeTypes.indexOf('Insurance') === -1) { financeTypes.splice(liIdx, 0, 'Insurance'); } localStorage.setItem('fhd_financeTypes', JSON.stringify(financeTypes)); }
 if (financeTypes.indexOf('Insurance') === -1) { financeTypes.splice(financeTypes.length - 1, 0, 'Insurance'); localStorage.setItem('fhd_financeTypes', JSON.stringify(financeTypes)); }
+// Auto-add Advertisement if missing
+if (financeTypes.indexOf('Advertisement') === -1) { financeTypes.splice(financeTypes.length - 1, 0, 'Advertisement'); localStorage.setItem('fhd_financeTypes', JSON.stringify(financeTypes)); }
 
 var chimeEntries = JSON.parse(localStorage.getItem('fhd_chime')) || [];
 var currentPeriod = 'daily';
@@ -2338,9 +2350,40 @@ function roundRect(ctx, x, y, w, h, r) {
 /* ═══════════════════════════════════════
    FINANCE: LOG TABLE
    ═══════════════════════════════════════ */
+var finSortField = 'date';
+var finSortDir = 'desc';
+
+function sortFinLog(field) {
+    if (finSortField === field) {
+        finSortDir = finSortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+        finSortField = field;
+        finSortDir = field === 'date' ? 'desc' : 'asc';
+    }
+    updateFinSortArrows();
+    renderFinanceLog();
+}
+
+function updateFinSortArrows() {
+    var fields = ['date', 'type', 'amount', 'note'];
+    fields.forEach(function(f) {
+        var el = document.getElementById('fsort-' + f);
+        if (!el) return;
+        var th = el.parentElement;
+        if (f === finSortField) {
+            th.classList.add('sort-active');
+            el.innerHTML = finSortDir === 'asc' ? '&#9650;' : '&#9660;';
+        } else {
+            th.classList.remove('sort-active');
+            el.innerHTML = '&#9650;&#9660;';
+        }
+    });
+}
+
 function renderFinanceLog() {
     var typeFilter = document.getElementById('filterFinType').value;
     var monthFilter = document.getElementById('filterFinMonth').value;
+    var searchTerm = (document.getElementById('financeSearchBar').value || '').trim().toLowerCase();
 
     var expenseRows = financeEntries.slice().map(function(e) {
         return { date: e.date, type: e.type, amount: e.amount, note: e.note, id: e.id, source: 'expense' };
@@ -2355,7 +2398,23 @@ function renderFinanceLog() {
         combined = combined.filter(function(e) { return e.type === typeFilter; });
     }
     if (monthFilter) combined = combined.filter(function(e) { return e.date.startsWith(monthFilter); });
-    combined.sort(function(a, b) { return b.date.localeCompare(a.date) || b.id - a.id; });
+    if (searchTerm) {
+        combined = combined.filter(function(e) {
+            var searchable = [e.date || '', e.type || '', '$' + (e.amount || 0).toFixed(2), e.note || ''].join(' ').toLowerCase();
+            return searchTerm.split(/\s+/).every(function(term) { return searchable.indexOf(term) !== -1; });
+        });
+    }
+    var dir = finSortDir === 'asc' ? 1 : -1;
+    combined.sort(function(a, b) {
+        var va, vb;
+        switch (finSortField) {
+            case 'date': va = a.date || ''; vb = b.date || ''; return va.localeCompare(vb) * dir || b.id - a.id;
+            case 'type': va = a.type || ''; vb = b.type || ''; return va.localeCompare(vb) * dir;
+            case 'amount': return ((a.amount || 0) - (b.amount || 0)) * dir;
+            case 'note': va = a.note || ''; vb = b.note || ''; return va.localeCompare(vb) * dir;
+            default: return b.date.localeCompare(a.date) || b.id - a.id;
+        }
+    });
     var body = document.getElementById('financeLogBody');
     if (!combined.length) { body.innerHTML = '<tr><td colspan="5" class="empty-log">No finance entries yet.</td></tr>'; return; }
     body.innerHTML = combined.map(function(e) {
@@ -2424,7 +2483,9 @@ function closeEditFinanceModal() {
 
 function clearFinanceFilters() {
     document.getElementById('filterFinType').value = 'all';
-    document.getElementById('filterFinMonth').value = ''; renderFinanceLog();
+    document.getElementById('filterFinMonth').value = '';
+    document.getElementById('financeSearchBar').value = '';
+    renderFinanceLog();
 }
 
 /* ═══════════════════════════════════════
@@ -2496,7 +2557,7 @@ var CATEGORY_RULES = [
     { pattern: /commission|referral\s*fee|finder.?s?\s*fee|sales\s*bonus/i, type: 'Commissions' },
     { pattern: /trash\s*remov|waste\s*remov|junk\s*remov|debris\s*remov|hauling|dump\s*fee|landfill|waste\s*manage/i, type: 'Trash Removal Fee' },
     { pattern: /distribution/i, type: 'Distributions' },
-    { pattern: /google|adwords|advertising|marketing|facebook\s*ads|meta\s*ads|yelp\s*ads/i, type: 'Miscellaneous' },
+    { pattern: /google|adwords|advertising|marketing|facebook\s*ads|meta\s*ads|yelp\s*ads/i, type: 'Advertisement' },
     { pattern: /zenbusiness|business\s*registration|llc|corp\s*filing/i, type: 'Miscellaneous' },
     { pattern: /vehicle\s*tag|tag\s*renew|dmv|registration|title/i, type: 'Miscellaneous' }
 ];
