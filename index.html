@@ -542,47 +542,77 @@
         /* Team & Schedule Tab */
         .team-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
         @media (max-width: 768px) { .team-grid { grid-template-columns: 1fr; } }
-        .roster-card { border: 1px solid #e0e0e0; border-radius: 10px; padding: 16px; }
-        .roster-card h3 { margin: 0 0 12px; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+        .roster-card { border: 1px solid #e0e0e0; border-radius: 12px; padding: 18px; background: linear-gradient(135deg, #fafafa 0%, #fff 100%); }
+        .roster-card h3 { margin: 0 0 14px; font-size: 16px; display: flex; align-items: center; gap: 8px; }
         .roster-list { list-style: none; padding: 0; margin: 0; }
-        .roster-list li { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
+        .roster-list li { display: flex; align-items: center; justify-content: space-between; padding: 9px 12px; border-bottom: 1px solid #f0f0f0; font-size: 14px; transition: background 0.15s; }
+        .roster-list li:hover { background: #f8f9fa; }
         .roster-list li:last-child { border-bottom: none; }
-        .roster-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+        .roster-badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: 600; }
         .badge-owner { background: #e8f5e9; color: #2e7d32; }
         .badge-driver { background: #e3f2fd; color: #1565c0; }
         .badge-active { background: #e8f5e9; color: #2e7d32; }
-        .add-emp-row { display: flex; gap: 8px; margin-top: 10px; }
-        .add-emp-row input { flex: 1; padding: 7px 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 13px; }
-        .add-emp-row select { padding: 7px 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 13px; }
+        .badge-inactive { background: #fff3e0; color: #e65100; }
+        .badge-vacation { background: #ede7f6; color: #5e35b1; }
+        .roster-actions { display: flex; align-items: center; gap: 4px; }
+        .roster-actions button { padding: 2px 7px; font-size: 11px; border: none; border-radius: 4px; cursor: pointer; }
+        .add-emp-row { display: flex; gap: 8px; margin-top: 12px; }
+        .add-emp-row input { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; }
 
-        .schedule-nav { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 16px; }
-        .schedule-nav button { background: none; border: 1px solid #ccc; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 14px; }
-        .schedule-nav button:hover { background: #f0f0f0; }
-        .schedule-nav .week-label { font-weight: 600; font-size: 15px; min-width: 200px; text-align: center; }
+        .schedule-nav { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+        .schedule-nav button { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 7px 14px; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.15s; }
+        .schedule-nav button:hover { background: #f0f0f0; border-color: #bbb; }
+        .schedule-nav .view-toggle { display: flex; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; }
+        .schedule-nav .view-toggle button { border: none; border-radius: 0; border-right: 1px solid #ddd; }
+        .schedule-nav .view-toggle button:last-child { border-right: none; }
+        .schedule-nav .view-toggle button.active { background: #2c3e50; color: #fff; }
+        .schedule-nav .nav-label { font-weight: 600; font-size: 15px; min-width: 180px; text-align: center; }
 
-        .schedule-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 13px; }
-        .schedule-table th { background: #2c3e50; color: #fff; padding: 10px 6px; text-align: center; font-size: 12px; font-weight: 600; }
-        .schedule-table th .day-date { display: block; font-size: 10px; font-weight: 400; opacity: 0.8; margin-top: 2px; }
-        .schedule-table td { border: 1px solid #e0e0e0; padding: 6px; vertical-align: top; min-height: 80px; }
-        .schedule-cell { min-height: 70px; position: relative; }
-        .sched-chip { display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 11px; margin: 2px; font-weight: 500; cursor: pointer; }
+        .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: #e0e0e0; border-radius: 10px; overflow: hidden; }
+        .cal-header { background: #2c3e50; color: #fff; padding: 10px 4px; text-align: center; font-size: 12px; font-weight: 600; }
+        .cal-day { background: #fff; padding: 6px; min-height: 90px; cursor: pointer; transition: background 0.15s; position: relative; }
+        .cal-day:hover { background: #f8f9fa; }
+        .cal-day.other-month { background: #f5f5f5; opacity: 0.5; }
+        .cal-day.today { background: #fff5f5; box-shadow: inset 0 0 0 2px #e94560; }
+        .cal-day .day-num { font-size: 13px; font-weight: 600; color: #333; margin-bottom: 4px; }
+        .cal-day.today .day-num { color: #e94560; }
+
+        .sched-chip { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 10px; margin: 1px; font-weight: 500; cursor: pointer; line-height: 1.4; }
         .sched-chip:hover { opacity: 0.8; }
         .sched-chip.driver { background: #e3f2fd; color: #1565c0; }
         .sched-chip.owner { background: #fff3e0; color: #e65100; }
-        .sched-dispatcher { display: block; margin-top: 6px; padding: 3px 6px; background: #fce4ec; color: #c62828; border-radius: 8px; font-size: 10px; font-weight: 600; text-align: center; }
-        .sched-add-btn { display: block; margin-top: 4px; background: none; border: 1px dashed #bbb; border-radius: 6px; padding: 3px; width: 100%; cursor: pointer; font-size: 11px; color: #888; }
+        .sched-dispatcher { display: block; margin-top: 4px; padding: 2px 5px; background: linear-gradient(135deg, #fce4ec, #f8bbd0); color: #c62828; border-radius: 6px; font-size: 9px; font-weight: 600; text-align: center; }
+        .sched-add-btn { display: block; margin-top: 3px; background: none; border: 1px dashed #ccc; border-radius: 6px; padding: 2px; width: 100%; cursor: pointer; font-size: 10px; color: #aaa; }
         .sched-add-btn:hover { border-color: #888; color: #444; }
 
-        .sched-popup { position: fixed; background: #fff; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); padding: 14px; z-index: 999; min-width: 200px; }
-        .sched-popup h4 { margin: 0 0 10px; font-size: 14px; }
-        .sched-popup label { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13px; cursor: pointer; }
+        .avail-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+        .avail-dot.willing { background: #ff9800; }
+        .avail-dot.not-willing { background: #bdbdbd; }
+        .avail-dot.vacation { background: #9c27b0; }
+
+        .sched-popup { position: fixed; background: #fff; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.18); padding: 18px; z-index: 999; min-width: 240px; max-width: 320px; max-height: 80vh; overflow-y: auto; }
+        .sched-popup h4 { margin: 0 0 12px; font-size: 15px; color: #2c3e50; border-bottom: 2px solid #e94560; padding-bottom: 8px; }
+        .sched-popup label { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 13px; cursor: pointer; }
         .sched-popup label input { accent-color: #e94560; }
-        .sched-popup .popup-section { margin-bottom: 10px; }
-        .sched-popup .popup-section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #888; margin-bottom: 4px; }
-        .sched-popup .popup-actions { display: flex; gap: 8px; margin-top: 10px; }
-        .sched-popup .popup-actions button { flex: 1; padding: 6px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; }
-        .sched-popup .btn-save { background: #28a745; color: #fff; }
+        .sched-popup .popup-section { margin-bottom: 12px; }
+        .sched-popup .popup-section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #888; margin-bottom: 6px; letter-spacing: 0.5px; }
+        .sched-popup .popup-actions { display: flex; gap: 8px; margin-top: 14px; }
+        .sched-popup .popup-actions button { flex: 1; padding: 8px; border: none; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600; transition: opacity 0.15s; }
+        .sched-popup .popup-actions button:hover { opacity: 0.85; }
+        .sched-popup .btn-save { background: linear-gradient(135deg, #28a745, #20c997); color: #fff; }
         .sched-popup .btn-cancel { background: #e0e0e0; color: #333; }
+        .sched-popup .initials-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+        .sched-popup .initials-row input { width: 60px; padding: 5px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; text-transform: uppercase; text-align: center; }
+        .sched-popup .initials-row span { font-size: 12px; color: #666; }
+
+        .audit-log { max-height: 200px; overflow-y: auto; font-size: 11px; border: 1px solid #eee; border-radius: 8px; padding: 8px; background: #fafafa; }
+        .audit-entry { padding: 4px 0; border-bottom: 1px solid #f0f0f0; color: #555; }
+        .audit-entry:last-child { border-bottom: none; }
+        .audit-time { color: #999; font-size: 10px; }
+        .audit-initials { font-weight: 700; color: #e94560; }
+
+        .avail-legend { display: flex; gap: 14px; margin: 10px 0; flex-wrap: wrap; font-size: 12px; color: #666; }
+        .avail-legend span { display: flex; align-items: center; gap: 4px; }
     </style>
 </head>
 <body>
@@ -600,7 +630,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v26</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v27</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:#2196F3;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -1015,13 +1045,18 @@
 <div class="container">
     <div class="card full-width">
         <h2><span class="icon">&#128101;</span> Team Roster</h2>
+        <div class="avail-legend">
+            <span><span class="avail-dot willing"></span> Willing to work</span>
+            <span><span class="avail-dot not-willing"></span> Not willing</span>
+            <span><span class="avail-dot vacation"></span> On vacation</span>
+        </div>
         <div class="team-grid">
             <div class="roster-card">
                 <h3>&#128663; Drivers <span class="roster-badge badge-driver" id="driverCount">0</span></h3>
                 <ul class="roster-list" id="driverList"></ul>
                 <div class="add-emp-row">
                     <input type="text" id="newDriverName" placeholder="Driver name">
-                    <button class="btn btn-sm" onclick="addEmployee('driver')">+ Add</button>
+                    <button class="btn btn-sm" onclick="addEmployee()">+ Add</button>
                 </div>
             </div>
             <div class="roster-card">
@@ -1032,19 +1067,23 @@
     </div>
 
     <div class="card full-width">
-        <h2><span class="icon">&#128197;</span> Weekly Schedule</h2>
+        <h2><span class="icon">&#128197;</span> Schedule</h2>
         <div class="schedule-nav">
-            <button onclick="changeWeek(-1)">&larr; Prev</button>
-            <span class="week-label" id="weekLabel"></span>
-            <button onclick="changeWeek(1)">Next &rarr;</button>
-            <button class="btn btn-sm" onclick="goToday()">Today</button>
+            <button onclick="schedNavPrev()">&larr; Prev</button>
+            <span class="nav-label" id="schedNavLabel"></span>
+            <button onclick="schedNavNext()">Next &rarr;</button>
+            <div class="view-toggle">
+                <button id="viewWeekBtn" class="active" onclick="setSchedView('week')">Week</button>
+                <button id="viewMonthBtn" onclick="setSchedView('month')">Month</button>
+            </div>
+            <button onclick="goToday()">Today</button>
         </div>
-        <div style="overflow-x:auto;">
-            <table class="schedule-table">
-                <thead id="schedHead"></thead>
-                <tbody id="schedBody"></tbody>
-            </table>
-        </div>
+        <div id="schedContainer"></div>
+    </div>
+
+    <div class="card full-width">
+        <h2><span class="icon">&#128221;</span> Schedule Change Log</h2>
+        <div class="audit-log" id="auditLog"><em style="color:#aaa;">No changes recorded yet.</em></div>
     </div>
 </div>
 </div><!-- end tab-team -->
@@ -3582,41 +3621,108 @@ function renderChimeAll() {
 /* ═══════════════════════════════════════
    TEAM & SCHEDULE
    ═══════════════════════════════════════ */
-var teamDrivers = JSON.parse(localStorage.getItem('fhd_teamDrivers')) || ['Oslain', 'Danny Lopez', 'Jose', 'Ricky', 'Dayron'];
+
+// Data: drivers are objects { name, status, inactiveDate, vacationStart, vacationEnd }
+var teamDriversRaw = JSON.parse(localStorage.getItem('fhd_teamDrivers2')) || null;
+var teamDrivers;
+if (teamDriversRaw && Array.isArray(teamDriversRaw) && teamDriversRaw.length > 0 && typeof teamDriversRaw[0] === 'object') {
+    teamDrivers = teamDriversRaw;
+} else {
+    var oldDrivers = JSON.parse(localStorage.getItem('fhd_teamDrivers')) || ['Oslain', 'Danny Lopez', 'Jose', 'Ricky', 'Dayron'];
+    teamDrivers = oldDrivers.map(function(n) {
+        var name = typeof n === 'string' ? n : n.name;
+        return { name: name, status: 'active', inactiveDate: null, vacationStart: null, vacationEnd: null };
+    });
+}
 var teamOwners = ['Jorge Lopez', 'Angel Orbe', 'Emanuel Salinas', 'David Garcia', 'Josh Verde'];
 var scheduleData = JSON.parse(localStorage.getItem('fhd_schedule')) || {};
-var schedWeekOffset = 0;
+var availData = JSON.parse(localStorage.getItem('fhd_availability')) || {};
+var auditLog = JSON.parse(localStorage.getItem('fhd_auditLog')) || [];
+var schedView = 'week';
+var schedOffset = 0;
 
 function saveTeam() {
-    localStorage.setItem('fhd_teamDrivers', JSON.stringify(teamDrivers));
+    localStorage.setItem('fhd_teamDrivers2', JSON.stringify(teamDrivers));
     localStorage.setItem('fhd_schedule', JSON.stringify(scheduleData));
+    localStorage.setItem('fhd_availability', JSON.stringify(availData));
+    localStorage.setItem('fhd_auditLog', JSON.stringify(auditLog));
+    // Auto-remove inactive drivers past 7 days
+    var now = Date.now();
+    teamDrivers = teamDrivers.filter(function(d) {
+        if (d.status === 'inactive' && d.inactiveDate) {
+            return (now - d.inactiveDate) < 7 * 86400000;
+        }
+        return true;
+    });
+    localStorage.setItem('fhd_teamDrivers2', JSON.stringify(teamDrivers));
 }
 
-function getWeekDates(offset) {
-    var now = new Date();
-    var day = now.getDay();
-    var monday = new Date(now);
-    monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1) + (offset || 0) * 7);
-    var dates = [];
-    for (var i = 0; i < 7; i++) {
-        var d = new Date(monday);
-        d.setDate(monday.getDate() + i);
-        dates.push(d);
-    }
-    return dates;
+function addAudit(action, initials) {
+    auditLog.unshift({ time: new Date().toISOString(), action: action, by: (initials || '').toUpperCase() });
+    if (auditLog.length > 200) auditLog.length = 200;
 }
 
-function fmtDate(d) { return d.toISOString().slice(0, 10); }
+function fmtDate(d) {
+    var yy = d.getFullYear(), mm = String(d.getMonth() + 1).padStart(2, '0'), dd = String(d.getDate()).padStart(2, '0');
+    return yy + '-' + mm + '-' + dd;
+}
 function fmtShort(d) { return (d.getMonth() + 1) + '/' + d.getDate(); }
+var dayNamesShort = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+var monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+var monthNamesShort = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-var dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+function getActiveDriverNames() {
+    return teamDrivers.filter(function(d) { return d.status === 'active'; }).map(function(d) { return d.name; });
+}
 
+function isOnVacation(driver, dateKey) {
+    if (!driver.vacationStart || !driver.vacationEnd) return false;
+    return dateKey >= driver.vacationStart && dateKey <= driver.vacationEnd;
+}
+
+function getAvail(name, dateKey) {
+    var key = name + '::' + dateKey;
+    return availData[key] || 'willing';
+}
+
+function setAvail(name, dateKey, val) {
+    availData[name + '::' + dateKey] = val;
+}
+
+function canSchedule(driver, dateKey) {
+    if (driver.status !== 'active') return false;
+    if (isOnVacation(driver, dateKey)) return false;
+    if (getAvail(driver.name, dateKey) === 'not-willing') return false;
+    return true;
+}
+
+// Roster rendering
 function renderTeamRoster() {
     var dl = document.getElementById('driverList');
-    dl.innerHTML = teamDrivers.map(function(name, i) {
-        return '<li><span>' + esc(name) + '</span><span><span class="roster-badge badge-active">Active</span> <button class="btn btn-danger btn-sm" onclick="removeEmployee(' + i + ')" style="margin-left:6px;padding:2px 8px;font-size:11px;">&times;</button></span></li>';
+    var todayKey = fmtDate(new Date());
+    dl.innerHTML = teamDrivers.map(function(drv, i) {
+        var badge, statusLabel;
+        if (isOnVacation(drv, todayKey)) {
+            badge = 'badge-vacation'; statusLabel = 'Vacation';
+        } else if (drv.status === 'inactive') {
+            var daysLeft = Math.max(0, Math.ceil((drv.inactiveDate + 7 * 86400000 - Date.now()) / 86400000));
+            badge = 'badge-inactive'; statusLabel = 'Inactive (' + daysLeft + 'd)';
+        } else {
+            badge = 'badge-active'; statusLabel = 'Active';
+        }
+        var actions = '<span class="roster-actions">';
+        actions += '<span class="roster-badge ' + badge + '">' + statusLabel + '</span>';
+        if (drv.status === 'active') {
+            actions += ' <button class="btn btn-sm" style="background:#ff9800;color:#fff;" onclick="setDriverInactive(' + i + ')" title="Mark inactive">Deactivate</button>';
+            actions += ' <button class="btn btn-sm" style="background:#9c27b0;color:#fff;" onclick="setDriverVacation(' + i + ')" title="Set vacation">Vacation</button>';
+        } else if (drv.status === 'inactive') {
+            actions += ' <button class="btn btn-sm" style="background:#28a745;color:#fff;" onclick="cancelInactive(' + i + ')">Reactivate</button>';
+        }
+        actions += ' <button class="btn btn-danger btn-sm" onclick="removeEmployee(' + i + ')" style="padding:2px 8px;font-size:11px;">&times;</button>';
+        actions += '</span>';
+        return '<li><span>' + esc(drv.name) + '</span>' + actions + '</li>';
     }).join('');
-    document.getElementById('driverCount').textContent = teamDrivers.length;
+    document.getElementById('driverCount').textContent = teamDrivers.filter(function(d) { return d.status === 'active'; }).length;
 
     var ol = document.getElementById('ownerList');
     ol.innerHTML = teamOwners.map(function(name) {
@@ -3624,63 +3730,128 @@ function renderTeamRoster() {
     }).join('');
 }
 
-function addEmployee(role) {
-    if (role === 'driver') {
-        var nameInput = document.getElementById('newDriverName');
-        var name = nameInput.value.trim();
-        if (!name) { toast('Enter a driver name.'); return; }
-        teamDrivers.push(name);
-        nameInput.value = '';
-    }
+function addEmployee() {
+    var nameInput = document.getElementById('newDriverName');
+    var name = nameInput.value.trim();
+    if (!name) { toast('Enter a driver name.'); return; }
+    teamDrivers.push({ name: name, status: 'active', inactiveDate: null, vacationStart: null, vacationEnd: null });
+    nameInput.value = '';
     saveTeam(); renderTeamAll();
 }
 
 function removeEmployee(index) {
-    if (!confirm('Remove ' + teamDrivers[index] + ' from the roster?')) return;
+    if (!confirm('Remove ' + teamDrivers[index].name + ' from the roster?')) return;
     teamDrivers.splice(index, 1);
     saveTeam(); renderTeamAll();
 }
 
-function changeWeek(dir) { schedWeekOffset += dir; renderSchedule(); }
-function goToday() { schedWeekOffset = 0; renderSchedule(); }
+function setDriverInactive(index) {
+    teamDrivers[index].status = 'inactive';
+    teamDrivers[index].inactiveDate = Date.now();
+    addAudit(teamDrivers[index].name + ' marked inactive (auto-remove in 7 days)', 'SYS');
+    saveTeam(); renderTeamAll();
+}
+
+function cancelInactive(index) {
+    teamDrivers[index].status = 'active';
+    teamDrivers[index].inactiveDate = null;
+    addAudit(teamDrivers[index].name + ' reactivated', 'SYS');
+    saveTeam(); renderTeamAll();
+}
+
+function setDriverVacation(index) {
+    var start = prompt('Vacation start date (YYYY-MM-DD):', fmtDate(new Date()));
+    if (!start) return;
+    var end = prompt('Vacation end date (YYYY-MM-DD):', start);
+    if (!end) return;
+    teamDrivers[index].vacationStart = start;
+    teamDrivers[index].vacationEnd = end;
+    addAudit(teamDrivers[index].name + ' vacation: ' + start + ' to ' + end, 'SYS');
+    saveTeam(); renderTeamAll();
+}
+
+// Schedule views
+function setSchedView(v) {
+    schedView = v; schedOffset = 0;
+    document.getElementById('viewWeekBtn').classList.toggle('active', v === 'week');
+    document.getElementById('viewMonthBtn').classList.toggle('active', v === 'month');
+    renderSchedule();
+}
+function schedNavPrev() { schedOffset--; renderSchedule(); }
+function schedNavNext() { schedOffset++; renderSchedule(); }
+function goToday() { schedOffset = 0; renderSchedule(); }
+
+function getWeekDates(offset) {
+    var now = new Date(); var day = now.getDay();
+    var monday = new Date(now);
+    monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1) + (offset || 0) * 7);
+    var dates = [];
+    for (var i = 0; i < 7; i++) { var d = new Date(monday); d.setDate(monday.getDate() + i); dates.push(d); }
+    return dates;
+}
+
+function getMonthDates(offset) {
+    var now = new Date();
+    var first = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+    var last = new Date(first.getFullYear(), first.getMonth() + 1, 0);
+    var startDay = first.getDay() === 0 ? 6 : first.getDay() - 1;
+    var dates = [];
+    for (var i = -startDay; i <= last.getDate() + (6 - (last.getDay() === 0 ? 6 : last.getDay() - 1)); i++) {
+        var d = new Date(first.getFullYear(), first.getMonth(), i + 1);
+        dates.push(d);
+        if (dates.length >= 42) break;
+    }
+    while (dates.length % 7 !== 0) {
+        var ld = new Date(dates[dates.length - 1]);
+        ld.setDate(ld.getDate() + 1);
+        dates.push(ld);
+    }
+    return { dates: dates, month: first.getMonth(), year: first.getFullYear() };
+}
+
+function buildDayContent(dateKey) {
+    var dayData = scheduleData[dateKey] || { drivers: [], dispatcher: '' };
+    var chips = '';
+    (dayData.drivers || []).forEach(function(name) {
+        chips += '<span class="sched-chip driver" title="' + esc(name) + '">' + esc(name) + '</span>';
+    });
+    if (dayData.dispatcher) {
+        chips += '<span class="sched-dispatcher">&#128225; ' + esc(dayData.dispatcher) + '</span>';
+    }
+    return chips;
+}
 
 function renderSchedule() {
-    var dates = getWeekDates(schedWeekOffset);
-    var startStr = fmtShort(dates[0]);
-    var endStr = fmtShort(dates[6]);
-    var monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    document.getElementById('weekLabel').textContent = monthNames[dates[0].getMonth()] + ' ' + dates[0].getDate() + ' — ' + monthNames[dates[6].getMonth()] + ' ' + dates[6].getDate() + ', ' + dates[6].getFullYear();
+    var container = document.getElementById('schedContainer');
+    var label = document.getElementById('schedNavLabel');
+    var todayKey = fmtDate(new Date());
 
-    var thead = document.getElementById('schedHead');
-    thead.innerHTML = '<tr>' + dates.map(function(d, i) {
-        var isToday = fmtDate(d) === fmtDate(new Date());
-        return '<th' + (isToday ? ' style="background:#e94560;"' : '') + '>' + dayNames[i] + '<span class="day-date">' + fmtShort(d) + '</span></th>';
-    }).join('') + '</tr>';
-
-    var tbody = document.getElementById('schedBody');
-    var row = '<tr>';
-    dates.forEach(function(d) {
-        var key = fmtDate(d);
-        var dayData = scheduleData[key] || { drivers: [], dispatcher: '' };
-        var isToday = key === fmtDate(new Date());
-
-        var chips = '';
-        (dayData.drivers || []).forEach(function(name) {
-            chips += '<span class="sched-chip driver" onclick="removeFromDay(\'' + key + '\',\'' + esc(name).replace(/'/g, "\\'") + '\')" title="Click to remove">' + esc(name) + '</span>';
+    if (schedView === 'week') {
+        var dates = getWeekDates(schedOffset);
+        label.textContent = monthNamesShort[dates[0].getMonth()] + ' ' + dates[0].getDate() + ' — ' + monthNamesShort[dates[6].getMonth()] + ' ' + dates[6].getDate() + ', ' + dates[6].getFullYear();
+        var html = '<div class="cal-grid">';
+        dayNamesShort.forEach(function(dn) { html += '<div class="cal-header">' + dn + '</div>'; });
+        dates.forEach(function(d) {
+            var key = fmtDate(d);
+            var cls = 'cal-day' + (key === todayKey ? ' today' : '');
+            html += '<div class="' + cls + '" onclick="openSchedPopup(\'' + key + '\', event)"><div class="day-num">' + d.getDate() + '</div>' + buildDayContent(key) + '</div>';
         });
-
-        var dispLabel = '';
-        if (dayData.dispatcher) {
-            dispLabel = '<span class="sched-dispatcher">&#128225; ' + esc(dayData.dispatcher) + '</span>';
-        }
-
-        row += '<td' + (isToday ? ' style="background:#fff5f5;"' : '') + '><div class="schedule-cell">' +
-            chips + dispLabel +
-            '<button class="sched-add-btn" onclick="openSchedPopup(\'' + key + '\', event)">+ Assign</button>' +
-            '</div></td>';
-    });
-    row += '</tr>';
-    tbody.innerHTML = row;
+        html += '</div>';
+        container.innerHTML = html;
+    } else {
+        var md = getMonthDates(schedOffset);
+        label.textContent = monthNames[md.month] + ' ' + md.year;
+        var html = '<div class="cal-grid">';
+        dayNamesShort.forEach(function(dn) { html += '<div class="cal-header">' + dn + '</div>'; });
+        md.dates.forEach(function(d) {
+            var key = fmtDate(d);
+            var isOther = d.getMonth() !== md.month;
+            var cls = 'cal-day' + (isOther ? ' other-month' : '') + (key === todayKey ? ' today' : '');
+            html += '<div class="' + cls + '" onclick="openSchedPopup(\'' + key + '\', event)"><div class="day-num">' + d.getDate() + '</div>' + buildDayContent(key) + '</div>';
+        });
+        html += '</div>';
+        container.innerHTML = html;
+    }
 }
 
 function openSchedPopup(dateKey, evt) {
@@ -3689,36 +3860,70 @@ function openSchedPopup(dateKey, evt) {
     var assignedDrivers = dayData.drivers || [];
     var currentDispatcher = dayData.dispatcher || '';
 
-    var html = '<h4>Assign — ' + dateKey + '</h4>';
-    html += '<div class="popup-section"><div class="popup-section-title">Drivers</div>';
-    teamDrivers.forEach(function(name) {
-        var checked = assignedDrivers.indexOf(name) !== -1 ? ' checked' : '';
-        html += '<label><input type="checkbox" value="' + esc(name) + '" class="sched-drv-cb"' + checked + '> ' + esc(name) + '</label>';
+    var html = '<h4>&#128197; ' + dateKey + '</h4>';
+
+    // Availability section
+    html += '<div class="popup-section"><div class="popup-section-title">Driver Availability</div>';
+    teamDrivers.forEach(function(drv) {
+        if (drv.status !== 'active') return;
+        var onVac = isOnVacation(drv, dateKey);
+        var av = onVac ? 'vacation' : getAvail(drv.name, dateKey);
+        var dotClass = onVac ? 'vacation' : (av === 'not-willing' ? 'not-willing' : 'willing');
+        var checked = assignedDrivers.indexOf(drv.name) !== -1 ? ' checked' : '';
+        var disabled = !canSchedule(drv, dateKey) ? ' disabled' : '';
+        var statusTxt = onVac ? ' <small style="color:#9c27b0;">(vacation)</small>' : (av === 'not-willing' ? ' <small style="color:#999;">(unavailable)</small>' : '');
+        html += '<label style="' + (disabled ? 'opacity:0.5;' : '') + '"><input type="checkbox" value="' + esc(drv.name) + '" class="sched-drv-cb"' + checked + disabled + '> <span class="avail-dot ' + dotClass + '"></span>' + esc(drv.name) + statusTxt + '</label>';
+        if (!onVac && drv.status === 'active') {
+            html += '<div style="margin-left:28px;margin-bottom:4px;"><select class="avail-sel" data-name="' + esc(drv.name) + '" data-date="' + dateKey + '" style="font-size:11px;padding:2px 6px;border-radius:4px;border:1px solid #ddd;">';
+            html += '<option value="willing"' + (av === 'willing' ? ' selected' : '') + '>Willing</option>';
+            html += '<option value="not-willing"' + (av === 'not-willing' ? ' selected' : '') + '>Not willing</option>';
+            html += '</select></div>';
+        }
     });
     html += '</div>';
 
     html += '<div class="popup-section"><div class="popup-section-title">Dispatcher / Router (Owner)</div>';
     html += '<label><input type="radio" name="sched-disp" value="" ' + (!currentDispatcher ? 'checked' : '') + '> None</label>';
     teamOwners.forEach(function(name) {
-        var checked = currentDispatcher === name ? ' checked' : '';
-        html += '<label><input type="radio" name="sched-disp" value="' + esc(name) + '"' + checked + '> ' + esc(name) + '</label>';
+        html += '<label><input type="radio" name="sched-disp" value="' + esc(name) + '"' + (currentDispatcher === name ? ' checked' : '') + '> ' + esc(name) + '</label>';
     });
     html += '</div>';
+
+    html += '<div class="popup-section"><div class="popup-section-title">Owner Initials (required)</div>';
+    html += '<div class="initials-row"><input type="text" id="schedInitials" maxlength="4" placeholder="e.g. JL"><span>Sign off on this change</span></div></div>';
 
     html += '<div class="popup-actions"><button class="btn-save" onclick="saveSchedPopup(\'' + dateKey + '\')">Save</button><button class="btn-cancel" onclick="closeSchedPopup()">Cancel</button></div>';
 
     popup.innerHTML = html;
     popup.style.display = 'block';
 
-    var rect = evt.target.getBoundingClientRect();
-    var popW = 220;
-    var left = Math.min(rect.left, window.innerWidth - popW - 20);
-    var top = Math.min(rect.bottom + 4, window.innerHeight - 300);
-    popup.style.left = Math.max(10, left) + 'px';
-    popup.style.top = Math.max(10, top) + 'px';
+    // Position popup within viewport
+    requestAnimationFrame(function() {
+        var popRect = popup.getBoundingClientRect();
+        var vw = window.innerWidth, vh = window.innerHeight;
+        var clickX = evt.clientX || (evt.touches && evt.touches[0].clientX) || vw / 2;
+        var clickY = evt.clientY || (evt.touches && evt.touches[0].clientY) || vh / 2;
+        var left = clickX + 10;
+        var top = clickY - 20;
+        if (left + popRect.width > vw - 10) left = vw - popRect.width - 10;
+        if (top + popRect.height > vh - 10) top = vh - popRect.height - 10;
+        if (left < 10) left = 10;
+        if (top < 10) top = 10;
+        popup.style.left = left + 'px';
+        popup.style.top = top + 'px';
+    });
 }
 
 function saveSchedPopup(dateKey) {
+    var initials = (document.getElementById('schedInitials').value || '').trim();
+    if (!initials) { toast('Owner initials required to save changes.'); return; }
+
+    // Save availability selections
+    var availSels = document.querySelectorAll('.avail-sel');
+    availSels.forEach(function(sel) {
+        setAvail(sel.getAttribute('data-name'), sel.getAttribute('data-date'), sel.value);
+    });
+
     var cbs = document.querySelectorAll('.sched-drv-cb');
     var drivers = [];
     cbs.forEach(function(cb) { if (cb.checked) drivers.push(cb.value); });
@@ -3727,22 +3932,27 @@ function saveSchedPopup(dateKey) {
     var dispatcher = '';
     dispRadios.forEach(function(r) { if (r.checked) dispatcher = r.value; });
 
+    var oldData = scheduleData[dateKey] || { drivers: [], dispatcher: '' };
+    var changes = [];
+    var addedDrivers = drivers.filter(function(n) { return (oldData.drivers || []).indexOf(n) === -1; });
+    var removedDrivers = (oldData.drivers || []).filter(function(n) { return drivers.indexOf(n) === -1; });
+    if (addedDrivers.length) changes.push('Added: ' + addedDrivers.join(', '));
+    if (removedDrivers.length) changes.push('Removed: ' + removedDrivers.join(', '));
+    if (dispatcher !== (oldData.dispatcher || '')) changes.push('Dispatcher: ' + (dispatcher || 'None'));
+
     if (!scheduleData[dateKey]) scheduleData[dateKey] = {};
     scheduleData[dateKey].drivers = drivers;
     scheduleData[dateKey].dispatcher = dispatcher;
 
-    saveTeam(); closeSchedPopup(); renderSchedule();
+    if (changes.length) {
+        addAudit(dateKey + ' — ' + changes.join('; '), initials);
+    }
+
+    saveTeam(); closeSchedPopup(); renderSchedule(); renderAuditLog();
 }
 
 function closeSchedPopup() {
     document.getElementById('schedPopup').style.display = 'none';
-}
-
-function removeFromDay(dateKey, name) {
-    var dayData = scheduleData[dateKey];
-    if (!dayData) return;
-    dayData.drivers = (dayData.drivers || []).filter(function(n) { return n !== name; });
-    saveTeam(); renderSchedule();
 }
 
 function renderTeamSummary() {
@@ -3750,23 +3960,37 @@ function renderTeamSummary() {
     var todayData = scheduleData[todayKey] || { drivers: [], dispatcher: '' };
     var todayDriverCount = (todayData.drivers || []).length;
     var todayDispatcher = todayData.dispatcher || 'None';
+    var activeCount = teamDrivers.filter(function(d) { return d.status === 'active'; }).length;
+    var onVacCount = teamDrivers.filter(function(d) { return isOnVacation(d, todayKey); }).length;
 
     var strip = document.getElementById('teamSummaryStrip');
-    strip.innerHTML = '<div class="summary-card" style="background:#2e7d32;"><span class="num">' + teamDrivers.length + '</span><span class="label">ACTIVE DRIVERS</span></div>' +
+    strip.innerHTML =
+        '<div class="summary-card" style="background:#2e7d32;"><span class="num">' + activeCount + '</span><span class="label">ACTIVE DRIVERS</span></div>' +
         '<div class="summary-card" style="background:#1565c0;"><span class="num">' + teamOwners.length + '</span><span class="label">OWNERS</span></div>' +
         '<div class="summary-card" style="background:#e65100;"><span class="num">' + todayDriverCount + '</span><span class="label">ON DUTY TODAY</span></div>' +
+        '<div class="summary-card" style="background:#9c27b0;"><span class="num">' + onVacCount + '</span><span class="label">ON VACATION</span></div>' +
         '<div class="summary-card" style="background:#c62828;"><span class="num" style="font-size:16px;">' + esc(todayDispatcher) + '</span><span class="label">TODAY\'S DISPATCHER</span></div>';
 }
 
+function renderAuditLog() {
+    var el = document.getElementById('auditLog');
+    if (!auditLog.length) { el.innerHTML = '<em style="color:#aaa;">No changes recorded yet.</em>'; return; }
+    el.innerHTML = auditLog.slice(0, 50).map(function(a) {
+        var d = new Date(a.time);
+        var ts = (d.getMonth() + 1) + '/' + d.getDate() + '/' + d.getFullYear() + ' ' + d.toLocaleTimeString();
+        return '<div class="audit-entry"><span class="audit-time">' + ts + '</span> <span class="audit-initials">[' + esc(a.by) + ']</span> ' + esc(a.action) + '</div>';
+    }).join('');
+}
+
 function renderTeamAll() {
-    renderTeamRoster(); renderSchedule(); renderTeamSummary();
+    renderTeamRoster(); renderSchedule(); renderTeamSummary(); renderAuditLog();
 }
 
 // Close popup on outside click
 document.addEventListener('click', function(e) {
     var popup = document.getElementById('schedPopup');
     if (popup && popup.style.display === 'block') {
-        if (!popup.contains(e.target) && !e.target.classList.contains('sched-add-btn')) {
+        if (!popup.contains(e.target) && !e.target.closest('.cal-day') && !e.target.classList.contains('sched-add-btn')) {
             closeSchedPopup();
         }
     }
