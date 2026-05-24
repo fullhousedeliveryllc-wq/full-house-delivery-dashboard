@@ -122,8 +122,8 @@
         .full-width { grid-column: 1 / -1; }
 
         /* Chart */
-        .chart-wrapper { position: relative; max-width: 500px; margin: 0 auto; }
-        #pieChart { width: 100%; cursor: pointer; }
+        .chart-wrapper { position: relative; max-width: 500px; margin: 0 auto; width: 100%; box-sizing: border-box; }
+        #pieChart { width: 100%; height: auto; cursor: pointer; }
         .no-data-msg { text-align: center; color: var(--text-light); padding: 60px 20px; font-size: 16px; }
         .no-data-msg .big-icon { font-size: 56px; display: block; margin-bottom: 12px; }
 
@@ -423,6 +423,12 @@
         .chime-balance-card .num { font-size: 32px; font-weight: 800; }
         .chime-balance-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.85; margin-top: 4px; }
 
+        /* Sortable headers */
+        th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+        th.sortable:hover { background: #333; }
+        .sort-arrow { font-size: 10px; margin-left: 4px; opacity: 0.5; }
+        th.sortable.sort-active .sort-arrow { opacity: 1; }
+
         /* Search bar */
         .search-bar-wrap {
             position: relative; margin-bottom: 14px;
@@ -439,11 +445,14 @@
 
         /* ═══ MOBILE RESPONSIVE ═══ */
         @media (max-width: 768px) {
-            header { min-height: 80px; }
-            header .header-content { padding: 14px 16px; gap: 12px; }
-            header img.header-logo { height: 45px; }
-            header h1 { font-size: 18px; }
-            header p { font-size: 11px; }
+            header { min-height: 70px; }
+            header .header-content { padding: 12px 14px; gap: 10px; flex-wrap: nowrap; }
+            header img.header-logo { height: 40px; }
+            header h1 { font-size: 17px; }
+            header p { font-size: 10px; }
+
+            .chart-wrapper { max-width: 100%; }
+            #pieChart { max-width: 300px; margin: 0 auto; display: block; }
 
             .auth-bar { padding: 6px 12px; gap: 6px; flex-wrap: wrap; justify-content: center; font-size: 11px; }
             .auth-bar .user-email { font-size: 10px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -538,7 +547,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v17</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v18</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:#2196F3;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -679,7 +688,16 @@
         <div style="overflow-x:auto;">
             <table>
                 <thead>
-                    <tr><th>Date</th><th>Category</th><th>Customer</th><th>Phone</th><th>Email</th><th>Details</th><th>Jobs</th><th>Revenue</th><th>Note</th><th>Docs</th><th>Actions</th></tr>
+                    <tr>
+                        <th class="sortable" onclick="sortLog('date')">Date <span class="sort-arrow" id="sort-date">&#9660;</span></th>
+                        <th class="sortable" onclick="sortLog('category')">Category <span class="sort-arrow" id="sort-category">&#9650;&#9660;</span></th>
+                        <th class="sortable" onclick="sortLog('customer')">Customer <span class="sort-arrow" id="sort-customer">&#9650;&#9660;</span></th>
+                        <th>Phone</th><th>Email</th><th>Details</th>
+                        <th class="sortable" onclick="sortLog('amount')">Jobs <span class="sort-arrow" id="sort-amount">&#9650;&#9660;</span></th>
+                        <th class="sortable" onclick="sortLog('revenue')">Revenue <span class="sort-arrow" id="sort-revenue">&#9650;&#9660;</span></th>
+                        <th class="sortable" onclick="sortLog('note')">Note <span class="sort-arrow" id="sort-note">&#9650;&#9660;</span></th>
+                        <th>Docs</th><th>Actions</th>
+                    </tr>
                 </thead>
                 <tbody id="logBody"></tbody>
             </table>
@@ -1865,6 +1883,36 @@ document.getElementById('entryForm').addEventListener('submit', function(e) {
 /* ═══════════════════════════════════════
    JOB LOG TABLE
    ═══════════════════════════════════════ */
+var logSortField = 'date';
+var logSortDir = 'desc';
+
+function sortLog(field) {
+    if (logSortField === field) {
+        logSortDir = logSortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+        logSortField = field;
+        logSortDir = field === 'date' ? 'desc' : 'asc';
+    }
+    updateSortArrows();
+    renderLog();
+}
+
+function updateSortArrows() {
+    var fields = ['date', 'category', 'customer', 'amount', 'revenue', 'note'];
+    fields.forEach(function(f) {
+        var el = document.getElementById('sort-' + f);
+        if (!el) return;
+        var th = el.parentElement;
+        if (f === logSortField) {
+            th.classList.add('sort-active');
+            el.innerHTML = logSortDir === 'asc' ? '&#9650;' : '&#9660;';
+        } else {
+            th.classList.remove('sort-active');
+            el.innerHTML = '&#9650;&#9660;';
+        }
+    });
+}
+
 function renderLog() {
     var catFilter = document.getElementById('filterCategory').value;
     var monthFilter = document.getElementById('filterMonth').value;
@@ -1883,7 +1931,19 @@ function renderLog() {
             return searchTerm.split(/\s+/).every(function(term) { return searchable.indexOf(term) !== -1; });
         });
     }
-    filtered.sort(function(a, b) { return b.date.localeCompare(a.date) || b.id - a.id; });
+    var dir = logSortDir === 'asc' ? 1 : -1;
+    filtered.sort(function(a, b) {
+        var va, vb;
+        switch (logSortField) {
+            case 'date': va = a.date || ''; vb = b.date || ''; return va.localeCompare(vb) * dir || b.id - a.id;
+            case 'category': va = a.category || ''; vb = b.category || ''; return va.localeCompare(vb) * dir;
+            case 'customer': va = a.customer || ''; vb = b.customer || ''; return va.localeCompare(vb) * dir;
+            case 'amount': return ((a.amount || 0) - (b.amount || 0)) * dir;
+            case 'revenue': return ((a.revenue || 0) - (b.revenue || 0)) * dir;
+            case 'note': va = a.note || ''; vb = b.note || ''; return va.localeCompare(vb) * dir;
+            default: return b.date.localeCompare(a.date) || b.id - a.id;
+        }
+    });
     var body = document.getElementById('logBody');
     if (!filtered.length) { body.innerHTML = '<tr><td colspan="11" class="empty-log">No entries yet &mdash; start logging above!</td></tr>'; return; }
     body.innerHTML = filtered.map(function(e) {
@@ -2560,6 +2620,9 @@ function handlePDFUpload(file) {
 }
 
 function parsePDFText(text) {
+    console.log('[PDF Debug] Extracted text (' + text.length + ' chars, ' + text.split('\n').length + ' lines):');
+    console.log(text.substring(0, 2000));
+
     var lines = text.split(/\n/);
     bankParsedRows = [];
 
@@ -2571,8 +2634,10 @@ function parsePDFText(text) {
     ];
     var amountPattern = /[-]?\$?\s*([\d,]+\.\d{2})/g;
 
+    var lastDate = null;
+
     lines.forEach(function(line) {
-        if (line.trim().length < 5) return;
+        if (line.trim().length < 3) return;
 
         var dateStr = null;
         var dateMatch = null;
@@ -2583,15 +2648,16 @@ function parsePDFText(text) {
                 if (dateStr) break;
             }
         }
-        if (!dateStr) return;
+
+        if (dateStr) lastDate = dateStr;
 
         var amounts = [];
         var amtMatch;
-        var remainder = line.replace(dateMatch[0], '');
-        while ((amtMatch = amountPattern.exec(remainder)) !== null) {
+        var searchText = dateMatch ? line.replace(dateMatch[0], '') : line;
+        while ((amtMatch = amountPattern.exec(searchText)) !== null) {
             var raw = amtMatch[0].trim();
             var val = parseFloat(amtMatch[1].replace(/,/g, ''));
-            if (!isNaN(val) && val > 0) {
+            if (!isNaN(val) && val > 0.009) {
                 var isNeg = raw.charAt(0) === '-' || /\(\s*\$/.test(raw);
                 amounts.push({ value: val, negative: isNeg });
             }
@@ -2599,8 +2665,10 @@ function parsePDFText(text) {
         amountPattern.lastIndex = 0;
 
         if (amounts.length === 0) return;
+        var usableDate = dateStr || lastDate;
+        if (!usableDate) return;
 
-        var desc = remainder.replace(/[-]?\$?\s*[\d,]+\.\d{2}/g, '').replace(/[-]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+        var desc = searchText.replace(/[-]?\$?\s*[\d,]+\.\d{2}/g, '').replace(/[-]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
         if (desc.length < 2) desc = 'PDF Transaction';
 
         var amtObj = amounts[amounts.length > 1 ? amounts.length - 1 : 0];
@@ -2613,7 +2681,7 @@ function parsePDFText(text) {
         }
 
         bankParsedRows.push({
-            date: dateStr,
+            date: usableDate,
             description: desc.substring(0, 80) || 'PDF Transaction',
             amount: amount,
             type: autoType,
@@ -2622,7 +2690,9 @@ function parsePDFText(text) {
     });
 
     if (bankParsedRows.length === 0) {
-        toast('No transactions could be extracted from this PDF. Try exporting your statement as CSV instead for best results.', true);
+        console.log('[PDF Debug] No transactions found. Full text dump:');
+        console.log(text);
+        toast('No transactions could be extracted. Open browser console (F12) to see extracted text for debugging. Try CSV export for best results.', true);
         return;
     }
 
