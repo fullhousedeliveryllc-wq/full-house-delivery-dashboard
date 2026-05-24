@@ -547,7 +547,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v21</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v22</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:#2196F3;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -1522,7 +1522,7 @@ function switchTab(tab) {
     tabs.forEach(function(t) {
         document.getElementById('tab-' + t).classList.toggle('active', t === tab);
     });
-    if (tab === 'finance') renderFinanceAll();
+    if (tab === 'finance') { setTimeout(function() { renderFinanceAll(); }, 50); }
     if (tab === 'chime') renderChimeAll();
 }
 
@@ -1544,8 +1544,7 @@ var FINANCE_COLORS = {
     'Tolls': '#8e44ad',
     'Supplies': '#3498db',
     'Miscellaneous': '#636e72',
-    'Vehicle Insurance': '#2c3e50',
-    'Liability Insurance': '#16a085',
+    'Insurance': '#2c3e50',
     'Truck Repair/Maintenance': '#d35400',
     'Commissions': '#9b59b6'
 };
@@ -1560,7 +1559,7 @@ var entries = JSON.parse(localStorage.getItem('fhd_entries')) || [];
 var financeEntries = JSON.parse(localStorage.getItem('fhd_finance')) || [];
 var financeTypes = JSON.parse(localStorage.getItem('fhd_financeTypes')) || [
     'Driver Pay', 'Gas', 'Tolls', 'Supplies',
-    'Vehicle Insurance', 'Liability Insurance', 'Truck Repair/Maintenance',
+    'Insurance', 'Truck Repair/Maintenance',
     'Commissions', 'Trash Removal Fee', 'Distributions', 'Miscellaneous'
 ];
 // Remove legacy Money Received if present
@@ -1568,6 +1567,12 @@ var mrIdx = financeTypes.indexOf('Money Received');
 if (mrIdx !== -1) { financeTypes.splice(mrIdx, 1); localStorage.setItem('fhd_financeTypes', JSON.stringify(financeTypes)); }
 // Auto-add Distributions if missing from existing localStorage
 if (financeTypes.indexOf('Distributions') === -1) { financeTypes.splice(financeTypes.length - 1, 0, 'Distributions'); localStorage.setItem('fhd_financeTypes', JSON.stringify(financeTypes)); }
+// Merge Vehicle Insurance + Liability Insurance → Insurance
+var viIdx = financeTypes.indexOf('Vehicle Insurance');
+if (viIdx !== -1) { financeTypes.splice(viIdx, 1); if (financeTypes.indexOf('Insurance') === -1) { financeTypes.splice(viIdx, 0, 'Insurance'); } localStorage.setItem('fhd_financeTypes', JSON.stringify(financeTypes)); }
+var liIdx = financeTypes.indexOf('Liability Insurance');
+if (liIdx !== -1) { financeTypes.splice(liIdx, 1); if (financeTypes.indexOf('Insurance') === -1) { financeTypes.splice(liIdx, 0, 'Insurance'); } localStorage.setItem('fhd_financeTypes', JSON.stringify(financeTypes)); }
+if (financeTypes.indexOf('Insurance') === -1) { financeTypes.splice(financeTypes.length - 1, 0, 'Insurance'); localStorage.setItem('fhd_financeTypes', JSON.stringify(financeTypes)); }
 
 var chimeEntries = JSON.parse(localStorage.getItem('fhd_chime')) || [];
 var currentPeriod = 'daily';
@@ -2286,7 +2291,8 @@ function drawFinanceChart() {
     fc.style.height = canvasH + 'px';
 
     var dpr = window.devicePixelRatio || 1;
-    var w = fc.clientWidth, h = canvasH;
+    var w = fc.clientWidth || fc.parentElement.clientWidth || 600;
+    var h = canvasH;
     fc.width = w * dpr; fc.height = h * dpr;
     fctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     fctx.clearRect(0, 0, w, h);
@@ -2477,9 +2483,10 @@ var DRIVER_NAMES = ['oslain', 'danny lopez', 'jose', 'ricky', 'dayron'];
 var CATEGORY_RULES = [
     { pattern: /juan family mechanic/i, type: 'Truck Repair/Maintenance' },
     { pattern: /advance auto|autozone|tire kingdom|firestone|napa auto|o'?reilly|pep\s*boys|jiffy lube|meineke|midas|valvoline|maaco|caliber collision/i, type: 'Truck Repair/Maintenance' },
-    { pattern: /vehicle\s*insur|auto\s*insur|car\s*insur/i, type: 'Vehicle Insurance' },
-    { pattern: /liability\s*insur|general\s*insur|commercial\s*insur/i, type: 'Liability Insurance' },
-    { pattern: /insur/i, type: 'Vehicle Insurance' },
+    { pattern: /solid\s*waste/i, type: 'Trash Removal Fee' },
+    { pattern: /ascendant/i, type: 'Insurance' },
+    { pattern: /orion|westar/i, type: 'Gas' },
+    { pattern: /insur/i, type: 'Insurance' },
     { pattern: /truck\s*repair|maintenance|mechanic|auto\s*repair|body\s*shop|oil\s*change|tire|brake|transmission|alignment/i, type: 'Truck Repair/Maintenance' },
     { pattern: /costco\s*gas|gas\b|fuel|shell|exxon|mobil|chevron|bp\b|sunoco|wawa\s*fuel|speedway|circle\s*k|pilot|love.?s|marathon|7.?eleven|sheetz|racetrac|getgo|casey|murphy/i, type: 'Gas' },
     { pattern: /toll|e.?z.?pass|sun.?pass|ez\s*tag|i.?pass|fast.?trak|pike|turnpike|expressway\s*auth/i, type: 'Tolls' },
@@ -2491,7 +2498,6 @@ var CATEGORY_RULES = [
     { pattern: /distribution/i, type: 'Distributions' },
     { pattern: /google|adwords|advertising|marketing|facebook\s*ads|meta\s*ads|yelp\s*ads/i, type: 'Miscellaneous' },
     { pattern: /zenbusiness|business\s*registration|llc|corp\s*filing/i, type: 'Miscellaneous' },
-    { pattern: /payment\s*to\s*chase\s*card|loan|credit\s*card\s*payment/i, type: 'Miscellaneous' },
     { pattern: /vehicle\s*tag|tag\s*renew|dmv|registration|title/i, type: 'Miscellaneous' }
 ];
 
@@ -2811,6 +2817,9 @@ function parseBankCSV(csvText) {
         }
 
         if (isCredit) continue;
+
+        // Omit credit card payments from Chase activity
+        if (/payment\s*to\s*chase\s*card/i.test(desc)) continue;
 
         var autoType = null;
         var needsSelect = false;
