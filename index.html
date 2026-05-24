@@ -422,6 +422,105 @@
         .chime-balance-card { background: linear-gradient(135deg, #2196F3, #1565C0); color: white; border-radius: 12px; padding: 24px; text-align: center; border-left: 5px solid #000; }
         .chime-balance-card .num { font-size: 32px; font-weight: 800; }
         .chime-balance-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.85; margin-top: 4px; }
+
+        /* Search bar */
+        .search-bar-wrap {
+            position: relative; margin-bottom: 14px;
+        }
+        .search-bar-wrap .search-icon {
+            position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+            font-size: 16px; pointer-events: none;
+        }
+        .search-bar-wrap input {
+            width: 100%; padding: 10px 14px 10px 38px; border: 2px solid var(--border);
+            border-radius: 10px; font-size: 14px; transition: border-color 0.2s; background: white;
+        }
+        .search-bar-wrap input:focus { outline: none; border-color: var(--accent); }
+
+        /* ═══ MOBILE RESPONSIVE ═══ */
+        @media (max-width: 768px) {
+            header { min-height: 80px; }
+            header .header-content { padding: 14px 16px; gap: 12px; }
+            header img.header-logo { height: 45px; }
+            header h1 { font-size: 18px; }
+            header p { font-size: 11px; }
+
+            .auth-bar { padding: 6px 12px; gap: 6px; flex-wrap: wrap; justify-content: center; font-size: 11px; }
+            .auth-bar .user-email { font-size: 10px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+            .auth-bar button { padding: 3px 10px; font-size: 10px; }
+
+            .tab-bar {
+                padding: 12px 12px 0; gap: 2px; overflow-x: auto; -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+            }
+            .tab-bar::-webkit-scrollbar { display: none; }
+            .tab-btn { padding: 10px 14px; font-size: 12px; white-space: nowrap; flex-shrink: 0; }
+
+            .container { padding: 16px 12px; gap: 16px; }
+            .card { padding: 16px; }
+            .card h2 { font-size: 16px; margin-bottom: 14px; }
+
+            .summary-strip { gap: 8px; }
+            .summary-card { min-width: 100px; padding: 12px 10px; }
+            .summary-card .num { font-size: 20px; }
+            .summary-card .label { font-size: 9px; letter-spacing: 0.5px; }
+
+            .chime-balance-card { padding: 16px; }
+            .chime-balance-card .num { font-size: 24px; }
+
+            .log-controls { gap: 6px; }
+            .log-controls select, .log-controls input { min-width: 100px; font-size: 12px; padding: 8px 10px; }
+
+            table { font-size: 12px; }
+            th { padding: 8px 8px; font-size: 11px; }
+            td { padding: 8px 8px; }
+
+            .form-group label { font-size: 12px; }
+            input, select { font-size: 13px; padding: 8px 12px; }
+            .btn { padding: 8px 16px; font-size: 13px; }
+            .btn-sm { padding: 5px 10px; font-size: 11px; }
+
+            .period-selector { gap: 4px; }
+            .period-btn { padding: 6px 12px; font-size: 11px; }
+
+            .upload-zone { padding: 20px 14px; }
+            .upload-zone .upload-icon { font-size: 30px; }
+            .upload-zone p { font-size: 12px; }
+
+            .finance-item { padding: 10px 12px; }
+            .finance-item .fi-label { font-size: 12px; }
+            .finance-item .fi-value { font-size: 14px; }
+
+            .edit-box { padding: 20px; }
+            .modal-box { padding: 20px; max-height: 85vh; }
+
+            .category-list li { padding: 8px 10px; gap: 6px; }
+            .cat-name { font-size: 13px; }
+            .cat-total { font-size: 13px; }
+            .add-cat-row { flex-direction: column; gap: 6px; }
+
+            .io-row { flex-direction: column; }
+
+            .search-bar-wrap input { font-size: 13px; padding: 8px 12px 8px 34px; }
+            .search-bar-wrap .search-icon { font-size: 14px; left: 10px; }
+
+            .toast { bottom: 16px; right: 16px; left: 16px; font-size: 13px; padding: 12px 16px; text-align: center; }
+        }
+
+        @media (max-width: 480px) {
+            header .header-content { padding: 10px 12px; gap: 8px; }
+            header img.header-logo { height: 36px; }
+            header h1 { font-size: 16px; }
+
+            .tab-btn { padding: 8px 10px; font-size: 11px; }
+
+            .summary-card { min-width: 80px; padding: 10px 8px; }
+            .summary-card .num { font-size: 18px; }
+            .summary-card .label { font-size: 8px; }
+
+            .container { padding: 10px 8px; gap: 12px; }
+            .card { padding: 12px; }
+        }
     </style>
 </head>
 <body>
@@ -439,7 +538,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v16</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v17</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:#2196F3;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -566,6 +665,10 @@
     <!-- Entry Log -->
     <div class="card full-width">
         <h2><span class="icon">&#128210;</span> Entry Log</h2>
+        <div class="search-bar-wrap">
+            <span class="search-icon">&#128269;</span>
+            <input type="text" id="entrySearchBar" placeholder="Search entries by name, category, phone, email, revenue, note, date..." oninput="renderLog()">
+        </div>
         <div class="log-controls">
             <select id="filterCategory" onchange="renderLog()">
                 <option value="all">All Categories</option>
@@ -1677,7 +1780,7 @@ function renderFinanceTypes() {
     var expenseTypes = financeTypes.filter(function(t) { return t !== 'Money Received'; });
     var optHtml = expenseTypes.map(function(t) { return '<option value="' + esc(t) + '">' + esc(t) + '</option>'; }).join('');
     document.getElementById('finType').innerHTML = optHtml;
-    document.getElementById('filterFinType').innerHTML = '<option value="all">All Types</option>' + optHtml;
+    document.getElementById('filterFinType').innerHTML = '<option value="all">All Types</option><option value="Job Revenue">Job Revenue</option>' + optHtml;
     document.getElementById('editFinTypeSelect').innerHTML = optHtml;
 
     document.getElementById('finTypeList').innerHTML = financeTypes.map(function(t, i) {
@@ -1765,9 +1868,21 @@ document.getElementById('entryForm').addEventListener('submit', function(e) {
 function renderLog() {
     var catFilter = document.getElementById('filterCategory').value;
     var monthFilter = document.getElementById('filterMonth').value;
+    var searchTerm = (document.getElementById('entrySearchBar').value || '').trim().toLowerCase();
     var filtered = entries.slice();
     if (catFilter !== 'all') filtered = filtered.filter(function(e) { return e.category === catFilter; });
     if (monthFilter) filtered = filtered.filter(function(e) { return e.date.startsWith(monthFilter); });
+    if (searchTerm) {
+        filtered = filtered.filter(function(e) {
+            var searchable = [
+                e.date || '', e.category || '', e.customer || '', e.phone || '',
+                e.email || '', e.storeName || '', e.referredBy || '', e.note || '',
+                (typeof e.revenue === 'number') ? '$' + e.revenue.toFixed(2) : '',
+                String(e.amount || '')
+            ].join(' ').toLowerCase();
+            return searchTerm.split(/\s+/).every(function(term) { return searchable.indexOf(term) !== -1; });
+        });
+    }
     filtered.sort(function(a, b) { return b.date.localeCompare(a.date) || b.id - a.id; });
     var body = document.getElementById('logBody');
     if (!filtered.length) { body.innerHTML = '<tr><td colspan="11" class="empty-log">No entries yet &mdash; start logging above!</td></tr>'; return; }
@@ -1870,7 +1985,9 @@ function closeEditJobModal() {
 
 function clearFilters() {
     document.getElementById('filterCategory').value = 'all';
-    document.getElementById('filterMonth').value = ''; renderLog();
+    document.getElementById('filterMonth').value = '';
+    document.getElementById('entrySearchBar').value = '';
+    renderLog();
 }
 
 /* ═══════════════════════════════════════
@@ -2127,13 +2244,27 @@ function roundRect(ctx, x, y, w, h, r) {
 function renderFinanceLog() {
     var typeFilter = document.getElementById('filterFinType').value;
     var monthFilter = document.getElementById('filterFinMonth').value;
-    var filtered = financeEntries.slice();
-    if (typeFilter !== 'all') filtered = filtered.filter(function(e) { return e.type === typeFilter; });
-    if (monthFilter) filtered = filtered.filter(function(e) { return e.date.startsWith(monthFilter); });
-    filtered.sort(function(a, b) { return b.date.localeCompare(a.date) || b.id - a.id; });
+
+    var expenseRows = financeEntries.slice().map(function(e) {
+        return { date: e.date, type: e.type, amount: e.amount, note: e.note, id: e.id, source: 'expense' };
+    });
+
+    var jobRows = entries.filter(function(e) { return typeof e.revenue === 'number' && e.revenue > 0; }).map(function(e) {
+        return { date: e.date, type: 'Job Revenue', amount: e.revenue, note: (e.customer || e.category) + (e.note ? ' — ' + e.note : ''), id: e.id, source: 'job' };
+    });
+
+    var combined = expenseRows.concat(jobRows);
+    if (typeFilter !== 'all') {
+        combined = combined.filter(function(e) { return e.type === typeFilter; });
+    }
+    if (monthFilter) combined = combined.filter(function(e) { return e.date.startsWith(monthFilter); });
+    combined.sort(function(a, b) { return b.date.localeCompare(a.date) || b.id - a.id; });
     var body = document.getElementById('financeLogBody');
-    if (!filtered.length) { body.innerHTML = '<tr><td colspan="5" class="empty-log">No finance entries yet.</td></tr>'; return; }
-    body.innerHTML = filtered.map(function(e) {
+    if (!combined.length) { body.innerHTML = '<tr><td colspan="5" class="empty-log">No finance entries yet.</td></tr>'; return; }
+    body.innerHTML = combined.map(function(e) {
+        if (e.source === 'job') {
+            return '<tr><td>' + e.date + '</td><td>' + esc(e.type) + '</td><td class="amount-pos">+$' + e.amount.toFixed(2) + '</td><td>' + esc(e.note || '\u2014') + '</td><td class="action-cell"><span style="font-size:11px;color:#999;">From Jobs</span></td></tr>';
+        }
         return '<tr><td>' + e.date + '</td><td>' + esc(e.type) + '</td><td class="amount-neg">-$' + e.amount.toFixed(2) + '</td><td>' + esc(e.note || '\u2014') + '</td><td class="action-cell"><button class="btn-edit" onclick="editFinanceEntry(' + e.id + ')" title="Edit">&#9998;</button><button class="btn btn-danger" onclick="deleteFinanceEntry(' + e.id + ')" title="Delete">&times;</button></td></tr>';
     }).join('');
 }
@@ -2303,6 +2434,11 @@ function parseDate(val) {
     if (m) { var yr = parseInt(m[3]); yr = yr < 50 ? 2000 + yr : 1900 + yr; return yr + '-' + m[1].padStart(2, '0') + '-' + m[2].padStart(2, '0'); }
     m = val.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
     if (m) return m[3] + '-' + m[1].padStart(2, '0') + '-' + m[2].padStart(2, '0');
+    m = val.match(/^(\d{1,2})-(\d{1,2})-(\d{2})$/);
+    if (m) { var yr2 = parseInt(m[3]); yr2 = yr2 < 50 ? 2000 + yr2 : 1900 + yr2; return yr2 + '-' + m[1].padStart(2, '0') + '-' + m[2].padStart(2, '0'); }
+    var months = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+    m = val.match(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+(\d{1,2}),?\s+(\d{2,4})$/i);
+    if (m) { var mo = months[m[1].toLowerCase().slice(0,3)]; var yr3 = m[3].length === 2 ? (parseInt(m[3]) < 50 ? 2000 + parseInt(m[3]) : 1900 + parseInt(m[3])) : parseInt(m[3]); return yr3 + '-' + String(mo).padStart(2,'0') + '-' + m[2].padStart(2,'0'); }
     return null;
 }
 
@@ -2382,8 +2518,20 @@ function handlePDFUpload(file) {
                 function processPage(pageNum) {
                     pdf.getPage(pageNum).then(function(page) {
                         page.getTextContent().then(function(textContent) {
-                            var pageText = textContent.items.map(function(item) { return item.str; }).join(' ');
-                            allText[pageNum - 1] = pageText;
+                            var lastY = null;
+                            var lines = [];
+                            var currentLine = '';
+                            textContent.items.forEach(function(item) {
+                                var y = item.transform ? item.transform[5] : null;
+                                if (lastY !== null && y !== null && Math.abs(y - lastY) > 3) {
+                                    lines.push(currentLine.trim());
+                                    currentLine = '';
+                                }
+                                currentLine += (currentLine ? '  ' : '') + item.str;
+                                lastY = y;
+                            });
+                            if (currentLine.trim()) lines.push(currentLine.trim());
+                            allText[pageNum - 1] = lines.join('\n');
                             processed++;
                             if (processed === pages) {
                                 var fullText = allText.join('\n');
@@ -2415,53 +2563,66 @@ function parsePDFText(text) {
     var lines = text.split(/\n/);
     bankParsedRows = [];
 
-    var datePattern = /(\d{1,2}\/\d{1,2}\/\d{2,4})/;
-    var amountPattern = /\$?\s*([\d,]+\.\d{2})/g;
+    var datePatterns = [
+        /(\d{1,2}\/\d{1,2}\/\d{2,4})/,
+        /(\d{1,2}-\d{1,2}-\d{2,4})/,
+        /(\d{4}-\d{2}-\d{2})/,
+        /((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},?\s+\d{2,4})/i
+    ];
+    var amountPattern = /[-]?\$?\s*([\d,]+\.\d{2})/g;
 
     lines.forEach(function(line) {
-        var segments = line.split(/\s{2,}/);
+        if (line.trim().length < 5) return;
 
-        segments.forEach(function(segment) {
-            var dateMatch = segment.match(datePattern);
-            if (!dateMatch) return;
-
-            var dateStr = parseDate(dateMatch[1]);
-            if (!dateStr) return;
-
-            var amounts = [];
-            var amtMatch;
-            var remainder = segment.replace(datePattern, '');
-            while ((amtMatch = amountPattern.exec(remainder)) !== null) {
-                var val = parseFloat(amtMatch[1].replace(/,/g, ''));
-                if (!isNaN(val) && val > 0) amounts.push(val);
+        var dateStr = null;
+        var dateMatch = null;
+        for (var dp = 0; dp < datePatterns.length; dp++) {
+            dateMatch = line.match(datePatterns[dp]);
+            if (dateMatch) {
+                dateStr = parseDate(dateMatch[1]);
+                if (dateStr) break;
             }
-            amountPattern.lastIndex = 0;
+        }
+        if (!dateStr) return;
 
-            if (amounts.length === 0) return;
-
-            var desc = remainder.replace(/\$?\s*[\d,]+\.\d{2}/g, '').replace(/[-]+/g, '').trim();
-            if (desc.length < 2) desc = 'PDF Transaction';
-
-            var amount = amounts[amounts.length - 1];
-            var isDebit = /debit|withdrawal|payment|purchase|fee|charge/i.test(segment) || desc.length > 0;
-            var autoType = categorizeTransaction(desc);
-
-            if (autoType === 'Money Received' || /deposit|credit|transfer\s*in/i.test(segment)) {
-                autoType = 'Money Received';
+        var amounts = [];
+        var amtMatch;
+        var remainder = line.replace(dateMatch[0], '');
+        while ((amtMatch = amountPattern.exec(remainder)) !== null) {
+            var raw = amtMatch[0].trim();
+            var val = parseFloat(amtMatch[1].replace(/,/g, ''));
+            if (!isNaN(val) && val > 0) {
+                var isNeg = raw.charAt(0) === '-' || /\(\s*\$/.test(raw);
+                amounts.push({ value: val, negative: isNeg });
             }
+        }
+        amountPattern.lastIndex = 0;
 
-            bankParsedRows.push({
-                date: dateStr,
-                description: desc.substring(0, 80) || 'PDF Transaction',
-                amount: amount,
-                type: autoType,
-                include: true
-            });
+        if (amounts.length === 0) return;
+
+        var desc = remainder.replace(/[-]?\$?\s*[\d,]+\.\d{2}/g, '').replace(/[-]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+        if (desc.length < 2) desc = 'PDF Transaction';
+
+        var amtObj = amounts[amounts.length > 1 ? amounts.length - 1 : 0];
+        var amount = amtObj.value;
+        var isCredit = !amtObj.negative && (/deposit|credit|transfer\s*in|payment\s*received|direct\s*dep/i.test(line));
+        var autoType = categorizeTransaction(desc);
+
+        if (isCredit || autoType === 'Money Received' || /deposit|credit|transfer\s*in/i.test(line)) {
+            autoType = 'Money Received';
+        }
+
+        bankParsedRows.push({
+            date: dateStr,
+            description: desc.substring(0, 80) || 'PDF Transaction',
+            amount: amount,
+            type: autoType,
+            include: true
         });
     });
 
     if (bankParsedRows.length === 0) {
-        toast('No transactions could be extracted from this PDF. Try exporting your statement as CSV instead for best results.');
+        toast('No transactions could be extracted from this PDF. Try exporting your statement as CSV instead for best results.', true);
         return;
     }
 
