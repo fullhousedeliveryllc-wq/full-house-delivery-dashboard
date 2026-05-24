@@ -237,8 +237,8 @@
         .conditional-field.visible { display: block; }
 
         /* Finance bar chart */
-        .bar-chart-wrapper { position: relative; max-width: 600px; margin: 0 auto; }
-        #financeBarChart { width: 100%; }
+        .bar-chart-wrapper { position: relative; max-width: 700px; margin: 0 auto; }
+        #financeBarChart { width: 100%; height: 320px; }
 
         /* Period selector */
         .period-selector { display: flex; gap: 6px; margin-bottom: 20px; flex-wrap: wrap; }
@@ -547,7 +547,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v20</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v21</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:#2196F3;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -2245,98 +2245,78 @@ function renderFinanceBreakdown() {
 function drawFinanceChart() {
     var fc = document.getElementById('financeBarChart');
     var fctx = fc.getContext('2d');
-    var all = getFilteredFinance();
-    var hasData = all.length > 0 || entries.length > 0;
+    var range = getCurrentPeriodRange();
+    var all = getFilteredFinance().filter(function(e) {
+        return e.date >= range.start && e.date <= range.end;
+    });
+    var periodJobRevenue = entries.filter(function(e) {
+        return e.date >= range.start && e.date <= range.end && typeof e.revenue === 'number';
+    }).reduce(function(s, e) { return s + e.revenue; }, 0);
+
+    var hasData = all.length > 0 || periodJobRevenue > 0;
 
     document.getElementById('noFinanceMsg').style.display = hasData ? 'none' : 'block';
     fc.style.display = hasData ? 'block' : 'none';
     if (!hasData) return;
 
-    var periodKeys = {};
-    all.forEach(function(e) {
-        if (e.type === 'Money Received') return;
-        var key = getPeriodKey(e.date, currentPeriod);
-        if (!periodKeys[key]) periodKeys[key] = { revenue: 0, expenses: 0 };
-        periodKeys[key].expenses += e.amount;
-    });
-    entries.forEach(function(e) {
-        if (typeof e.revenue === 'number' && e.revenue > 0) {
-            var key = getPeriodKey(e.date, currentPeriod);
-            if (!periodKeys[key]) periodKeys[key] = { revenue: 0, expenses: 0 };
-            periodKeys[key].revenue += e.revenue;
+    var barData = [];
+    if (periodJobRevenue > 0) {
+        barData.push({ label: 'Job Revenue', value: periodJobRevenue, color: '#28a745' });
+    }
+    var expenseTypes = financeTypes.filter(function(t) { return t !== 'Money Received'; });
+    expenseTypes.forEach(function(type) {
+        var total = all.filter(function(e) { return e.type === type; }).reduce(function(s, e) { return s + e.amount; }, 0);
+        if (total > 0) {
+            barData.push({ label: type, value: total, color: '#e94560' });
         }
     });
 
-    var keys = Object.keys(periodKeys).sort();
+    if (barData.length === 0) {
+        fc.style.display = 'none';
+        document.getElementById('noFinanceMsg').style.display = 'block';
+        return;
+    }
+
     var maxVal = 0;
-    keys.forEach(function(k) { maxVal = Math.max(maxVal, periodKeys[k].revenue, periodKeys[k].expenses); });
+    barData.forEach(function(d) { maxVal = Math.max(maxVal, d.value); });
     maxVal = maxVal || 1;
 
+    var rowHeight = 36;
+    var canvasH = Math.max(200, barData.length * rowHeight + 40);
+    fc.style.height = canvasH + 'px';
+
     var dpr = window.devicePixelRatio || 1;
-    var w = fc.clientWidth, h = fc.clientHeight;
+    var w = fc.clientWidth, h = canvasH;
     fc.width = w * dpr; fc.height = h * dpr;
     fctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     fctx.clearRect(0, 0, w, h);
 
-    var pad = { top: 20, right: 20, bottom: 60, left: 70 };
+    var pad = { top: 10, right: 20, bottom: 10, left: 160 };
     var chartW = w - pad.left - pad.right;
-    var chartH = h - pad.top - pad.bottom;
-    var groupW = chartW / keys.length;
-    var barW = Math.min(groupW * 0.35, 40);
+    var barH = Math.min(28, (h - pad.top - pad.bottom) / barData.length - 6);
 
-    // Y-axis gridlines
-    fctx.strokeStyle = '#e0e0e0'; fctx.lineWidth = 1;
-    fctx.fillStyle = '#6c757d'; fctx.font = '11px "Segoe UI", system-ui, sans-serif';
-    fctx.textAlign = 'right'; fctx.textBaseline = 'middle';
-    for (var gi = 0; gi <= 4; gi++) {
-        var yVal = (maxVal / 4) * gi;
-        var yPos = pad.top + chartH - (gi / 4) * chartH;
-        fctx.beginPath(); fctx.moveTo(pad.left, yPos); fctx.lineTo(w - pad.right, yPos); fctx.stroke();
-        fctx.fillText('$' + Math.round(yVal), pad.left - 8, yPos);
-    }
+    barData.forEach(function(item, i) {
+        var y = pad.top + i * (barH + 8);
+        var barLen = (item.value / maxVal) * chartW;
 
-    // Bars
-    keys.forEach(function(key, i) {
-        var d = periodKeys[key];
-        var cx = pad.left + groupW * i + groupW / 2;
-        var rh = (d.revenue / maxVal) * chartH;
-        var eh = (d.expenses / maxVal) * chartH;
+        // Category label
+        fctx.fillStyle = '#333';
+        fctx.font = '12px "Segoe UI", system-ui, sans-serif';
+        fctx.textAlign = 'right'; fctx.textBaseline = 'middle';
+        fctx.fillText(item.label, pad.left - 10, y + barH / 2);
 
-        // Revenue bar
-        fctx.fillStyle = '#28a745';
+        // Bar
+        fctx.fillStyle = item.color;
         fctx.beginPath();
-        roundRect(fctx, cx - barW - 2, pad.top + chartH - rh, barW, rh, 4);
+        roundRect(fctx, pad.left, y, Math.max(barLen, 2), barH, 4);
         fctx.fill();
 
-        // Expense bar
-        fctx.fillStyle = '#e94560';
-        fctx.beginPath();
-        roundRect(fctx, cx + 2, pad.top + chartH - eh, barW, eh, 4);
-        fctx.fill();
-
-        // X label
-        fctx.fillStyle = '#6c757d';
-        fctx.font = '10px "Segoe UI", system-ui, sans-serif';
-        fctx.textAlign = 'center'; fctx.textBaseline = 'top';
-        var label = key.length > 10 ? key.slice(5) : key;
-        fctx.save();
-        fctx.translate(cx, pad.top + chartH + 8);
-        fctx.rotate(-0.4);
-        fctx.fillText(label, 0, 0);
-        fctx.restore();
+        // Value label
+        fctx.fillStyle = '#333';
+        fctx.font = '11px "Segoe UI", system-ui, sans-serif';
+        fctx.textAlign = 'left'; fctx.textBaseline = 'middle';
+        fctx.fillText('$' + item.value.toFixed(2), pad.left + barLen + 6, y + barH / 2);
     });
-
-    // Legend
-    fctx.font = '12px "Segoe UI", system-ui, sans-serif';
-    fctx.textAlign = 'left'; fctx.textBaseline = 'middle';
-    fctx.fillStyle = '#28a745';
-    fctx.fillRect(pad.left, h - 18, 12, 12);
-    fctx.fillStyle = '#333';
-    fctx.fillText('Revenue', pad.left + 16, h - 12);
-    fctx.fillStyle = '#e94560';
-    fctx.fillRect(pad.left + 90, h - 18, 12, 12);
-    fctx.fillStyle = '#333';
-    fctx.fillText('Expenses', pad.left + 106, h - 12);
 }
 
 function roundRect(ctx, x, y, w, h, r) {
@@ -2595,11 +2575,21 @@ function detectColumns(headers) {
     headers.forEach(function(h, i) {
         var lc = h.toLowerCase().replace(/[^a-z0-9]/g, '');
         if (result.date === -1 && /^(date|postdate|transdate|postingdate|transactiondate)$/.test(lc)) result.date = i;
-        if (result.description === -1 && /^(description|desc|memo|narrative|details|payee|name|merchant|transactiondescription)$/.test(lc)) result.description = i;
         if (result.amount === -1 && /^(amount|transactionamount|amt)$/.test(lc)) result.amount = i;
         if (result.debit === -1 && /^(debit|withdrawal|debits|withdrawals|expense)$/.test(lc)) result.debit = i;
         if (result.credit === -1 && /^(credit|deposit|credits|deposits|income)$/.test(lc)) result.credit = i;
     });
+    // Two-pass for description: prefer exact "description" over "details"
+    headers.forEach(function(h, i) {
+        var lc = h.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (result.description === -1 && /^(description|desc|transactiondescription)$/.test(lc)) result.description = i;
+    });
+    if (result.description === -1) {
+        headers.forEach(function(h, i) {
+            var lc = h.toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (result.description === -1 && /^(memo|narrative|details|payee|name|merchant)$/.test(lc)) result.description = i;
+        });
+    }
     if (result.date === -1) {
         for (var i = 0; i < headers.length; i++) { if (parseDate(headers[i]) === null && /date/i.test(headers[i])) { result.date = i; break; } }
     }
