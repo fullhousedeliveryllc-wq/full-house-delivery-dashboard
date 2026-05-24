@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
@@ -465,8 +465,8 @@
             .tab-bar::-webkit-scrollbar { display: none; }
             .tab-btn { padding: 10px 14px; font-size: 12px; white-space: nowrap; flex-shrink: 0; }
 
-            .container { padding: 16px 12px; gap: 16px; }
-            .card { padding: 16px; }
+            .container { padding: 16px 12px; gap: 16px; max-width: 100vw; overflow-x: hidden; }
+            .card { padding: 16px; max-width: 100%; overflow: hidden; }
             .card h2 { font-size: 16px; margin-bottom: 14px; }
 
             .summary-strip { gap: 8px; }
@@ -485,7 +485,7 @@
             td { padding: 8px 8px; }
 
             .form-group label { font-size: 12px; }
-            input, select { font-size: 13px; padding: 8px 12px; }
+            input, select { font-size: 16px; padding: 8px 12px; }
             .btn { padding: 8px 16px; font-size: 13px; }
             .btn-sm { padding: 5px 10px; font-size: 11px; }
 
@@ -547,7 +547,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v18</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v19</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:#2196F3;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -676,7 +676,7 @@
         <h2><span class="icon">&#128210;</span> Entry Log</h2>
         <div class="search-bar-wrap">
             <span class="search-icon">&#128269;</span>
-            <input type="text" id="entrySearchBar" placeholder="Search entries by name, category, phone, email, revenue, note, date..." oninput="renderLog()">
+            <input type="text" id="entrySearchBar" placeholder="Search entries by name, category, phone, email, revenue, note, date..." oninput="renderLog()" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" name="entry-search-nofill">
         </div>
         <div class="log-controls">
             <select id="filterCategory" onchange="renderLog()">
@@ -1030,9 +1030,13 @@
             <label for="editJobNote">Note</label>
             <input type="text" id="editJobNote" required>
         </div>
-        <div class="form-group" id="editInvoiceSection" style="display:none;">
-            <label>Invoices</label>
-            <div class="invoice-preview" id="editInvoicePreview"></div>
+        <div class="form-group">
+            <label>Current Invoices</label>
+            <div class="invoice-preview" id="editInvoicePreview"><span style="color:#999;font-size:13px;">No invoices attached</span></div>
+        </div>
+        <div class="form-group">
+            <label for="editJobInvoices">Add / Replace Invoices (up to 5 images)</label>
+            <input type="file" id="editJobInvoices" accept="image/*" multiple style="font-size:13px;">
         </div>
         <div class="edit-actions">
             <button class="btn btn-primary" onclick="saveJobEdit()">&#128190; Save Changes</button>
@@ -1994,16 +1998,14 @@ function editEntry(id) {
     document.getElementById('editJobStoreName').value = entry.storeName || '';
     document.getElementById('editJobReferredBy').value = entry.referredBy || '';
     document.getElementById('editJobNote').value = entry.note || '';
-    var invoiceSection = document.getElementById('editInvoiceSection');
     var invoicePreview = document.getElementById('editInvoicePreview');
+    document.getElementById('editJobInvoices').value = '';
     if (entry.invoices && entry.invoices.length > 0) {
-        invoiceSection.style.display = 'block';
-        invoicePreview.innerHTML = entry.invoices.map(function(src) {
-            return '<div class="invoice-thumb"><img src="' + src + '"></div>';
+        invoicePreview.innerHTML = entry.invoices.map(function(src, idx) {
+            return '<div class="invoice-thumb" style="display:inline-block;position:relative;margin:4px;"><img src="' + src + '" style="max-width:80px;max-height:80px;border-radius:6px;"><button type="button" onclick="removeEditInvoice(' + id + ',' + idx + ')" style="position:absolute;top:-6px;right:-6px;background:#e74c3c;color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;line-height:1;">&times;</button></div>';
         }).join('');
     } else {
-        invoiceSection.style.display = 'none';
-        invoicePreview.innerHTML = '';
+        invoicePreview.innerHTML = '<span style="color:#999;font-size:13px;">No invoices attached</span>';
     }
     updateEditConditionalFields();
     document.getElementById('editJobModal').classList.add('active');
@@ -2036,7 +2038,54 @@ function saveJobEdit() {
     entry.storeName = cat === 'Furniture Store Jobs' ? document.getElementById('editJobStoreName').value.trim() : '';
     entry.referredBy = cat === 'Online Customers' ? document.getElementById('editJobReferredBy').value : '';
     entry.note = document.getElementById('editJobNote').value.trim();
+
+    var newFiles = document.getElementById('editJobInvoices').files;
+    if (newFiles && newFiles.length > 0) {
+        var existingInvoices = entry.invoices || [];
+        var remaining = 5 - existingInvoices.length;
+        if (remaining <= 0) { toast('Max 5 invoices. Remove some first.'); return; }
+        var filesToProcess = Math.min(newFiles.length, remaining);
+        var processed = 0;
+        for (var fi = 0; fi < filesToProcess; fi++) {
+            (function(file) {
+                var reader = new FileReader();
+                reader.onload = function() {
+                    var img = new Image();
+                    img.onload = function() {
+                        var maxDim = 800;
+                        var w = img.width, h = img.height;
+                        if (w > maxDim || h > maxDim) {
+                            if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+                            else { w = Math.round(w * maxDim / h); h = maxDim; }
+                        }
+                        var canvas = document.createElement('canvas');
+                        canvas.width = w; canvas.height = h;
+                        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                        existingInvoices.push(canvas.toDataURL('image/jpeg', 0.7));
+                        processed++;
+                        if (processed === filesToProcess) {
+                            entry.invoices = existingInvoices;
+                            save(); renderAll(); renderFinanceAll(); closeEditJobModal();
+                            toast('Entry updated with ' + filesToProcess + ' new invoice(s).');
+                        }
+                    };
+                    img.src = reader.result;
+                };
+                reader.readAsDataURL(file);
+            })(newFiles[fi]);
+        }
+        return;
+    }
+
     save(); renderAll(); renderFinanceAll(); closeEditJobModal(); toast('Entry updated.');
+}
+
+function removeEditInvoice(entryId, idx) {
+    var entry = entries.find(function(e) { return String(e.id) === String(entryId); });
+    if (!entry || !entry.invoices) return;
+    entry.invoices.splice(idx, 1);
+    save();
+    editJobEntry(entryId);
 }
 
 function closeEditJobModal() {
