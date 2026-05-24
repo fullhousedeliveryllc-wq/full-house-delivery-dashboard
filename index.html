@@ -735,7 +735,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v32</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v33</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:#2196F3;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -809,7 +809,11 @@
 
         <div id="reviewApiSetup" style="display:none; margin-top:12px; padding:14px; background:#fff3cd; border-radius:10px; border:1px solid #ffc107; font-size:12px;">
             <strong style="color:#664d03;">&#128273; Google Places API Key Required</strong>
-            <p style="margin:6px 0;color:#856404;">To auto-fetch your Google reviews, enter your Google Places API key below. <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color:#4285f4;">Get one here</a></p>
+            <p style="margin:6px 0;color:#856404;">To auto-fetch your Google reviews:<br>
+            1. Sign into <a href="https://console.cloud.google.com/" target="_blank" style="color:#4285f4;">Google Cloud Console</a> with fullhousedeliveryllc@gmail.com<br>
+            2. Create a project → <a href="https://console.cloud.google.com/apis/library/places-backend.googleapis.com" target="_blank" style="color:#4285f4;">Enable Places API</a><br>
+            3. <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color:#4285f4;">Create an API key</a> (no restrictions)<br>
+            4. Ensure <a href="https://console.cloud.google.com/billing" target="_blank" style="color:#4285f4;">billing is active</a> ($200/mo free credit)</p>
             <div style="display:flex;gap:6px;">
                 <input type="text" id="googleApiKeyInput" placeholder="AIza..." style="flex:1;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;" autocomplete="off">
                 <button class="btn-add-review" onclick="saveGoogleApiKey()" style="padding:8px 14px;font-size:12px;white-space:nowrap;">Save Key</button>
@@ -4469,6 +4473,32 @@ function fetchGoogleReviews() {
 function findPlaceId() {
     var btn = document.getElementById('refreshReviewsBtn');
     if (btn) btn.textContent = '\u27F3 Finding...';
+    // Try legacy Places API first (most commonly enabled)
+    var legacyUrl = 'https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=Full+House+Delivery+LLC&inputtype=textquery&fields=place_id,name&key=' + encodeURIComponent(googleApiKey);
+    fetch(legacyUrl)
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+        if (data.status === 'OK' && data.candidates && data.candidates.length > 0) {
+            googlePlaceId = data.candidates[0].place_id;
+            localStorage.setItem('fhd_google_place_id', googlePlaceId);
+            localStorage.setItem('fhd_google_api_type', 'legacy');
+            loadReviewsFromApi();
+        } else if (data.status === 'REQUEST_DENIED') {
+            // Try new Places API as fallback
+            findPlaceIdNew();
+        } else {
+            toast('Could not find Full House Delivery on Google. Status: ' + (data.status || 'unknown'), true);
+            if (btn) btn.textContent = '\u27F3 Refresh';
+        }
+    })
+    .catch(function(err) {
+        console.error('[Place Search Legacy]', err);
+        findPlaceIdNew();
+    });
+}
+
+function findPlaceIdNew() {
+    var btn = document.getElementById('refreshReviewsBtn');
     var url = 'https://places.googleapis.com/v1/places:searchText';
     fetch(url, {
         method: 'POST',
@@ -4483,6 +4513,7 @@ function findPlaceId() {
         if (data.places && data.places.length > 0) {
             googlePlaceId = data.places[0].id;
             localStorage.setItem('fhd_google_place_id', googlePlaceId);
+            localStorage.setItem('fhd_google_api_type', 'new');
             loadReviewsFromApi();
         } else {
             toast('Could not find Full House Delivery on Google.', true);
@@ -4490,8 +4521,8 @@ function findPlaceId() {
         }
     })
     .catch(function(err) {
-        console.error('[Place Search]', err);
-        toast('Place search failed: ' + err.message, true);
+        console.error('[Place Search New]', err);
+        toast('API key error. Enable "Places API" in Google Cloud Console (APIs & Services → Library → search "Places API" → Enable). Also ensure billing is active.', true);
         document.getElementById('reviewApiSetup').style.display = 'block';
         if (btn) btn.textContent = '\u27F3 Refresh';
     });
@@ -4500,12 +4531,31 @@ function findPlaceId() {
 function loadReviewsFromApi() {
     var btn = document.getElementById('refreshReviewsBtn');
     if (btn) btn.textContent = '\u27F3 Loading...';
-    var url = 'https://places.googleapis.com/v1/places/' + googlePlaceId + '?key=' + googleApiKey;
-    fetch(url, { headers: { 'X-Goog-FieldMask': 'rating,userRatingCount,reviews' } })
-    .then(function(res) {
-        if (!res.ok) throw new Error('API error ' + res.status);
-        return res.json();
-    })
+    var apiType = localStorage.getItem('fhd_google_api_type') || 'legacy';
+    if (apiType === 'legacy') {
+        var url = 'https://maps.googleapis.com/maps/api/place/details/json?place_id=' + encodeURIComponent(googlePlaceId) + '&fields=rating,user_ratings_total,reviews&key=' + encodeURIComponent(googleApiKey);
+        fetch(url).then(function(res) { return res.json(); })
+        .then(function(data) {
+            if (data.status === 'OK' && data.result) {
+                processLegacyReviews(data.result);
+            } else if (data.status === 'REQUEST_DENIED') {
+                localStorage.setItem('fhd_google_api_type', 'new');
+                localStorage.removeItem('fhd_google_place_id');
+                googlePlaceId = null;
+                findPlaceIdNew();
+            } else {
+                toast('Reviews fetch failed: ' + (data.status || 'unknown'), true);
+                if (btn) btn.textContent = '\u27F3 Refresh';
+            }
+        })
+        .catch(function(err) { handleReviewError(err, btn); });
+    } else {
+        var url = 'https://places.googleapis.com/v1/places/' + googlePlaceId + '?key=' + googleApiKey;
+        fetch(url, { headers: { 'X-Goog-FieldMask': 'rating,userRatingCount,reviews' } })
+        .then(function(res) {
+            if (!res.ok) throw new Error('API error ' + res.status);
+            return res.json();
+        })
     .then(function(data) {
         if (data.reviews && data.reviews.length > 0) {
             googleReviews = data.reviews.map(function(r) {
@@ -4528,17 +4578,44 @@ function loadReviewsFromApi() {
         toast('Google Reviews updated! (' + googleReviews.length + ' reviews)');
         if (btn) btn.textContent = '\u27F3 Refresh';
     })
-    .catch(function(err) {
-        console.error('[Google Reviews]', err);
-        if (err.message.indexOf('403') !== -1 || err.message.indexOf('400') !== -1) {
-            toast('API key invalid or Places API not enabled. Check Google Cloud Console.', true);
-            document.getElementById('reviewApiSetup').style.display = 'block';
-        } else {
-            toast('Could not fetch reviews: ' + err.message, true);
-        }
-        renderReviewsSection();
-        if (btn) btn.textContent = '\u27F3 Refresh';
-    });
+    .catch(function(err) { handleReviewError(err, btn); });
+    }
+}
+
+function processLegacyReviews(result) {
+    var btn = document.getElementById('refreshReviewsBtn');
+    if (result.reviews && result.reviews.length > 0) {
+        googleReviews = result.reviews.map(function(r) {
+            return {
+                id: 'google-' + (r.author_name || '') + '-' + (r.time || ''),
+                rating: r.rating || 5,
+                author: r.author_name || 'Google User',
+                date: r.time ? new Date(r.time * 1000).toISOString().substring(0, 10) : today(),
+                text: r.text || '',
+                source: 'google'
+            };
+        });
+    }
+    if (result.rating) {
+        localStorage.setItem('fhd_google_overall_rating', result.rating);
+        localStorage.setItem('fhd_google_total_reviews', result.user_ratings_total || googleReviews.length);
+    }
+    saveReviews();
+    renderReviewsSection();
+    toast('Google Reviews updated! (' + googleReviews.length + ' reviews)');
+    if (btn) btn.textContent = '\u27F3 Refresh';
+}
+
+function handleReviewError(err, btn) {
+    console.error('[Google Reviews]', err);
+    if (err.message && (err.message.indexOf('403') !== -1 || err.message.indexOf('400') !== -1)) {
+        toast('API key issue. In Google Cloud Console: 1) Enable "Places API" (APIs & Services → Library), 2) Ensure billing is active, 3) Remove any API key restrictions or add your domain.', true);
+        document.getElementById('reviewApiSetup').style.display = 'block';
+    } else {
+        toast('Could not fetch reviews: ' + (err.message || err), true);
+    }
+    renderReviewsSection();
+    if (btn) btn.textContent = '\u27F3 Refresh';
 }
 
 function saveGoogleApiKey() {
@@ -4546,8 +4623,12 @@ function saveGoogleApiKey() {
     if (!key) { toast('Please enter an API key', true); return; }
     googleApiKey = key;
     localStorage.setItem('fhd_google_api_key', key);
+    // Clear cached place ID to re-search with new key
+    googlePlaceId = null;
+    localStorage.removeItem('fhd_google_place_id');
+    localStorage.removeItem('fhd_google_api_type');
     document.getElementById('reviewApiSetup').style.display = 'none';
-    toast('API key saved!');
+    toast('API key saved! Searching for Full House Delivery...');
     fetchGoogleReviews();
 }
 
