@@ -634,6 +634,29 @@
         .avail-legend { display: flex; gap: 14px; margin: 10px 0; flex-wrap: wrap; font-size: 12px; color: #666; }
         .avail-legend span { display: flex; align-items: center; gap: 4px; }
 
+        /* Contact info popover */
+        .contact-popover { position: absolute; background: #fff; border-radius: 14px; box-shadow: 0 8px 32px rgba(0,0,0,0.18); padding: 18px; z-index: 998; min-width: 260px; border: 1px solid var(--border); }
+        .contact-popover h4 { margin: 0 0 12px; font-size: 15px; color: var(--text); border-bottom: 2px solid var(--accent); padding-bottom: 8px; }
+        .contact-popover .contact-field { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 13px; }
+        .contact-popover .contact-field label { font-size: 11px; font-weight: 600; color: var(--text-light); text-transform: uppercase; min-width: 50px; margin: 0; }
+        .contact-popover .contact-field input { flex: 1; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; }
+        .contact-popover .contact-actions { display: flex; gap: 6px; margin-top: 10px; }
+        .contact-popover .contact-actions button { flex: 1; padding: 7px; border: none; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600; }
+        .roster-name { cursor: pointer; color: var(--accent); font-weight: 500; transition: color 0.15s; }
+        .roster-name:hover { color: var(--highlight); text-decoration: underline; }
+
+        /* Crew sections in calendar */
+        .crew-section { border-top: 1px dashed #e0e0e0; margin-top: 3px; padding-top: 2px; }
+        .crew-section:first-child { border-top: none; margin-top: 0; padding-top: 0; }
+        .crew-label { font-size: 8px; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.3px; margin-bottom: 1px; }
+
+        /* Shift time display */
+        .shift-time { font-size: 9px; color: var(--text-light); font-style: italic; }
+
+        /* Expand button */
+        .expand-toggle { display: inline-block; margin-top: 8px; padding: 5px 14px; background: none; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; font-size: 11px; color: var(--text-light); font-weight: 500; transition: all 0.15s; }
+        .expand-toggle:hover { background: #f5f5f5; border-color: #bbb; }
+
         /* Google Reviews */
         .reviews-card { background: #fff; border-top: 3px solid #fbbc04; }
         .reviews-header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
@@ -707,7 +730,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v30</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v31</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:#2196F3;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -915,6 +938,7 @@
             </table>
         </div>
         <div class="pagination" id="entryPagination"></div>
+        <div style="text-align:center;"><button class="expand-toggle" id="entryExpandBtn" onclick="toggleEntryExpand()">Expand to 100</button></div>
     </div>
 </div>
 </div><!-- end tab-jobs -->
@@ -1045,6 +1069,7 @@
             </table>
         </div>
         <div class="pagination" id="financePagination"></div>
+        <div style="text-align:center;"><button class="expand-toggle" id="finExpandBtn" onclick="toggleFinExpand()">Expand to 100</button></div>
     </div>
 </div>
 </div><!-- end tab-finance -->
@@ -2241,6 +2266,25 @@ function updateSortArrows() {
 
 var entryPage = 1;
 var ENTRIES_PER_PAGE = 5;
+var entryExpanded = false;
+var finExpanded = false;
+
+function toggleEntryExpand() {
+    entryExpanded = !entryExpanded;
+    entryPage = 1;
+    document.getElementById('entryExpandBtn').textContent = entryExpanded ? 'Collapse to ' + ENTRIES_PER_PAGE : 'Expand to 100';
+    renderLog();
+}
+
+function toggleFinExpand() {
+    finExpanded = !finExpanded;
+    finPage = 1;
+    document.getElementById('finExpandBtn').textContent = finExpanded ? 'Collapse to ' + ENTRIES_PER_PAGE : 'Expand to 100';
+    renderFinanceLog();
+}
+
+function getEntryPageSize() { return entryExpanded ? 100 : ENTRIES_PER_PAGE; }
+function getFinPageSize() { return finExpanded ? 100 : ENTRIES_PER_PAGE; }
 
 function buildPagination(current, total, itemCount, callbackName) {
     if (total <= 1) return '<span class="page-info">' + itemCount + ' entries</span>';
@@ -2312,11 +2356,12 @@ function renderLog() {
     var pagDiv = document.getElementById('entryPagination');
     if (!filtered.length) { body.innerHTML = '<tr><td colspan="11" class="empty-log">No entries yet &mdash; start logging above!</td></tr>'; pagDiv.innerHTML = ''; return; }
 
-    var totalPages = Math.ceil(filtered.length / ENTRIES_PER_PAGE);
+    var pageSize = getEntryPageSize();
+    var totalPages = Math.ceil(filtered.length / pageSize);
     if (entryPage > totalPages) entryPage = totalPages;
     if (entryPage < 1) entryPage = 1;
-    var start = (entryPage - 1) * ENTRIES_PER_PAGE;
-    var pageItems = filtered.slice(start, start + ENTRIES_PER_PAGE);
+    var start = (entryPage - 1) * pageSize;
+    var pageItems = filtered.slice(start, start + pageSize);
 
     body.innerHTML = pageItems.map(function(e) {
         var details = e.storeName ? 'Store: ' + e.storeName : (e.referredBy ? 'Ref: ' + e.referredBy : '');
@@ -2798,11 +2843,12 @@ function renderFinanceLog() {
     var pagDiv = document.getElementById('financePagination');
     if (!combined.length) { body.innerHTML = '<tr><td colspan="5" class="empty-log">No finance entries yet.</td></tr>'; pagDiv.innerHTML = ''; return; }
 
-    var totalPages = Math.ceil(combined.length / ENTRIES_PER_PAGE);
+    var finPageSize = getFinPageSize();
+    var totalPages = Math.ceil(combined.length / finPageSize);
     if (finPage > totalPages) finPage = totalPages;
     if (finPage < 1) finPage = 1;
-    var start = (finPage - 1) * ENTRIES_PER_PAGE;
-    var pageItems = combined.slice(start, start + ENTRIES_PER_PAGE);
+    var start = (finPage - 1) * finPageSize;
+    var pageItems = combined.slice(start, start + finPageSize);
 
     body.innerHTML = pageItems.map(function(e) {
         if (e.source === 'job') {
@@ -3797,19 +3843,26 @@ function renderChimeAll() {
    TEAM & SCHEDULE
    ═══════════════════════════════════════ */
 
-// Data: drivers are objects { name, status, inactiveDate, vacationStart, vacationEnd }
+// Data: drivers are objects { name, status, inactiveDate, vacationStart, vacationEnd, phone, email, unavailDays }
 var teamDriversRaw = JSON.parse(localStorage.getItem('fhd_teamDrivers2')) || null;
 var teamDrivers;
 if (teamDriversRaw && Array.isArray(teamDriversRaw) && teamDriversRaw.length > 0 && typeof teamDriversRaw[0] === 'object') {
-    teamDrivers = teamDriversRaw;
+    teamDrivers = teamDriversRaw.map(function(d) {
+        if (!d.phone) d.phone = '';
+        if (!d.email) d.email = '';
+        if (!d.unavailDays) d.unavailDays = [];
+        return d;
+    });
 } else {
     var oldDrivers = JSON.parse(localStorage.getItem('fhd_teamDrivers')) || ['Oslain', 'Danny Lopez', 'Jose', 'Ricky', 'Dayron'];
     teamDrivers = oldDrivers.map(function(n) {
         var name = typeof n === 'string' ? n : n.name;
-        return { name: name, status: 'active', inactiveDate: null, vacationStart: null, vacationEnd: null };
+        return { name: name, status: 'active', inactiveDate: null, vacationStart: null, vacationEnd: null, phone: '', email: '', unavailDays: [] };
     });
 }
 var teamOwners = ['Jorge Lopez', 'Angel Orbe', 'Emanuel Salinas', 'David Garcia', 'Josh Verde'];
+var ownerContacts = JSON.parse(localStorage.getItem('fhd_ownerContacts')) || {};
+var ownerUnavailDays = JSON.parse(localStorage.getItem('fhd_ownerUnavailDays')) || {};
 var scheduleData = JSON.parse(localStorage.getItem('fhd_schedule')) || {};
 var availData = JSON.parse(localStorage.getItem('fhd_availability')) || {};
 var auditLog = JSON.parse(localStorage.getItem('fhd_auditLog')) || [];
@@ -3821,6 +3874,8 @@ function saveTeam() {
     localStorage.setItem('fhd_schedule', JSON.stringify(scheduleData));
     localStorage.setItem('fhd_availability', JSON.stringify(availData));
     localStorage.setItem('fhd_auditLog', JSON.stringify(auditLog));
+    localStorage.setItem('fhd_ownerContacts', JSON.stringify(ownerContacts));
+    localStorage.setItem('fhd_ownerUnavailDays', JSON.stringify(ownerUnavailDays));
     // Auto-remove inactive drivers past 7 days
     var now = Date.now();
     teamDrivers = teamDrivers.filter(function(d) {
@@ -3868,7 +3923,16 @@ function canSchedule(driver, dateKey) {
     if (driver.status !== 'active') return false;
     if (isOnVacation(driver, dateKey)) return false;
     if (getAvail(driver.name, dateKey) === 'not-willing') return false;
+    var d = new Date(dateKey + 'T00:00:00');
+    var dayOfWeek = d.getDay();
+    if (driver.unavailDays && driver.unavailDays.indexOf(dayOfWeek) !== -1) return false;
     return true;
+}
+
+function canScheduleOwner(ownerName, dateKey) {
+    var days = ownerUnavailDays[ownerName] || [];
+    var d = new Date(dateKey + 'T00:00:00');
+    return days.indexOf(d.getDay()) === -1;
 }
 
 // Roster rendering
@@ -3895,13 +3959,13 @@ function renderTeamRoster() {
         }
         actions += ' <button class="btn btn-danger btn-sm" onclick="removeEmployee(' + i + ')" style="padding:2px 8px;font-size:11px;">&times;</button>';
         actions += '</span>';
-        return '<li><span>' + esc(drv.name) + '</span>' + actions + '</li>';
+        return '<li><span class="roster-name" onclick="openContactPopover(\'driver\',' + i + ', event)">' + esc(drv.name) + '</span>' + actions + '</li>';
     }).join('');
     document.getElementById('driverCount').textContent = teamDrivers.filter(function(d) { return d.status === 'active'; }).length;
 
     var ol = document.getElementById('ownerList');
-    ol.innerHTML = teamOwners.map(function(name) {
-        return '<li><span>' + esc(name) + '</span><span class="roster-badge badge-owner">Owner</span></li>';
+    ol.innerHTML = teamOwners.map(function(name, i) {
+        return '<li><span class="roster-name" onclick="openContactPopover(\'owner\',' + i + ', event)">' + esc(name) + '</span><span class="roster-badge badge-owner">Owner</span></li>';
     }).join('');
 }
 
@@ -3909,9 +3973,69 @@ function addEmployee() {
     var nameInput = document.getElementById('newDriverName');
     var name = nameInput.value.trim();
     if (!name) { toast('Enter a driver name.'); return; }
-    teamDrivers.push({ name: name, status: 'active', inactiveDate: null, vacationStart: null, vacationEnd: null });
+    teamDrivers.push({ name: name, status: 'active', inactiveDate: null, vacationStart: null, vacationEnd: null, phone: '', email: '', unavailDays: [] });
     nameInput.value = '';
     saveTeam(); renderTeamAll();
+}
+
+var dayLabels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function openContactPopover(type, index, evt) {
+    evt.stopPropagation();
+    var existing = document.getElementById('contactPopover');
+    if (existing) existing.remove();
+    var name, phone, email, unavailDays;
+    if (type === 'driver') {
+        var drv = teamDrivers[index];
+        name = drv.name; phone = drv.phone || ''; email = drv.email || ''; unavailDays = drv.unavailDays || [];
+    } else {
+        name = teamOwners[index];
+        var c = ownerContacts[name] || {};
+        phone = c.phone || ''; email = c.email || ''; unavailDays = ownerUnavailDays[name] || [];
+    }
+    var pop = document.createElement('div');
+    pop.className = 'contact-popover'; pop.id = 'contactPopover';
+    var dayChecks = '';
+    for (var d = 0; d < 7; d++) {
+        dayChecks += '<label style="display:inline-flex;align-items:center;gap:3px;margin-right:8px;font-size:11px;cursor:pointer;"><input type="checkbox" class="unavail-day-cb" value="' + d + '"' + (unavailDays.indexOf(d) !== -1 ? ' checked' : '') + '> ' + dayLabels[d] + '</label>';
+    }
+    pop.innerHTML = '<h4>' + esc(name) + '</h4>' +
+        '<div class="contact-field"><label>Phone</label><input type="tel" id="cpPhone" value="' + esc(phone) + '" placeholder="(555) 123-4567"></div>' +
+        '<div class="contact-field"><label>Email</label><input type="email" id="cpEmail" value="' + esc(email) + '" placeholder="name@email.com"></div>' +
+        '<div style="margin-top:10px;"><div style="font-size:11px;font-weight:600;color:var(--text-light);text-transform:uppercase;margin-bottom:4px;">Days Not Available</div>' + dayChecks + '</div>' +
+        '<div class="contact-actions"><button style="background:var(--accent);color:#fff;" onclick="saveContactPopover(\'' + type + '\',' + index + ')">Save</button><button style="background:#f0f0f0;color:#333;" onclick="closeContactPopover()">Cancel</button></div>';
+    document.body.appendChild(pop);
+    requestAnimationFrame(function() {
+        var r = pop.getBoundingClientRect(), vw = window.innerWidth, vh = window.innerHeight;
+        var x = evt.clientX || vw / 2, y = evt.clientY || vh / 2;
+        var left = Math.min(x + 10, vw - r.width - 10);
+        var top = Math.min(y - 20, vh - r.height - 10);
+        if (left < 10) left = 10; if (top < 10) top = 10;
+        pop.style.left = left + 'px'; pop.style.top = top + 'px'; pop.style.position = 'fixed';
+    });
+}
+
+function saveContactPopover(type, index) {
+    var phone = document.getElementById('cpPhone').value.trim();
+    var email = document.getElementById('cpEmail').value.trim();
+    var cbs = document.querySelectorAll('.unavail-day-cb');
+    var unavailDays = [];
+    cbs.forEach(function(cb) { if (cb.checked) unavailDays.push(parseInt(cb.value)); });
+    if (type === 'driver') {
+        teamDrivers[index].phone = phone;
+        teamDrivers[index].email = email;
+        teamDrivers[index].unavailDays = unavailDays;
+    } else {
+        var name = teamOwners[index];
+        ownerContacts[name] = { phone: phone, email: email };
+        ownerUnavailDays[name] = unavailDays;
+    }
+    saveTeam(); closeContactPopover(); renderTeamAll();
+    toast('Contact info saved!');
+}
+
+function closeContactPopover() {
+    var pop = document.getElementById('contactPopover');
+    if (pop) pop.remove();
 }
 
 function removeEmployee(index) {
@@ -3985,15 +4109,35 @@ function getMonthDates(offset) {
 }
 
 function buildDayContent(dateKey) {
-    var dayData = scheduleData[dateKey] || { drivers: [], dispatcher: '' };
-    var chips = '';
-    (dayData.drivers || []).forEach(function(name) {
-        chips += '<span class="sched-chip driver" title="' + esc(name) + '">' + esc(name) + '</span>';
-    });
-    if (dayData.dispatcher) {
-        chips += '<span class="sched-dispatcher">&#128225; ' + esc(dayData.dispatcher) + '</span>';
+    var dayData = scheduleData[dateKey] || { crew1: [], crew2: [], dispatcher: '', drivers: [] };
+    // Migrate old format
+    if (dayData.drivers && dayData.drivers.length && (!dayData.crew1 || !dayData.crew1.length) && (!dayData.crew2 || !dayData.crew2.length)) {
+        dayData.crew1 = dayData.drivers.map(function(n) { return typeof n === 'string' ? { name: n, start: '', end: '' } : n; });
+        dayData.crew2 = [];
     }
-    return chips;
+    var c1 = dayData.crew1 || [];
+    var c2 = dayData.crew2 || [];
+    var html = '';
+    if (c1.length || c2.length) {
+        html += '<div class="crew-section"><div class="crew-label">Crew 1</div>';
+        c1.forEach(function(m) {
+            var timeStr = (m.start && m.end) ? '<span class="shift-time">' + m.start + '-' + m.end + '</span>' : '';
+            html += '<span class="sched-chip driver" title="' + esc(m.name) + '">' + esc(m.name) + ' ' + timeStr + '</span>';
+        });
+        if (!c1.length) html += '<span style="font-size:9px;color:#bbb;">—</span>';
+        html += '</div>';
+        html += '<div class="crew-section"><div class="crew-label">Crew 2</div>';
+        c2.forEach(function(m) {
+            var timeStr = (m.start && m.end) ? '<span class="shift-time">' + m.start + '-' + m.end + '</span>' : '';
+            html += '<span class="sched-chip driver" title="' + esc(m.name) + '">' + esc(m.name) + ' ' + timeStr + '</span>';
+        });
+        if (!c2.length) html += '<span style="font-size:9px;color:#bbb;">—</span>';
+        html += '</div>';
+    }
+    if (dayData.dispatcher) {
+        html += '<span class="sched-dispatcher">&#128225; ' + esc(dayData.dispatcher) + '</span>';
+    }
+    return html;
 }
 
 function renderSchedule() {
@@ -4031,36 +4175,93 @@ function renderSchedule() {
 
 function openSchedPopup(dateKey, evt) {
     var popup = document.getElementById('schedPopup');
-    var dayData = scheduleData[dateKey] || { drivers: [], dispatcher: '' };
-    var assignedDrivers = dayData.drivers || [];
+    var dayData = scheduleData[dateKey] || { crew1: [], crew2: [], dispatcher: '', drivers: [] };
+    // Migrate old format
+    if (dayData.drivers && dayData.drivers.length && (!dayData.crew1 || !dayData.crew1.length) && (!dayData.crew2 || !dayData.crew2.length)) {
+        dayData.crew1 = dayData.drivers.map(function(n) { return typeof n === 'string' ? { name: n, start: '', end: '' } : n; });
+        dayData.crew2 = [];
+    }
+    var crew1 = dayData.crew1 || [];
+    var crew2 = dayData.crew2 || [];
+    var crew1Names = crew1.map(function(m) { return m.name; });
+    var crew2Names = crew2.map(function(m) { return m.name; });
     var currentDispatcher = dayData.dispatcher || '';
+    var dOfWeek = new Date(dateKey + 'T00:00:00').getDay();
 
     var html = '<h4>&#128197; ' + dateKey + '</h4>';
 
-    // Availability section
-    html += '<div class="popup-section"><div class="popup-section-title">Driver Availability</div>';
+    // Crew 1 section
+    html += '<div class="popup-section"><div class="popup-section-title">Crew 1</div>';
     teamDrivers.forEach(function(drv) {
         if (drv.status !== 'active') return;
         var onVac = isOnVacation(drv, dateKey);
+        var schedulable = canSchedule(drv, dateKey);
         var av = onVac ? 'vacation' : getAvail(drv.name, dateKey);
-        var dotClass = onVac ? 'vacation' : (av === 'not-willing' ? 'not-willing' : 'willing');
-        var checked = assignedDrivers.indexOf(drv.name) !== -1 ? ' checked' : '';
-        var disabled = !canSchedule(drv, dateKey) ? ' disabled' : '';
-        var statusTxt = onVac ? ' <small style="color:#9c27b0;">(vacation)</small>' : (av === 'not-willing' ? ' <small style="color:#999;">(unavailable)</small>' : '');
-        html += '<label style="' + (disabled ? 'opacity:0.5;' : '') + '"><input type="checkbox" value="' + esc(drv.name) + '" class="sched-drv-cb"' + checked + disabled + '> <span class="avail-dot ' + dotClass + '"></span>' + esc(drv.name) + statusTxt + '</label>';
-        if (!onVac && drv.status === 'active') {
-            html += '<div style="margin-left:28px;margin-bottom:4px;"><select class="avail-sel" data-name="' + esc(drv.name) + '" data-date="' + dateKey + '" style="font-size:11px;padding:2px 6px;border-radius:4px;border:1px solid #ddd;">';
-            html += '<option value="willing"' + (av === 'willing' ? ' selected' : '') + '>Available</option>';
-            html += '<option value="not-willing"' + (av === 'not-willing' ? ' selected' : '') + '>Not available</option>';
-            html += '</select></div>';
+        var dotClass = onVac ? 'vacation' : (av === 'not-willing' ? 'not-willing' : (drv.unavailDays && drv.unavailDays.indexOf(dOfWeek) !== -1 ? 'not-willing' : 'willing'));
+        var checked = crew1Names.indexOf(drv.name) !== -1 ? ' checked' : '';
+        var disabled = !schedulable ? ' disabled' : '';
+        var statusTxt = onVac ? ' <small style="color:#9c27b0;">(vacation)</small>' : (!schedulable ? ' <small style="color:#999;">(unavailable)</small>' : '');
+        var memberData = crew1.find(function(m) { return m.name === drv.name; });
+        var startVal = memberData ? (memberData.start || '') : '';
+        var endVal = memberData ? (memberData.end || '') : '';
+        html += '<label style="' + (disabled ? 'opacity:0.5;' : '') + '"><input type="checkbox" value="' + esc(drv.name) + '" class="crew1-cb"' + checked + disabled + '> <span class="avail-dot ' + dotClass + '"></span>' + esc(drv.name) + statusTxt + '</label>';
+        if (schedulable) {
+            html += '<div style="margin-left:28px;margin-bottom:4px;display:flex;gap:4px;align-items:center;font-size:11px;">';
+            html += '<input type="time" class="crew1-start" data-name="' + esc(drv.name) + '" value="' + startVal + '" style="padding:2px 4px;border:1px solid #ddd;border-radius:4px;font-size:11px;width:90px;">';
+            html += '<span>to</span>';
+            html += '<input type="time" class="crew1-end" data-name="' + esc(drv.name) + '" value="' + endVal + '" style="padding:2px 4px;border:1px solid #ddd;border-radius:4px;font-size:11px;width:90px;">';
+            html += '</div>';
         }
+    });
+    html += '</div>';
+
+    // Crew 2 section
+    html += '<div class="popup-section"><div class="popup-section-title">Crew 2</div>';
+    teamDrivers.forEach(function(drv) {
+        if (drv.status !== 'active') return;
+        var onVac = isOnVacation(drv, dateKey);
+        var schedulable = canSchedule(drv, dateKey);
+        var av = onVac ? 'vacation' : getAvail(drv.name, dateKey);
+        var dotClass = onVac ? 'vacation' : (av === 'not-willing' ? 'not-willing' : (drv.unavailDays && drv.unavailDays.indexOf(dOfWeek) !== -1 ? 'not-willing' : 'willing'));
+        var checked = crew2Names.indexOf(drv.name) !== -1 ? ' checked' : '';
+        var disabled = !schedulable ? ' disabled' : '';
+        var statusTxt = onVac ? ' <small style="color:#9c27b0;">(vacation)</small>' : (!schedulable ? ' <small style="color:#999;">(unavailable)</small>' : '');
+        var memberData = crew2.find(function(m) { return m.name === drv.name; });
+        var startVal = memberData ? (memberData.start || '') : '';
+        var endVal = memberData ? (memberData.end || '') : '';
+        html += '<label style="' + (disabled ? 'opacity:0.5;' : '') + '"><input type="checkbox" value="' + esc(drv.name) + '" class="crew2-cb"' + checked + disabled + '> <span class="avail-dot ' + dotClass + '"></span>' + esc(drv.name) + statusTxt + '</label>';
+        if (schedulable) {
+            html += '<div style="margin-left:28px;margin-bottom:4px;display:flex;gap:4px;align-items:center;font-size:11px;">';
+            html += '<input type="time" class="crew2-start" data-name="' + esc(drv.name) + '" value="' + startVal + '" style="padding:2px 4px;border:1px solid #ddd;border-radius:4px;font-size:11px;width:90px;">';
+            html += '<span>to</span>';
+            html += '<input type="time" class="crew2-end" data-name="' + esc(drv.name) + '" value="' + endVal + '" style="padding:2px 4px;border:1px solid #ddd;border-radius:4px;font-size:11px;width:90px;">';
+            html += '</div>';
+        }
+    });
+    html += '</div>';
+
+    // Availability override
+    html += '<div class="popup-section"><div class="popup-section-title">Availability Override (today only)</div>';
+    teamDrivers.forEach(function(drv) {
+        if (drv.status !== 'active') return;
+        var onVac = isOnVacation(drv, dateKey);
+        if (onVac) return;
+        var av = getAvail(drv.name, dateKey);
+        html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;font-size:11px;"><span style="min-width:80px;">' + esc(drv.name) + '</span>';
+        html += '<select class="avail-sel" data-name="' + esc(drv.name) + '" data-date="' + dateKey + '" style="font-size:11px;padding:2px 6px;border-radius:4px;border:1px solid #ddd;">';
+        html += '<option value="willing"' + (av === 'willing' ? ' selected' : '') + '>Available</option>';
+        html += '<option value="not-willing"' + (av === 'not-willing' ? ' selected' : '') + '>Not available</option>';
+        html += '</select></div>';
     });
     html += '</div>';
 
     html += '<div class="popup-section"><div class="popup-section-title">Dispatcher / Router (Owner)</div>';
     html += '<label><input type="radio" name="sched-disp" value="" ' + (!currentDispatcher ? 'checked' : '') + '> None</label>';
     teamOwners.forEach(function(name) {
-        html += '<label><input type="radio" name="sched-disp" value="' + esc(name) + '"' + (currentDispatcher === name ? ' checked' : '') + '> ' + esc(name) + '</label>';
+        var ownerAvail = canScheduleOwner(name, dateKey);
+        var disabledOwner = !ownerAvail ? ' disabled' : '';
+        var ownerNote = !ownerAvail ? ' <small style="color:#999;">(unavailable)</small>' : '';
+        html += '<label style="' + (!ownerAvail ? 'opacity:0.5;' : '') + '"><input type="radio" name="sched-disp" value="' + esc(name) + '"' + (currentDispatcher === name ? ' checked' : '') + disabledOwner + '> ' + esc(name) + ownerNote + '</label>';
     });
     html += '</div>';
 
@@ -4099,28 +4300,65 @@ function saveSchedPopup(dateKey) {
         setAvail(sel.getAttribute('data-name'), sel.getAttribute('data-date'), sel.value);
     });
 
-    var cbs = document.querySelectorAll('.sched-drv-cb');
-    var drivers = [];
-    cbs.forEach(function(cb) { if (cb.checked) drivers.push(cb.value); });
+    // Collect crew 1
+    var crew1 = [];
+    document.querySelectorAll('.crew1-cb').forEach(function(cb) {
+        if (cb.checked) {
+            var name = cb.value;
+            var startEl = document.querySelector('.crew1-start[data-name="' + name + '"]');
+            var endEl = document.querySelector('.crew1-end[data-name="' + name + '"]');
+            crew1.push({ name: name, start: startEl ? startEl.value : '', end: endEl ? endEl.value : '' });
+        }
+    });
+
+    // Collect crew 2
+    var crew2 = [];
+    document.querySelectorAll('.crew2-cb').forEach(function(cb) {
+        if (cb.checked) {
+            var name = cb.value;
+            var startEl = document.querySelector('.crew2-start[data-name="' + name + '"]');
+            var endEl = document.querySelector('.crew2-end[data-name="' + name + '"]');
+            crew2.push({ name: name, start: startEl ? startEl.value : '', end: endEl ? endEl.value : '' });
+        }
+    });
 
     var dispRadios = document.querySelectorAll('input[name="sched-disp"]');
     var dispatcher = '';
     dispRadios.forEach(function(r) { if (r.checked) dispatcher = r.value; });
 
-    var oldData = scheduleData[dateKey] || { drivers: [], dispatcher: '' };
+    var oldData = scheduleData[dateKey] || { crew1: [], crew2: [], dispatcher: '', drivers: [] };
+    var oldCrew1Names = (oldData.crew1 || []).map(function(m) { return m.name; });
+    var oldCrew2Names = (oldData.crew2 || []).map(function(m) { return m.name; });
+    var newCrew1Names = crew1.map(function(m) { return m.name; });
+    var newCrew2Names = crew2.map(function(m) { return m.name; });
     var changes = [];
-    var addedDrivers = drivers.filter(function(n) { return (oldData.drivers || []).indexOf(n) === -1; });
-    var removedDrivers = (oldData.drivers || []).filter(function(n) { return drivers.indexOf(n) === -1; });
-    if (addedDrivers.length) changes.push('Added: ' + addedDrivers.join(', '));
-    if (removedDrivers.length) changes.push('Removed: ' + removedDrivers.join(', '));
+    var added1 = newCrew1Names.filter(function(n) { return oldCrew1Names.indexOf(n) === -1; });
+    var removed1 = oldCrew1Names.filter(function(n) { return newCrew1Names.indexOf(n) === -1; });
+    var added2 = newCrew2Names.filter(function(n) { return oldCrew2Names.indexOf(n) === -1; });
+    var removed2 = oldCrew2Names.filter(function(n) { return newCrew2Names.indexOf(n) === -1; });
+    if (added1.length) changes.push('Crew1 +' + added1.join(', '));
+    if (removed1.length) changes.push('Crew1 -' + removed1.join(', '));
+    if (added2.length) changes.push('Crew2 +' + added2.join(', '));
+    if (removed2.length) changes.push('Crew2 -' + removed2.join(', '));
     if (dispatcher !== (oldData.dispatcher || '')) changes.push('Dispatcher: ' + (dispatcher || 'None'));
 
     if (!scheduleData[dateKey]) scheduleData[dateKey] = {};
-    scheduleData[dateKey].drivers = drivers;
+    scheduleData[dateKey].crew1 = crew1;
+    scheduleData[dateKey].crew2 = crew2;
+    scheduleData[dateKey].drivers = newCrew1Names.concat(newCrew2Names);
     scheduleData[dateKey].dispatcher = dispatcher;
 
     if (changes.length) {
         addAudit(dateKey + ' — ' + changes.join('; '), initials);
+        // Send email notifications (if contacts exist)
+        var allChanged = added1.concat(removed1, added2, removed2);
+        allChanged.forEach(function(name) {
+            var drv = teamDrivers.find(function(d) { return d.name === name; });
+            if (drv && drv.email) {
+                var action = (added1.indexOf(name) !== -1 || added2.indexOf(name) !== -1) ? 'added to' : 'removed from';
+                console.log('[Schedule Notification] Would email ' + drv.email + ': ' + name + ' ' + action + ' schedule on ' + dateKey);
+            }
+        });
     }
 
     saveTeam(); closeSchedPopup(); renderSchedule(); renderAuditLog();
@@ -4140,11 +4378,11 @@ function renderTeamSummary() {
 
     var strip = document.getElementById('teamSummaryStrip');
     strip.innerHTML =
-        '<div class="summary-card" style="background:#2e7d32;"><span class="num">' + activeCount + '</span><span class="label">ACTIVE DRIVERS</span></div>' +
-        '<div class="summary-card" style="background:#1565c0;"><span class="num">' + teamOwners.length + '</span><span class="label">OWNERS</span></div>' +
-        '<div class="summary-card" style="background:#e65100;"><span class="num">' + todayDriverCount + '</span><span class="label">ON DUTY TODAY</span></div>' +
-        '<div class="summary-card" style="background:#9c27b0;"><span class="num">' + onVacCount + '</span><span class="label">ON VACATION</span></div>' +
-        '<div class="summary-card" style="background:#c62828;"><span class="num" style="font-size:16px;">' + esc(todayDispatcher) + '</span><span class="label">TODAY\'S DISPATCHER</span></div>';
+        '<div class="summary-card green"><span class="num">' + activeCount + '</span><span class="label">ACTIVE DRIVERS</span></div>' +
+        '<div class="summary-card" style="border-left:3px solid #2563eb;"><span class="num" style="color:#2563eb;">' + teamOwners.length + '</span><span class="label">OWNERS</span></div>' +
+        '<div class="summary-card gold"><span class="num">' + todayDriverCount + '</span><span class="label">ON DUTY TODAY</span></div>' +
+        '<div class="summary-card" style="border-left:3px solid #7c3aed;"><span class="num" style="color:#7c3aed;">' + onVacCount + '</span><span class="label">ON VACATION</span></div>' +
+        '<div class="summary-card red"><span class="num">' + esc(todayDispatcher) + '</span><span class="label">TODAY\'S DISPATCHER</span></div>';
 }
 
 function renderAuditLog() {
@@ -4168,6 +4406,10 @@ document.addEventListener('click', function(e) {
         if (!popup.contains(e.target) && !e.target.closest('.cal-day') && !e.target.classList.contains('sched-add-btn')) {
             closeSchedPopup();
         }
+    }
+    var cpop = document.getElementById('contactPopover');
+    if (cpop && !cpop.contains(e.target) && !e.target.classList.contains('roster-name')) {
+        closeContactPopover();
     }
 });
 
