@@ -735,7 +735,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v35</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v36</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:#2196F3;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -808,14 +808,19 @@
         <div class="review-dots" id="reviewDots"></div>
 
         <div id="reviewApiSetup" style="display:none; margin-top:12px; padding:14px; background:#fff3cd; border-radius:10px; border:1px solid #ffc107; font-size:12px;">
-            <strong style="color:#664d03;">&#128273; Google Places API Key Required</strong>
+            <strong style="color:#664d03;">&#128273; Google Places API Key Setup</strong>
             <p style="margin:6px 0;color:#856404;">To auto-fetch your Google reviews:<br>
             1. Sign into <a href="https://console.cloud.google.com/" target="_blank" style="color:#4285f4;">Google Cloud Console</a> with fullhousedeliveryllc@gmail.com<br>
-            2. Create a project → Enable these 2 APIs in <a href="https://console.cloud.google.com/apis/library" target="_blank" style="color:#4285f4;">API Library</a>:<br>
+            2. Enable these 2 APIs in <a href="https://console.cloud.google.com/apis/library" target="_blank" style="color:#4285f4;">API Library</a>:<br>
             &nbsp;&nbsp;&nbsp;• <a href="https://console.cloud.google.com/apis/library/maps-backend.googleapis.com" target="_blank" style="color:#4285f4;">Maps JavaScript API</a><br>
             &nbsp;&nbsp;&nbsp;• <a href="https://console.cloud.google.com/apis/library/places-backend.googleapis.com" target="_blank" style="color:#4285f4;">Places API</a><br>
-            3. <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color:#4285f4;">Create an API key</a> (set to "Don't restrict key")<br>
-            4. Ensure <a href="https://console.cloud.google.com/billing" target="_blank" style="color:#4285f4;">billing is active</a> ($200/mo free credit)</p>
+            3. Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color:#4285f4;">Credentials</a> → click your API key:<br>
+            &nbsp;&nbsp;&nbsp;• <strong>API restrictions</strong> → select <strong>"Don't restrict key"</strong><br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(if forced to restrict, add "Maps JavaScript API" AND "Places API")<br>
+            &nbsp;&nbsp;&nbsp;• <strong>Application restrictions</strong> → "None" or add referrer:<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code style="background:#f5f0e0;padding:2px 4px;border-radius:3px;">https://fullhousedeliveryllc-wq.github.io/*</code><br>
+            4. Ensure <a href="https://console.cloud.google.com/billing" target="_blank" style="color:#4285f4;">billing is active</a> ($200/mo free credit)<br>
+            5. <strong>Wait 1-2 minutes</strong> after saving for changes to take effect</p>
             <div style="display:flex;gap:6px;">
                 <input type="text" id="googleApiKeyInput" placeholder="AIza..." style="flex:1;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;" autocomplete="off">
                 <button class="btn-add-review" onclick="saveGoogleApiKey()" style="padding:8px 14px;font-size:12px;white-space:nowrap;">Save Key</button>
@@ -2004,8 +2009,8 @@ function drawPie(progress) {
     canvas.width = w * dpr;
     canvas.height = h * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    var cx = w / 2, cy = h / 2 - 10;
-    var radius = Math.min(cx, cy) - 20;
+    var cx = w / 2, cy = h / 2;
+    var radius = Math.min(cx, cy) - 55;
     var totals = categories.map(function(cat) {
         return entries.filter(function(e) { return e.category === cat; }).reduce(function(s, e) { return s + e.amount; }, 0);
     });
@@ -2074,10 +2079,10 @@ function animatePie() {
 canvas.addEventListener('mousemove', function(e) {
     var rect = canvas.getBoundingClientRect();
     var mx = e.clientX - rect.left, my = e.clientY - rect.top;
-    var cx = canvas.clientWidth / 2, cy = canvas.clientHeight / 2 - 10;
+    var cx = canvas.clientWidth / 2, cy = canvas.clientHeight / 2;
     var dx = mx - cx, dy = my - cy;
     var dist = Math.sqrt(dx * dx + dy * dy);
-    var radius = Math.min(cx, cy) - 20;
+    var radius = Math.min(cx, cy) - 55;
     if (dist > radius) { tooltip.classList.remove('visible'); canvas.style.cursor = 'default'; return; }
     var angle = Math.atan2(dy, dx);
     if (angle < -Math.PI / 2) angle += 2 * Math.PI;
@@ -4473,12 +4478,23 @@ function fetchGoogleReviews() {
 
 var mapsJsLoaded = false;
 function loadMapsJsApi(callback) {
-    if (mapsJsLoaded) { callback(); return; }
+    if (mapsJsLoaded && typeof google !== 'undefined' && google.maps && google.maps.places) { callback(); return; }
+    // Listen for Google Maps auth errors
+    window.gm_authFailure = function() {
+        mapsJsLoaded = false;
+        toast('Google API key denied. Go to Google Cloud Console → Credentials → click your API key → set API restrictions to "Don\'t restrict key" (or add "Maps JavaScript API" and "Places API").', true);
+        document.getElementById('reviewApiSetup').style.display = 'block';
+        var btn = document.getElementById('refreshReviewsBtn');
+        if (btn) btn.textContent = '\u27F3 Refresh';
+    };
     var script = document.createElement('script');
-    script.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(googleApiKey) + '&libraries=places';
-    script.onload = function() { mapsJsLoaded = true; callback(); };
+    script.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(googleApiKey) + '&libraries=places&callback=_gmapsReady';
+    window._gmapsReady = function() {
+        mapsJsLoaded = true;
+        callback();
+    };
     script.onerror = function() {
-        toast('Failed to load Google Maps API. Check your API key and ensure "Maps JavaScript API" is enabled.', true);
+        toast('Failed to load Google Maps API. Your API key may be invalid or restricted. In Google Cloud Console → Credentials → set API restrictions to "Don\'t restrict key".', true);
         document.getElementById('reviewApiSetup').style.display = 'block';
         var btn = document.getElementById('refreshReviewsBtn');
         if (btn) btn.textContent = '\u27F3 Refresh';
@@ -4593,6 +4609,9 @@ function saveGoogleApiKey() {
     googlePlaceId = null;
     localStorage.removeItem('fhd_google_place_id');
     mapsJsLoaded = false;
+    // Remove old Maps JS script so new key takes effect
+    var oldScripts = document.querySelectorAll('script[src*="maps.googleapis.com"]');
+    oldScripts.forEach(function(s) { s.remove(); });
     document.getElementById('reviewApiSetup').style.display = 'none';
     toast('API key saved! Loading Google Maps...');
     fetchGoogleReviews();
