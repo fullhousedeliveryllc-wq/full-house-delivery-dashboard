@@ -74,21 +74,22 @@
         .tab-btn {
             padding: 12px 28px;
             border: none;
-            background: #e0e0e0;
-            color: #666;
+            background: #2a2a2a;
+            color: #bbb;
             font-size: 15px;
             font-weight: 600;
             cursor: pointer;
             border-radius: 10px 10px 0 0;
-            transition: background 0.2s, color 0.2s;
+            transition: background 0.25s, color 0.25s, box-shadow 0.25s;
         }
         .tab-btn.active {
             background: var(--card);
-            color: var(--primary);
+            color: var(--accent);
             box-shadow: var(--shadow);
             border-top: 3px solid var(--accent);
+            font-weight: 700;
         }
-        .tab-btn:hover:not(.active) { background: #ccc; }
+        .tab-btn:hover:not(.active) { background: #3a3a3a; color: #e0e0e0; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
 
@@ -687,7 +688,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v28</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v29</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:#2196F3;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -734,6 +735,7 @@
                 <h2 style="margin:0;font-size:18px;">Google Reviews</h2>
                 <span style="font-size:11px;color:#70757a;">Full House Delivery LLC</span>
             </div>
+            <button class="btn-manage-reviews" onclick="fetchGoogleReviews()" id="refreshReviewsBtn" style="margin-left:auto;padding:6px 12px;font-size:11px;" title="Refresh from Google">&#x21bb; Refresh</button>
         </div>
 
         <div class="review-alert" id="reviewAlert">
@@ -753,10 +755,19 @@
         <div class="review-carousel" id="reviewCarousel">
             <div class="review-no-data" id="reviewNoData">
                 <span style="font-size:32px;">&#11088;</span><br>
-                Add your first Google review to see it displayed here!
+                Loading Google Reviews...
             </div>
         </div>
         <div class="review-dots" id="reviewDots"></div>
+
+        <div id="reviewApiSetup" style="display:none; margin-top:12px; padding:14px; background:#fff3cd; border-radius:10px; border:1px solid #ffc107; font-size:12px;">
+            <strong style="color:#664d03;">&#128273; Google Places API Key Required</strong>
+            <p style="margin:6px 0;color:#856404;">To auto-fetch your Google reviews, enter your Google Places API key below. <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color:#4285f4;">Get one here</a></p>
+            <div style="display:flex;gap:6px;">
+                <input type="text" id="googleApiKeyInput" placeholder="AIza..." style="flex:1;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;" autocomplete="off">
+                <button class="btn-add-review" onclick="saveGoogleApiKey()" style="padding:8px 14px;font-size:12px;white-space:nowrap;">Save Key</button>
+            </div>
+        </div>
 
         <div class="reviews-actions">
             <button class="btn-add-review" onclick="openReviewForm()">&#43; Add Review</button>
@@ -858,7 +869,7 @@
         <h2><span class="icon">&#128210;</span> Entry Log</h2>
         <div class="search-bar-wrap">
             <span class="search-icon">&#128269;</span>
-            <input type="text" id="entrySearchBar" placeholder="Search entries by name, category, phone, email, revenue, note, date..." oninput="entryPage=1;renderLog()" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" name="entry-search-nofill">
+            <input type="text" id="entrySearchBar" placeholder="Search entries by name, category, phone, revenue, note, date..." oninput="entryPage=1;renderLog()" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" name="entry-search-nofill">
         </div>
         <div class="log-controls">
             <select id="filterCategory" onchange="entryPage=1;renderLog()">
@@ -1143,8 +1154,8 @@
     <div class="card full-width">
         <h2><span class="icon">&#128101;</span> Team Roster</h2>
         <div class="avail-legend">
-            <span><span class="avail-dot willing"></span> Willing to work</span>
-            <span><span class="avail-dot not-willing"></span> Not willing</span>
+            <span><span class="avail-dot willing"></span> Available</span>
+            <span><span class="avail-dot not-willing"></span> Not available</span>
             <span><span class="avail-dot vacation"></span> On vacation</span>
         </div>
         <div class="team-grid">
@@ -2210,20 +2221,35 @@ function updateSortArrows() {
 }
 
 var entryPage = 1;
-var ENTRIES_PER_PAGE = 30;
+var ENTRIES_PER_PAGE = 20;
 
 function buildPagination(current, total, itemCount, callbackName) {
-    if (total <= 1) return '';
+    if (total <= 1) return '<span class="page-info">' + itemCount + ' entries</span>';
     var html = '<button ' + (current <= 1 ? 'disabled' : 'onclick="' + callbackName + '(' + (current - 1) + ')"') + '>&laquo;</button>';
     var pages = [];
-    pages.push(1);
-    if (current > 3) pages.push('...');
-    for (var p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) pages.push(p);
-    if (current < total - 2) pages.push('...');
-    if (total > 1) pages.push(total);
+    if (total <= 9) {
+        for (var i = 1; i <= total; i++) pages.push(i);
+    } else {
+        pages.push(1); pages.push(2); pages.push(3);
+        if (current > 4 && current < total - 3) {
+            pages.push('...');
+            pages.push(current - 1); pages.push(current); pages.push(current + 1);
+            pages.push('...');
+        } else if (current <= 4) {
+            pages.push(4); pages.push(5);
+            pages.push('...');
+        } else {
+            pages.push('...');
+            pages.push(total - 4); pages.push(total - 3);
+        }
+        pages.push(total - 2); pages.push(total - 1); pages.push(total);
+    }
+    var seen = {};
     pages.forEach(function(p) {
-        if (p === '...') { html += '<span class="page-info">...</span>'; }
-        else { html += '<button class="' + (p === current ? 'active' : '') + '" onclick="' + callbackName + '(' + p + ')">' + p + '</button>'; }
+        if (p === '...') { html += '<span class="page-info">...</span>'; return; }
+        if (seen[p]) return;
+        seen[p] = true;
+        html += '<button class="' + (p === current ? 'active' : '') + '" onclick="' + callbackName + '(' + p + ')">' + p + '</button>';
     });
     html += '<button ' + (current >= total ? 'disabled' : 'onclick="' + callbackName + '(' + (current + 1) + ')"') + '>&raquo;</button>';
     html += '<span class="page-info">' + itemCount + ' entries</span>';
@@ -2243,7 +2269,7 @@ function renderLog() {
         filtered = filtered.filter(function(e) {
             var searchable = [
                 e.date || '', e.category || '', e.customer || '', e.phone || '',
-                e.email || '', e.storeName || '', e.referredBy || '', e.note || '',
+                e.storeName || '', e.referredBy || '', e.note || '',
                 (typeof e.revenue === 'number') ? '$' + e.revenue.toFixed(2) : '',
                 String(e.amount || '')
             ].join(' ').toLowerCase();
@@ -4005,8 +4031,8 @@ function openSchedPopup(dateKey, evt) {
         html += '<label style="' + (disabled ? 'opacity:0.5;' : '') + '"><input type="checkbox" value="' + esc(drv.name) + '" class="sched-drv-cb"' + checked + disabled + '> <span class="avail-dot ' + dotClass + '"></span>' + esc(drv.name) + statusTxt + '</label>';
         if (!onVac && drv.status === 'active') {
             html += '<div style="margin-left:28px;margin-bottom:4px;"><select class="avail-sel" data-name="' + esc(drv.name) + '" data-date="' + dateKey + '" style="font-size:11px;padding:2px 6px;border-radius:4px;border:1px solid #ddd;">';
-            html += '<option value="willing"' + (av === 'willing' ? ' selected' : '') + '>Willing</option>';
-            html += '<option value="not-willing"' + (av === 'not-willing' ? ' selected' : '') + '>Not willing</option>';
+            html += '<option value="willing"' + (av === 'willing' ? ' selected' : '') + '>Available</option>';
+            html += '<option value="not-willing"' + (av === 'not-willing' ? ' selected' : '') + '>Not available</option>';
             html += '</select></div>';
         }
     });
@@ -4134,9 +4160,109 @@ var reviewRotateTimer = null;
 var currentReviewIndex = 0;
 var reviewFormRating = 5;
 var dismissedAlerts = JSON.parse(localStorage.getItem('fhd_review_dismissed')) || [];
+var googleApiKey = localStorage.getItem('fhd_google_api_key') || '';
+var googlePlaceId = localStorage.getItem('fhd_google_place_id') || '';
 
 function saveReviews() {
     localStorage.setItem('fhd_reviews', JSON.stringify(googleReviews));
+}
+
+function fetchGoogleReviews() {
+    if (!googleApiKey) {
+        document.getElementById('reviewApiSetup').style.display = 'block';
+        renderReviewsSection();
+        return;
+    }
+    if (!googlePlaceId) {
+        findPlaceId();
+        return;
+    }
+    loadReviewsFromApi();
+}
+
+function findPlaceId() {
+    var btn = document.getElementById('refreshReviewsBtn');
+    if (btn) btn.textContent = '\u27F3 Finding...';
+    var url = 'https://places.googleapis.com/v1/places:searchText';
+    fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': googleApiKey, 'X-Goog-FieldMask': 'places.id,places.displayName' },
+        body: JSON.stringify({ textQuery: 'Full House Delivery LLC' })
+    })
+    .then(function(res) {
+        if (!res.ok) throw new Error('API error ' + res.status);
+        return res.json();
+    })
+    .then(function(data) {
+        if (data.places && data.places.length > 0) {
+            googlePlaceId = data.places[0].id;
+            localStorage.setItem('fhd_google_place_id', googlePlaceId);
+            loadReviewsFromApi();
+        } else {
+            toast('Could not find Full House Delivery on Google.', true);
+            if (btn) btn.textContent = '\u27F3 Refresh';
+        }
+    })
+    .catch(function(err) {
+        console.error('[Place Search]', err);
+        toast('Place search failed: ' + err.message, true);
+        document.getElementById('reviewApiSetup').style.display = 'block';
+        if (btn) btn.textContent = '\u27F3 Refresh';
+    });
+}
+
+function loadReviewsFromApi() {
+    var btn = document.getElementById('refreshReviewsBtn');
+    if (btn) btn.textContent = '\u27F3 Loading...';
+    var url = 'https://places.googleapis.com/v1/places/' + googlePlaceId + '?key=' + googleApiKey;
+    fetch(url, { headers: { 'X-Goog-FieldMask': 'rating,userRatingCount,reviews' } })
+    .then(function(res) {
+        if (!res.ok) throw new Error('API error ' + res.status);
+        return res.json();
+    })
+    .then(function(data) {
+        if (data.reviews && data.reviews.length > 0) {
+            googleReviews = data.reviews.map(function(r) {
+                return {
+                    id: 'google-' + (r.name || '') + '-' + (r.publishTime || ''),
+                    rating: r.rating || 5,
+                    author: (r.authorAttribution && r.authorAttribution.displayName) || 'Google User',
+                    date: r.publishTime ? r.publishTime.substring(0, 10) : today(),
+                    text: (r.text && r.text.text) || '',
+                    source: 'google'
+                };
+            });
+        }
+        if (data.rating) {
+            localStorage.setItem('fhd_google_overall_rating', data.rating);
+            localStorage.setItem('fhd_google_total_reviews', data.userRatingCount || googleReviews.length);
+        }
+        saveReviews();
+        renderReviewsSection();
+        toast('Google Reviews updated! (' + googleReviews.length + ' reviews)');
+        if (btn) btn.textContent = '\u27F3 Refresh';
+    })
+    .catch(function(err) {
+        console.error('[Google Reviews]', err);
+        if (err.message.indexOf('403') !== -1 || err.message.indexOf('400') !== -1) {
+            toast('API key invalid or Places API not enabled. Check Google Cloud Console.', true);
+            document.getElementById('reviewApiSetup').style.display = 'block';
+        } else {
+            toast('Could not fetch reviews: ' + err.message, true);
+        }
+        renderReviewsSection();
+        if (btn) btn.textContent = '\u27F3 Refresh';
+    });
+}
+
+function saveGoogleApiKey() {
+    var key = document.getElementById('googleApiKeyInput').value.trim();
+    if (!key) { toast('Please enter an API key', true); return; }
+    googleApiKey = key;
+    localStorage.setItem('fhd_google_api_key', key);
+    document.getElementById('reviewApiSetup').style.display = 'none';
+    toast('API key saved!');
+    fetchGoogleReviews();
 }
 
 function renderReviewsSection() {
@@ -4145,29 +4271,32 @@ function renderReviewsSection() {
     var countEl = document.getElementById('reviewsCount');
     var carouselEl = document.getElementById('reviewCarousel');
     var dotsEl = document.getElementById('reviewDots');
-    var noDataEl = document.getElementById('reviewNoData');
     if (!ratingEl) return;
 
+    var overallRating = localStorage.getItem('fhd_google_overall_rating');
+    var totalCount = localStorage.getItem('fhd_google_total_reviews');
+
     if (googleReviews.length === 0) {
-        ratingEl.textContent = '\u2014';
-        starsEl.innerHTML = '\u2606\u2606\u2606\u2606\u2606';
-        countEl.textContent = 'No reviews yet';
-        carouselEl.innerHTML = '';
-        carouselEl.appendChild(noDataEl || createNoDataEl());
+        ratingEl.textContent = overallRating || '\u2014';
+        starsEl.innerHTML = overallRating ? renderStarsHTML(parseFloat(overallRating)) : '\u2606\u2606\u2606\u2606\u2606';
+        countEl.textContent = totalCount ? totalCount + ' reviews on Google' : 'No reviews yet';
+        carouselEl.innerHTML = '<div class="review-no-data"><span style="font-size:32px;">\u2B50</span><br>' +
+            (googleApiKey ? 'Click Refresh to load reviews from Google' : 'Set up your Google API key to load reviews automatically') + '</div>';
         dotsEl.innerHTML = '';
         return;
     }
 
-    var sum = googleReviews.reduce(function(s, r) { return s + r.rating; }, 0);
-    var avg = sum / googleReviews.length;
+    var avg = overallRating ? parseFloat(overallRating) : (googleReviews.reduce(function(s, r) { return s + r.rating; }, 0) / googleReviews.length);
+    var count = totalCount ? parseInt(totalCount) : googleReviews.length;
     ratingEl.textContent = avg.toFixed(1);
     starsEl.innerHTML = renderStarsHTML(avg);
-    countEl.textContent = googleReviews.length + ' review' + (googleReviews.length !== 1 ? 's' : '') + ' on Google';
+    countEl.textContent = count + ' review' + (count !== 1 ? 's' : '') + ' on Google';
 
     var fiveStars = googleReviews.filter(function(r) { return r.rating === 5; });
     if (fiveStars.length === 0) {
-        carouselEl.innerHTML = '<div class="review-no-data">No 5-star reviews yet. Add one to see it displayed here!</div>';
+        carouselEl.innerHTML = '<div class="review-no-data">No 5-star reviews in the latest batch.</div>';
         dotsEl.innerHTML = '';
+        checkReviewAlerts();
         return;
     }
 
@@ -4189,14 +4318,6 @@ function renderReviewsSection() {
     }
 
     checkReviewAlerts();
-}
-
-function createNoDataEl() {
-    var d = document.createElement('div');
-    d.className = 'review-no-data';
-    d.id = 'reviewNoData';
-    d.innerHTML = '<span style="font-size:32px;">\u2B50</span><br>Add your first Google review to see it displayed here!';
-    return d;
 }
 
 function renderStarsHTML(rating) {
@@ -4247,7 +4368,7 @@ function checkReviewAlerts() {
     if (belowFive.length > 0) {
         var latest = belowFive[belowFive.length - 1];
         alertTextEl.innerHTML = '<strong>Alert:</strong> ' + escapeHTML(latest.author) + ' left a <strong>' + latest.rating + '-star</strong> review' +
-            (latest.text ? ' — "' + escapeHTML(latest.text.substring(0, 80)) + (latest.text.length > 80 ? '...' : '') + '"' : '') +
+            (latest.text ? ' \u2014 "' + escapeHTML(latest.text.substring(0, 80)) + (latest.text.length > 80 ? '...' : '') + '"' : '') +
             ' <span style="font-size:11px;color:#888;">(' + belowFive.length + ' below 5\u2605)</span>';
         alertEl.className = 'review-alert show';
     } else {
@@ -4307,7 +4428,7 @@ function saveReview() {
     renderManageReviewList();
 
     if (reviewFormRating < 5) {
-        toast('Review added — below 5 stars!', true);
+        toast('Review added \u2014 below 5 stars!', true);
     } else {
         toast('5-star review added!');
     }
@@ -4327,7 +4448,7 @@ function renderManageReviewList() {
     var list = document.getElementById('reviewManageList');
     if (!list) return;
     if (googleReviews.length === 0) {
-        list.innerHTML = '<div style="text-align:center;padding:12px;color:#999;font-size:12px;">No reviews added yet.</div>';
+        list.innerHTML = '<div style="text-align:center;padding:12px;color:#999;font-size:12px;">No reviews yet.</div>';
         return;
     }
     var sorted = googleReviews.slice().sort(function(a, b) { return b.date > a.date ? 1 : -1; });
@@ -4376,6 +4497,7 @@ renderAll();
 renderFinanceAll();
 renderReviewsSection();
 startReviewRotation();
+if (googleApiKey) { fetchGoogleReviews(); }
 </script>
 </body>
 </html>
