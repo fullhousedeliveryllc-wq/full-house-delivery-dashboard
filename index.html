@@ -764,7 +764,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v40</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v41</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:#2196F3;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -4560,7 +4560,7 @@ function getMonthDates(offset) {
 }
 
 function buildDayContent(dateKey) {
-    var dayData = scheduleData[dateKey] || { crew1: [], crew2: [], dispatcher: '', drivers: [] };
+    var dayData = scheduleData[dateKey] || { crew1: [], crew2: [], dispatcher: '', dispatcherCrew: '1', drivers: [] };
     // Migrate old format
     if (dayData.drivers && dayData.drivers.length && (!dayData.crew1 || !dayData.crew1.length) && (!dayData.crew2 || !dayData.crew2.length)) {
         dayData.crew1 = dayData.drivers.map(function(n) { return typeof n === 'string' ? { name: n, start: '', end: '' } : n; });
@@ -4568,25 +4568,31 @@ function buildDayContent(dateKey) {
     }
     var c1 = dayData.crew1 || [];
     var c2 = dayData.crew2 || [];
+    var disp = dayData.dispatcher || '';
+    var dispCrew = dayData.dispatcherCrew || '1';
     var html = '';
-    if (c1.length || c2.length) {
+    var hasCrew = c1.length || c2.length || disp;
+    if (hasCrew) {
         html += '<div class="crew-section"><div class="crew-label">Crew 1</div>';
         c1.forEach(function(m) {
             var timeStr = (m.start && m.end) ? '<span class="shift-time">' + m.start + '-' + m.end + '</span>' : '';
             html += '<span class="sched-chip driver" title="' + esc(m.name) + '">' + esc(m.name) + ' ' + timeStr + '</span>';
         });
-        if (!c1.length) html += '<span style="font-size:9px;color:#bbb;">—</span>';
+        if (disp && dispCrew === '1') {
+            html += '<span class="sched-dispatcher">&#128225; ' + esc(disp) + '</span>';
+        }
+        if (!c1.length && !(disp && dispCrew === '1')) html += '<span style="font-size:9px;color:#bbb;">—</span>';
         html += '</div>';
         html += '<div class="crew-section"><div class="crew-label">Crew 2</div>';
         c2.forEach(function(m) {
             var timeStr = (m.start && m.end) ? '<span class="shift-time">' + m.start + '-' + m.end + '</span>' : '';
             html += '<span class="sched-chip driver" title="' + esc(m.name) + '">' + esc(m.name) + ' ' + timeStr + '</span>';
         });
-        if (!c2.length) html += '<span style="font-size:9px;color:#bbb;">—</span>';
+        if (disp && dispCrew === '2') {
+            html += '<span class="sched-dispatcher">&#128225; ' + esc(disp) + '</span>';
+        }
+        if (!c2.length && !(disp && dispCrew === '2')) html += '<span style="font-size:9px;color:#bbb;">—</span>';
         html += '</div>';
-    }
-    if (dayData.dispatcher) {
-        html += '<span class="sched-dispatcher">&#128225; ' + esc(dayData.dispatcher) + '</span>';
     }
     return html;
 }
@@ -4626,7 +4632,7 @@ function renderSchedule() {
 
 function openSchedPopup(dateKey, evt) {
     var popup = document.getElementById('schedPopup');
-    var dayData = scheduleData[dateKey] || { crew1: [], crew2: [], dispatcher: '', drivers: [] };
+    var dayData = scheduleData[dateKey] || { crew1: [], crew2: [], dispatcher: '', dispatcherCrew: '', drivers: [] };
     // Migrate old format
     if (dayData.drivers && dayData.drivers.length && (!dayData.crew1 || !dayData.crew1.length) && (!dayData.crew2 || !dayData.crew2.length)) {
         dayData.crew1 = dayData.drivers.map(function(n) { return typeof n === 'string' ? { name: n, start: '', end: '' } : n; });
@@ -4637,60 +4643,40 @@ function openSchedPopup(dateKey, evt) {
     var crew1Names = crew1.map(function(m) { return m.name; });
     var crew2Names = crew2.map(function(m) { return m.name; });
     var currentDispatcher = dayData.dispatcher || '';
+    var currentDispCrew = dayData.dispatcherCrew || '1';
     var dOfWeek = new Date(dateKey + 'T00:00:00').getDay();
 
     var html = '<button class="popup-close-x" onclick="closeSchedPopup()" title="Close">&times;</button>';
     html += '<h4>&#128197; ' + dateKey + '</h4>';
 
-    // Crew 1 section
-    html += '<div class="popup-section"><div class="popup-section-title">Crew 1</div>';
+    // Unified employee list with crew assignment dropdown
+    html += '<div class="popup-section"><div class="popup-section-title">Assign Employees to Crews</div>';
+    html += '<div style="display:grid;grid-template-columns:auto 1fr auto auto auto;gap:4px 8px;align-items:center;font-size:12px;">';
+    html += '<div style="font-weight:600;font-size:10px;color:#888;text-transform:uppercase;">Status</div>';
+    html += '<div style="font-weight:600;font-size:10px;color:#888;text-transform:uppercase;">Employee</div>';
+    html += '<div style="font-weight:600;font-size:10px;color:#888;text-transform:uppercase;">Crew</div>';
+    html += '<div style="font-weight:600;font-size:10px;color:#888;text-transform:uppercase;">Start</div>';
+    html += '<div style="font-weight:600;font-size:10px;color:#888;text-transform:uppercase;">End</div>';
     teamDrivers.forEach(function(drv) {
         if (drv.status !== 'active') return;
         var onVac = isOnVacation(drv, dateKey);
         var schedulable = canSchedule(drv, dateKey);
         var av = onVac ? 'vacation' : getAvail(drv.name, dateKey);
         var dotClass = onVac ? 'vacation' : (av === 'not-willing' ? 'not-willing' : (drv.unavailDays && drv.unavailDays.indexOf(dOfWeek) !== -1 ? 'not-willing' : 'willing'));
-        var checked = crew1Names.indexOf(drv.name) !== -1 ? ' checked' : '';
         var disabled = !schedulable ? ' disabled' : '';
-        var statusTxt = onVac ? ' <small style="color:#9c27b0;">(vacation)</small>' : (!schedulable ? ' <small style="color:#999;">(unavailable)</small>' : '');
-        var memberData = crew1.find(function(m) { return m.name === drv.name; });
+        var statusTxt = onVac ? ' <small style="color:#9c27b0;">(vac)</small>' : (!schedulable ? ' <small style="color:#999;">(off)</small>' : '');
+        var crewVal = crew1Names.indexOf(drv.name) !== -1 ? '1' : (crew2Names.indexOf(drv.name) !== -1 ? '2' : '');
+        var memberData = crew1.find(function(m) { return m.name === drv.name; }) || crew2.find(function(m) { return m.name === drv.name; });
         var startVal = memberData ? (memberData.start || '') : '';
         var endVal = memberData ? (memberData.end || '') : '';
-        html += '<label style="' + (disabled ? 'opacity:0.5;' : '') + '"><input type="checkbox" value="' + esc(drv.name) + '" class="crew1-cb"' + checked + disabled + '> <span class="avail-dot ' + dotClass + '"></span>' + esc(drv.name) + statusTxt + '</label>';
-        if (schedulable) {
-            html += '<div style="margin-left:28px;margin-bottom:4px;display:flex;gap:4px;align-items:center;font-size:11px;">';
-            html += '<input type="time" class="crew1-start" data-name="' + esc(drv.name) + '" value="' + startVal + '" style="padding:2px 4px;border:1px solid #ddd;border-radius:4px;font-size:11px;width:90px;">';
-            html += '<span>to</span>';
-            html += '<input type="time" class="crew1-end" data-name="' + esc(drv.name) + '" value="' + endVal + '" style="padding:2px 4px;border:1px solid #ddd;border-radius:4px;font-size:11px;width:90px;">';
-            html += '</div>';
-        }
+        html += '<div><span class="avail-dot ' + dotClass + '"></span></div>';
+        html += '<div style="' + (!schedulable ? 'opacity:0.5;' : '') + '">' + esc(drv.name) + statusTxt + '</div>';
+        html += '<div><select class="crew-assign" data-name="' + esc(drv.name) + '" style="font-size:11px;padding:2px 6px;border-radius:6px;border:1px solid #ddd;"' + disabled + '>' +
+            '<option value="">—</option><option value="1"' + (crewVal === '1' ? ' selected' : '') + '>Crew 1</option><option value="2"' + (crewVal === '2' ? ' selected' : '') + '>Crew 2</option></select></div>';
+        html += '<div><input type="time" class="drv-start" data-name="' + esc(drv.name) + '" value="' + startVal + '" style="padding:2px 4px;border:1px solid #ddd;border-radius:4px;font-size:11px;width:85px;"' + disabled + '></div>';
+        html += '<div><input type="time" class="drv-end" data-name="' + esc(drv.name) + '" value="' + endVal + '" style="padding:2px 4px;border:1px solid #ddd;border-radius:4px;font-size:11px;width:85px;"' + disabled + '></div>';
     });
-    html += '</div>';
-
-    // Crew 2 section
-    html += '<div class="popup-section"><div class="popup-section-title">Crew 2</div>';
-    teamDrivers.forEach(function(drv) {
-        if (drv.status !== 'active') return;
-        var onVac = isOnVacation(drv, dateKey);
-        var schedulable = canSchedule(drv, dateKey);
-        var av = onVac ? 'vacation' : getAvail(drv.name, dateKey);
-        var dotClass = onVac ? 'vacation' : (av === 'not-willing' ? 'not-willing' : (drv.unavailDays && drv.unavailDays.indexOf(dOfWeek) !== -1 ? 'not-willing' : 'willing'));
-        var checked = crew2Names.indexOf(drv.name) !== -1 ? ' checked' : '';
-        var disabled = !schedulable ? ' disabled' : '';
-        var statusTxt = onVac ? ' <small style="color:#9c27b0;">(vacation)</small>' : (!schedulable ? ' <small style="color:#999;">(unavailable)</small>' : '');
-        var memberData = crew2.find(function(m) { return m.name === drv.name; });
-        var startVal = memberData ? (memberData.start || '') : '';
-        var endVal = memberData ? (memberData.end || '') : '';
-        html += '<label style="' + (disabled ? 'opacity:0.5;' : '') + '"><input type="checkbox" value="' + esc(drv.name) + '" class="crew2-cb"' + checked + disabled + '> <span class="avail-dot ' + dotClass + '"></span>' + esc(drv.name) + statusTxt + '</label>';
-        if (schedulable) {
-            html += '<div style="margin-left:28px;margin-bottom:4px;display:flex;gap:4px;align-items:center;font-size:11px;">';
-            html += '<input type="time" class="crew2-start" data-name="' + esc(drv.name) + '" value="' + startVal + '" style="padding:2px 4px;border:1px solid #ddd;border-radius:4px;font-size:11px;width:90px;">';
-            html += '<span>to</span>';
-            html += '<input type="time" class="crew2-end" data-name="' + esc(drv.name) + '" value="' + endVal + '" style="padding:2px 4px;border:1px solid #ddd;border-radius:4px;font-size:11px;width:90px;">';
-            html += '</div>';
-        }
-    });
-    html += '</div>';
+    html += '</div></div>';
 
     // Availability override
     html += '<div class="popup-section"><div class="popup-section-title">Availability Override (today only)</div>';
@@ -4708,7 +4694,8 @@ function openSchedPopup(dateKey, evt) {
     html += '</div>';
 
     html += '<div class="popup-section"><div class="popup-section-title">Dispatcher / Router (Owner)</div>';
-    html += '<label><input type="radio" name="sched-disp" value="" ' + (!currentDispatcher ? 'checked' : '') + '> None</label>';
+    html += '<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">';
+    html += '<div><label><input type="radio" name="sched-disp" value="" ' + (!currentDispatcher ? 'checked' : '') + '> None</label>';
     teamOwners.forEach(function(name) {
         var ownerAvail = canScheduleOwner(name, dateKey);
         var disabledOwner = !ownerAvail ? ' disabled' : '';
@@ -4716,6 +4703,10 @@ function openSchedPopup(dateKey, evt) {
         html += '<label style="' + (!ownerAvail ? 'opacity:0.5;' : '') + '"><input type="radio" name="sched-disp" value="' + esc(name) + '"' + (currentDispatcher === name ? ' checked' : '') + disabledOwner + '> ' + esc(name) + ownerNote + '</label>';
     });
     html += '</div>';
+    html += '<div style="font-size:11px;"><label>Assign to: <select id="dispCrewSelect" style="font-size:11px;padding:2px 6px;border-radius:6px;border:1px solid #ddd;">' +
+        '<option value="1"' + (currentDispCrew === '1' ? ' selected' : '') + '>Crew 1</option>' +
+        '<option value="2"' + (currentDispCrew === '2' ? ' selected' : '') + '>Crew 2</option></select></label></div>';
+    html += '</div></div>';
 
     html += '<div class="popup-section"><div class="popup-section-title">Owner Initials (required)</div>';
     html += '<div class="initials-row"><input type="text" id="schedInitials" maxlength="4" placeholder="e.g. JL"><span>Sign off on this change</span></div></div>';
@@ -4752,31 +4743,26 @@ function saveSchedPopup(dateKey) {
         setAvail(sel.getAttribute('data-name'), sel.getAttribute('data-date'), sel.value);
     });
 
-    // Collect crew 1
+    // Collect crews from unified dropdown
     var crew1 = [];
-    document.querySelectorAll('.crew1-cb').forEach(function(cb) {
-        if (cb.checked) {
-            var name = cb.value;
-            var startEl = document.querySelector('.crew1-start[data-name="' + name + '"]');
-            var endEl = document.querySelector('.crew1-end[data-name="' + name + '"]');
-            crew1.push({ name: name, start: startEl ? startEl.value : '', end: endEl ? endEl.value : '' });
-        }
-    });
-
-    // Collect crew 2
     var crew2 = [];
-    document.querySelectorAll('.crew2-cb').forEach(function(cb) {
-        if (cb.checked) {
-            var name = cb.value;
-            var startEl = document.querySelector('.crew2-start[data-name="' + name + '"]');
-            var endEl = document.querySelector('.crew2-end[data-name="' + name + '"]');
-            crew2.push({ name: name, start: startEl ? startEl.value : '', end: endEl ? endEl.value : '' });
+    document.querySelectorAll('.crew-assign').forEach(function(sel) {
+        var name = sel.getAttribute('data-name');
+        var crewVal = sel.value;
+        if (crewVal === '1' || crewVal === '2') {
+            var startEl = document.querySelector('.drv-start[data-name="' + name + '"]');
+            var endEl = document.querySelector('.drv-end[data-name="' + name + '"]');
+            var member = { name: name, start: startEl ? startEl.value : '', end: endEl ? endEl.value : '' };
+            if (crewVal === '1') crew1.push(member);
+            else crew2.push(member);
         }
     });
 
     var dispRadios = document.querySelectorAll('input[name="sched-disp"]');
     var dispatcher = '';
     dispRadios.forEach(function(r) { if (r.checked) dispatcher = r.value; });
+    var dispCrewSel = document.getElementById('dispCrewSelect');
+    var dispatcherCrew = dispCrewSel ? dispCrewSel.value : '1';
 
     var oldData = scheduleData[dateKey] || { crew1: [], crew2: [], dispatcher: '', drivers: [] };
     var oldCrew1Names = (oldData.crew1 || []).map(function(m) { return m.name; });
@@ -4799,6 +4785,7 @@ function saveSchedPopup(dateKey) {
     scheduleData[dateKey].crew2 = crew2;
     scheduleData[dateKey].drivers = newCrew1Names.concat(newCrew2Names);
     scheduleData[dateKey].dispatcher = dispatcher;
+    scheduleData[dateKey].dispatcherCrew = dispatcherCrew;
 
     if (changes.length) {
         addAudit(dateKey + ' — ' + changes.join('; '), initials);
