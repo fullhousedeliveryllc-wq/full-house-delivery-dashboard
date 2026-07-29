@@ -81,3 +81,37 @@ CREATE POLICY "Users can update their own finance entries"
     ON finance_entries FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "Users can delete their own finance entries"
     ON finance_entries FOR DELETE USING (auth.uid() = user_id);
+
+-- ═══════════════════════════════════════════════════════════════
+-- Realtime (live updates across devices)
+--
+-- The dashboard subscribes to postgres_changes on these tables, filtered by
+-- user_id, and reloads when another device changes data. Realtime only emits
+-- events for tables added to the `supabase_realtime` publication, so run the
+-- statements below (or enable Replication for each table in
+-- Dashboard → Database → Replication).
+--
+-- RLS still applies: users only receive events for their own rows.
+-- REPLICA IDENTITY FULL makes the old row (needed for DELETE events and for the
+-- user_id filter to match on deletes) available to Realtime.
+-- ═══════════════════════════════════════════════════════════════
+
+ALTER TABLE categories      REPLICA IDENTITY FULL;
+ALTER TABLE job_entries     REPLICA IDENTITY FULL;
+ALTER TABLE finance_entries REPLICA IDENTITY FULL;
+
+DO $$
+BEGIN
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE categories;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE job_entries;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE finance_entries;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+END $$;

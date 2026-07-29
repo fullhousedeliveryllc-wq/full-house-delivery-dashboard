@@ -762,9 +762,15 @@
     </div>
 </header>
 
+<!-- Cloud connection banner -->
+<div id="cloudBanner" style="display:none;padding:10px 16px;background:#fff3cd;border-bottom:1px solid #ffc107;color:#664d03;font-size:13px;line-height:1.4;">
+    <strong>&#9888;&#65039; Cloud sync unavailable.</strong> <span id="cloudBannerText"></span>
+    <button onclick="document.getElementById('cloudBanner').style.display='none'" style="float:right;background:none;border:none;font-size:16px;cursor:pointer;color:#664d03;">&times;</button>
+</div>
+
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v41</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v42</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:#2196F3;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -838,19 +844,20 @@
         <div class="review-dots" id="reviewDots"></div>
 
         <div id="reviewApiSetup" style="display:none; margin-top:12px; padding:14px; background:#fff3cd; border-radius:10px; border:1px solid #ffc107; font-size:12px;">
-            <strong style="color:#664d03;">&#128273; Google Places API Key Setup</strong>
+            <strong style="color:#664d03;">&#128273; Google Places API (New) Key Setup</strong>
             <p style="margin:6px 0;color:#856404;">To auto-fetch your Google reviews:<br>
             1. Sign into <a href="https://console.cloud.google.com/" target="_blank" style="color:#4285f4;">Google Cloud Console</a> with fullhousedeliveryllc@gmail.com<br>
             2. Enable these 2 APIs in <a href="https://console.cloud.google.com/apis/library" target="_blank" style="color:#4285f4;">API Library</a>:<br>
-            &nbsp;&nbsp;&nbsp;• <a href="https://console.cloud.google.com/apis/library/maps-backend.googleapis.com" target="_blank" style="color:#4285f4;">Maps JavaScript API</a><br>
-            &nbsp;&nbsp;&nbsp;• <a href="https://console.cloud.google.com/apis/library/places-backend.googleapis.com" target="_blank" style="color:#4285f4;">Places API</a><br>
+            &nbsp;&nbsp;&nbsp;• <a href="https://console.cloud.google.com/apis/library/places.googleapis.com" target="_blank" style="color:#4285f4;"><strong>Places API (New)</strong></a> — the legacy "Places API" is no longer enabled for new keys<br>
+            &nbsp;&nbsp;&nbsp;• <a href="https://console.cloud.google.com/apis/library/maps-backend.googleapis.com" target="_blank" style="color:#4285f4;">Maps JavaScript API</a> — loads the Places library in the browser<br>
             3. Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color:#4285f4;">Credentials</a> → click your API key:<br>
             &nbsp;&nbsp;&nbsp;• <strong>API restrictions</strong> → select <strong>"Don't restrict key"</strong><br>
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(if forced to restrict, add "Maps JavaScript API" AND "Places API")<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(if forced to restrict, add "Places API (New)" AND "Maps JavaScript API")<br>
             &nbsp;&nbsp;&nbsp;• <strong>Application restrictions</strong> → "None" or add referrer:<br>
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code style="background:#f5f0e0;padding:2px 4px;border-radius:3px;">https://fullhousedeliveryllc-wq.github.io/*</code><br>
             4. Ensure <a href="https://console.cloud.google.com/billing" target="_blank" style="color:#4285f4;">billing is active</a> ($200/mo free credit)<br>
-            5. <strong>Wait 1-2 minutes</strong> after saving for changes to take effect</p>
+            5. <strong>Wait 1-2 minutes</strong> after saving for changes to take effect<br>
+            <em>Note: Google returns at most 5 reviews — use "Add Review" below to keep older ones.</em></p>
             <div style="display:flex;gap:6px;">
                 <input type="text" id="googleApiKeyInput" placeholder="AIza..." style="flex:1;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;" autocomplete="off">
                 <button class="btn-add-review" onclick="saveGoogleApiKey()" style="padding:8px 14px;font-size:12px;white-space:nowrap;">Save Key</button>
@@ -1610,8 +1617,43 @@ var supaClient = null;
 var currentUser = null;
 var authMode = 'signin';
 
+function showCloudBanner(msg) {
+    var banner = document.getElementById('cloudBanner');
+    var text = document.getElementById('cloudBannerText');
+    if (!banner || !text) return;
+    text.textContent = msg;
+    banner.style.display = 'block';
+}
+
 if (typeof supabase !== 'undefined' && supabase.createClient) {
     supaClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+} else {
+    console.error('[SUPABASE] CDN global "supabase" is undefined — the supabase-js script did not load.');
+    document.addEventListener('DOMContentLoaded', function() {
+        showCloudBanner('The Supabase library (CDN script) failed to load, so sign-in and cloud sync are disabled. Your data is still saved locally on this device. Check your internet connection or any ad/script blocker, then reload.');
+    });
+}
+
+/* Probe the Supabase project so a paused/deleted project or offline network is
+   reported distinctly from bad credentials. */
+var _cloudReachable = null;
+async function probeSupabaseReachable() {
+    if (!supaClient) return false;
+    try {
+        var resp = await fetch(SUPABASE_URL + '/auth/v1/health', { headers: { apikey: SUPABASE_ANON_KEY } });
+        _cloudReachable = resp.ok;
+        if (!resp.ok) console.error('[SUPABASE] Health check HTTP ' + resp.status);
+        return resp.ok;
+    } catch (err) {
+        _cloudReachable = false;
+        console.error('[SUPABASE] Health check failed:', err);
+        return false;
+    }
+}
+
+function unreachableMessage() {
+    return 'Cannot reach the Supabase project at ' + SUPABASE_URL + '. The project may be paused (free-tier auto-pause), deleted, or you are offline. ' +
+        'Open the Supabase dashboard to resume it, or update SUPABASE_URL / SUPABASE_ANON_KEY in index.html if the project was recreated.';
 }
 
 /* ═══════════════════════════════════════
@@ -1663,7 +1705,10 @@ function updateAuthUI() {
 }
 
 async function handleAuth() {
-    if (!supaClient) { document.getElementById('authError').textContent = 'Supabase not loaded. Check your internet connection.'; return; }
+    if (!supaClient) {
+        document.getElementById('authError').textContent = 'Supabase library did not load (CDN blocked or offline). Cloud sign-in is unavailable; your data is still saved locally.';
+        return;
+    }
 
     var email = document.getElementById('authEmail').value.trim();
     var password = document.getElementById('authPassword').value;
@@ -1684,7 +1729,16 @@ async function handleAuth() {
         }
 
         if (result.error) {
-            errEl.textContent = result.error.message;
+            console.error('[AUTH] ' + authMode + ' error:', result.error);
+            var status = result.error.status || result.error.code;
+            errEl.textContent = result.error.message + (status ? ' (status ' + status + ')' : '');
+            if (!status || status >= 500) {
+                var reachable = await probeSupabaseReachable();
+                if (!reachable) {
+                    errEl.textContent = 'Cannot reach the Supabase project — this is not a password problem. ' + result.error.message;
+                    showCloudBanner(unreachableMessage());
+                }
+            }
             document.getElementById('authSubmitBtn').textContent = authMode === 'signin' ? 'Sign In' : 'Create Account';
             return;
         }
@@ -1703,16 +1757,26 @@ async function handleAuth() {
         await loadFromSupabase();
         renderAll();
         renderFinanceAll();
+        subscribeRealtime();
         _isSigningIn = false;
         toast('Signed in! Data synced.');
     } catch (err) {
-        errEl.textContent = 'Connection error. Please try again.';
+        console.error('[AUTH] ' + authMode + ' threw:', err);
+        var detail = (err && (err.message || err.name)) ? (err.message || err.name) : String(err);
+        var ok = await probeSupabaseReachable();
+        if (!ok) {
+            errEl.textContent = 'Cannot reach ' + SUPABASE_URL + ' — the project may be paused, deleted, or you are offline. Details: ' + detail;
+            showCloudBanner(unreachableMessage());
+        } else {
+            errEl.textContent = 'Sign-in failed: ' + detail;
+        }
         document.getElementById('authSubmitBtn').textContent = authMode === 'signin' ? 'Sign In' : 'Create Account';
     }
 }
 
 async function handleSignOut() {
     if (!supaClient) return;
+    unsubscribeRealtime();
     try {
         await flushSync();
     } catch (err) {
@@ -1722,6 +1786,64 @@ async function handleSignOut() {
     currentUser = null;
     updateAuthUI();
     toast('Signed out. Using local data.');
+}
+
+/* ═══════════════════════════════════════
+   SUPABASE REALTIME (live updates)
+   ═══════════════════════════════════════ */
+
+var REALTIME_TABLES = ['job_entries', 'finance_entries', 'categories'];
+var _realtimeChannel = null;
+var _realtimeTimer = null;
+var _localWriteInFlight = false;
+var _ignoreRealtimeUntil = 0;
+
+/* syncToSupabase() deletes and re-inserts every row, so our own writes produce a
+   burst of events. Mark a quiet window around them and ignore what arrives. */
+function markLocalWriteStart() { _localWriteInFlight = true; }
+function markLocalWriteEnd() { _localWriteInFlight = false; _ignoreRealtimeUntil = Date.now() + 5000; }
+
+function subscribeRealtime() {
+    if (!supaClient || !currentUser) return;
+    unsubscribeRealtime();
+    var channel = supaClient.channel('fhd-live-' + currentUser.id);
+    REALTIME_TABLES.forEach(function(table) {
+        channel.on('postgres_changes', {
+            event: '*', schema: 'public', table: table, filter: 'user_id=eq.' + currentUser.id
+        }, onRealtimeChange);
+    });
+    channel.subscribe(function(status, err) {
+        console.log('[REALTIME] ' + status, err || '');
+        if (status === 'SUBSCRIBED') setSyncStatus('Live');
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            console.error('[REALTIME] subscription problem — make sure Realtime replication is enabled for ' + REALTIME_TABLES.join(', ') + ' (see supabase-setup.sql).');
+        }
+    });
+    _realtimeChannel = channel;
+}
+
+function onRealtimeChange(payload) {
+    if (_localWriteInFlight || Date.now() < _ignoreRealtimeUntil) return;
+    console.log('[REALTIME] change on ' + (payload && payload.table) + ': ' + (payload && payload.eventType));
+    if (_realtimeTimer) clearTimeout(_realtimeTimer);
+    _realtimeTimer = setTimeout(function() {
+        _realtimeTimer = null;
+        if (_localWriteInFlight || Date.now() < _ignoreRealtimeUntil) return;
+        if (!currentUser || !supaClient) return;
+        loadFromSupabase().then(function() {
+            renderAll();
+            renderFinanceAll();
+        });
+    }, 2000);
+}
+
+function unsubscribeRealtime() {
+    if (_realtimeTimer) { clearTimeout(_realtimeTimer); _realtimeTimer = null; }
+    if (_realtimeChannel && supaClient) {
+        try { supaClient.removeChannel(_realtimeChannel); }
+        catch (err) { console.error('[REALTIME] unsubscribe failed:', err); }
+    }
+    _realtimeChannel = null;
 }
 
 /* ═══════════════════════════════════════
@@ -1833,7 +1955,7 @@ async function loadFromSupabase() {
         }
 
         _lastSyncTime = Date.now();
-        setSyncStatus('Synced');
+        setSyncStatus(_realtimeChannel ? 'Live' : 'Synced');
     } catch (err) {
         console.error('Load from Supabase failed:', err);
         toast('Sync error: ' + (err.message || 'could not connect to cloud.'), true);
@@ -1845,6 +1967,7 @@ async function syncToSupabase() {
     if (!supaClient || !currentUser) return;
 
     setSyncStatus('Uploading...');
+    markLocalWriteStart();
 
     try {
         var r1 = await supaClient.from('categories').delete().eq('user_id', currentUser.id);
@@ -1895,13 +2018,15 @@ async function syncToSupabase() {
         }
         localStorage.removeItem('fhd_dirty');
         _lastSyncTime = Date.now();
-        setSyncStatus('Synced');
+        setSyncStatus(_realtimeChannel ? 'Live' : 'Synced');
         console.log('[SYNC] Upload complete: ' + entries.length + ' jobs, ' + financeEntries.length + ' finance entries');
     } catch (err) {
         console.error('Sync to Supabase failed:', err);
         toast('Sync failed: ' + (err.message || 'unknown error') + '. Your data is saved locally.', true);
         setSyncStatus('Sync Error');
         throw err;
+    } finally {
+        markLocalWriteEnd();
     }
 }
 
@@ -1965,9 +2090,12 @@ function saveLocal() {
             await loadFromSupabase();
             renderAll();
             renderFinanceAll();
+            subscribeRealtime();
         }
     } catch (err) {
         console.error('Auth init failed:', err);
+        var reachable = await probeSupabaseReachable();
+        if (!reachable) showCloudBanner(unreachableMessage());
     }
 
     supaClient.auth.onAuthStateChange(function(event, session) {
@@ -1977,11 +2105,13 @@ function saveLocal() {
             loadFromSupabase().then(function() {
                 renderAll();
                 renderFinanceAll();
+                subscribeRealtime();
             });
         } else if (event === 'TOKEN_REFRESHED' && session) {
             currentUser = session.user;
         } else if (event === 'SIGNED_OUT') {
             currentUser = null;
+            unsubscribeRealtime();
             updateAuthUI();
         }
     });
@@ -5018,128 +5148,130 @@ function fetchGoogleReviews() {
 }
 
 var mapsJsLoaded = false;
-function loadMapsJsApi(callback) {
-    if (mapsJsLoaded && typeof google !== 'undefined' && google.maps && google.maps.places) { callback(); return; }
-    // Listen for Google Maps auth errors
-    window.gm_authFailure = function() {
-        mapsJsLoaded = false;
-        toast('API key was DENIED by Google. Fix: Google Cloud Console → Credentials → click your key → API restrictions → "Don\'t restrict key" (or add Maps JavaScript API + Places API). Save and wait 2 minutes.', true);
-        document.getElementById('reviewApiSetup').style.display = 'block';
-        var btn = document.getElementById('refreshReviewsBtn');
-        if (btn) btn.textContent = '\u27F3 Refresh';
-        document.getElementById('reviewNoData').innerHTML = '<span style="font-size:32px;">&#9888;&#65039;</span><br>API key denied by Google.<br><span style="font-size:11px;color:#999;">Fix your API key restrictions (see instructions below), then click Refresh.</span>';
-    };
-    var script = document.createElement('script');
-    script.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(googleApiKey) + '&libraries=places&callback=_gmapsReady';
-    window._gmapsReady = function() {
-        mapsJsLoaded = true;
-        callback();
-    };
-    script.onerror = function() {
-        toast('Failed to load Google Maps API. Your API key may be invalid or restricted. In Google Cloud Console → Credentials → set API restrictions to "Don\'t restrict key".', true);
-        document.getElementById('reviewApiSetup').style.display = 'block';
-        var btn = document.getElementById('refreshReviewsBtn');
-        if (btn) btn.textContent = '\u27F3 Refresh';
-    };
-    document.head.appendChild(script);
+function reviewSetupFailure(msg) {
+    toast(msg, true);
+    var setup = document.getElementById('reviewApiSetup');
+    if (setup) setup.style.display = 'block';
+    var btn = document.getElementById('refreshReviewsBtn');
+    if (btn) btn.textContent = '\u27F3 Refresh';
 }
 
-function findPlaceAndLoadReviews() {
+/* Loads the Maps JS API through the bootstrap loader so the Places API (New)
+   `Place` class is available via google.maps.importLibrary(). */
+function loadMapsJsApi(callback) {
+    if (mapsJsLoaded && typeof google !== 'undefined' && google.maps && google.maps.importLibrary) { callback(); return; }
+
+    window.gm_authFailure = function() {
+        mapsJsLoaded = false;
+        reviewSetupFailure('API key was DENIED by Google. Fix: Google Cloud Console → enable "Places API (New)" → Credentials → your key → API restrictions → allow "Places API (New)" (or "Don\'t restrict key"). Save and wait 2 minutes.');
+        var noData = document.getElementById('reviewNoData');
+        if (noData) noData.innerHTML = '<span style="font-size:32px;">&#9888;&#65039;</span><br>API key denied by Google.<br><span style="font-size:11px;color:#999;">Fix your API key restrictions (see instructions below), then click Refresh.</span>';
+    };
+
+    if (!mapsJsLoaded) {
+        // Official Google Maps JS API bootstrap loader.
+        (function(g) {
+            var h, a, k, p = 'The Google Maps JavaScript API', c = 'google', l = 'importLibrary', q = '__ib__', m = document, b = window;
+            b = b[c] || (b[c] = {});
+            var d = b.maps || (b.maps = {}), r = new Set(), e = new URLSearchParams();
+            var u = function() {
+                return h || (h = new Promise(function(f, n) {
+                    a = m.createElement('script');
+                    e.set('libraries', Array.from(r).join(','));
+                    for (k in g) e.set(k.replace(/[A-Z]/g, function(t) { return '_' + t[0].toLowerCase(); }), g[k]);
+                    e.set('callback', c + '.maps.' + q);
+                    a.src = 'https://maps.' + c + 'apis.com/maps/api/js?' + e;
+                    d[q] = f;
+                    a.onerror = function() { h = n(Error(p + ' could not load.')); };
+                    m.head.append(a);
+                }));
+            };
+            if (!d[l]) d[l] = function(f) { var n = Array.prototype.slice.call(arguments, 1); r.add(f); return u().then(function() { return d[l].apply(d, [f].concat(n)); }); };
+        })({ key: googleApiKey, v: 'weekly' });
+        mapsJsLoaded = true;
+    }
+
+    google.maps.importLibrary('places').then(function() {
+        callback();
+    }).catch(function(err) {
+        mapsJsLoaded = false;
+        console.error('[Maps Loader]', err);
+        reviewSetupFailure('Failed to load the Google Maps JS API: ' + (err.message || err) + '. Check that your API key is valid and "Places API (New)" is enabled.');
+    });
+}
+
+async function findPlaceAndLoadReviews() {
     var btn = document.getElementById('refreshReviewsBtn');
     if (btn) btn.textContent = '\u27F3 Finding...';
 
-    var timeout = setTimeout(function() {
-        if (btn && btn.textContent.indexOf('Finding') !== -1) {
-            btn.textContent = '\u27F3 Refresh';
-            toast('Google Reviews timed out. Check your API key restrictions and try again.', true);
-            document.getElementById('reviewApiSetup').style.display = 'block';
-        }
-    }, 30000);
-
     try {
-        if (typeof google === 'undefined' || !google.maps || !google.maps.places) {
-            clearTimeout(timeout);
-            toast('Google Maps API failed to load. Check your API key.', true);
-            document.getElementById('reviewApiSetup').style.display = 'block';
-            if (btn) btn.textContent = '\u27F3 Refresh';
-            return;
-        }
+        var placesLib = await google.maps.importLibrary('places');
+        var Place = placesLib.Place;
 
-        var mapDiv = document.getElementById('gmap-hidden');
-        if (!mapDiv) {
-            mapDiv = document.createElement('div');
-            mapDiv.id = 'gmap-hidden';
-            mapDiv.style.cssText = 'width:1px;height:1px;position:absolute;left:-9999px;';
-            document.body.appendChild(mapDiv);
-        }
-        var map = new google.maps.Map(mapDiv);
-        var service = new google.maps.places.PlacesService(map);
-
+        var place;
         if (googlePlaceId) {
-            clearTimeout(timeout);
-            loadPlaceDetails(service, googlePlaceId);
-            return;
+            place = new Place({ id: googlePlaceId });
+        } else {
+            var searchResult = await Place.searchByText({
+                textQuery: 'Full House Delivery LLC',
+                fields: ['id', 'displayName'],
+                maxResultCount: 1
+            });
+            if (!searchResult.places || searchResult.places.length === 0) {
+                reviewSetupFailure('Could not find "Full House Delivery LLC" on Google. Make sure "Places API (New)" is enabled and billing is active.');
+                return;
+            }
+            place = searchResult.places[0];
+            googlePlaceId = place.id;
+            localStorage.setItem('fhd_google_place_id', googlePlaceId);
         }
 
-        var request = { query: 'Full House Delivery LLC', fields: ['place_id', 'name'] };
-        service.findPlaceFromQuery(request, function(results, status) {
-            clearTimeout(timeout);
-            if (status === google.maps.places.PlacesServiceStatus.OK && results && results.length > 0) {
-                googlePlaceId = results[0].place_id;
-                localStorage.setItem('fhd_google_place_id', googlePlaceId);
-                loadPlaceDetails(service, googlePlaceId);
-            } else {
-                console.error('[Place Search]', status);
-                toast('Could not find Full House Delivery on Google. Status: ' + status + '. Make sure "Places API" is enabled and billing is active.', true);
-                document.getElementById('reviewApiSetup').style.display = 'block';
-                if (btn) btn.textContent = '\u27F3 Refresh';
-            }
-        });
-    } catch (e) {
-        clearTimeout(timeout);
-        console.error('[Place Search Error]', e);
-        toast('Error: ' + e.message + '. Try changing your API key.', true);
-        document.getElementById('reviewApiSetup').style.display = 'block';
+        await loadPlaceDetails(place);
+    } catch (err) {
+        console.error('[Place Search Error]', err);
+        var msg = (err && err.message) ? err.message : String(err);
+        if (msg.indexOf('REQUEST_DENIED') !== -1 || msg.indexOf('PERMISSION_DENIED') !== -1 || msg.indexOf('403') !== -1) {
+            reviewSetupFailure('Google denied the request: ' + msg + '. Enable "Places API (New)" for this key and make sure billing is active.');
+        } else {
+            reviewSetupFailure('Could not load Google Reviews: ' + msg);
+        }
+    } finally {
         if (btn) btn.textContent = '\u27F3 Refresh';
     }
 }
 
-function loadPlaceDetails(service, placeId) {
+async function loadPlaceDetails(place) {
     var btn = document.getElementById('refreshReviewsBtn');
     if (btn) btn.textContent = '\u27F3 Loading...';
-    var request = { placeId: placeId, fields: ['rating', 'user_ratings_total', 'reviews'] };
-    service.getDetails(request, function(place, status) {
-        if (status === google.maps.places.PlacesServiceStatus.OK && place) {
-            if (place.reviews && place.reviews.length > 0) {
-                googleReviews = place.reviews.map(function(r) {
-                    return {
-                        id: 'google-' + (r.author_name || '') + '-' + (r.time || ''),
-                        rating: r.rating || 5,
-                        author: r.author_name || 'Google User',
-                        date: r.time ? new Date(r.time * 1000).toISOString().substring(0, 10) : today(),
-                        text: r.text || '',
-                        source: 'google'
-                    };
-                });
-            }
-            if (place.rating) {
-                localStorage.setItem('fhd_google_overall_rating', place.rating);
-                localStorage.setItem('fhd_google_total_reviews', place.user_ratings_total || googleReviews.length);
-            }
-            saveReviews();
-            renderReviewsSection();
-            toast('Google Reviews updated! (' + googleReviews.length + ' reviews)');
-        } else {
-            console.error('[Place Details]', status);
-            if (status === 'REQUEST_DENIED') {
-                toast('API key denied. In Google Cloud Console, enable "Maps JavaScript API" and "Places API", and ensure billing is active.', true);
-                document.getElementById('reviewApiSetup').style.display = 'block';
-            } else {
-                toast('Could not load reviews. Status: ' + status, true);
-            }
-        }
-        if (btn) btn.textContent = '\u27F3 Refresh';
-    });
+
+    // Place Details (New) returns at most 5 reviews; manually added reviews are kept.
+    await place.fetchFields({ fields: ['reviews', 'rating', 'userRatingCount'] });
+
+    var fetched = place.reviews || [];
+    if (fetched.length > 0) {
+        var manual = googleReviews.filter(function(r) { return r.source !== 'google'; });
+        var fromGoogle = fetched.map(function(r) {
+            var author = (r.authorAttribution && r.authorAttribution.displayName) || 'Google User';
+            var published = r.publishTime ? new Date(r.publishTime) : null;
+            return {
+                id: 'google-' + author + '-' + (published ? published.getTime() : ''),
+                rating: r.rating || 5,
+                author: author,
+                date: published ? published.toISOString().substring(0, 10) : today(),
+                text: (r.text && r.text.text) ? r.text.text : (r.text || ''),
+                source: 'google'
+            };
+        });
+        googleReviews = manual.concat(fromGoogle);
+    }
+
+    if (place.rating) {
+        localStorage.setItem('fhd_google_overall_rating', place.rating);
+        localStorage.setItem('fhd_google_total_reviews', place.userRatingCount || googleReviews.length);
+    }
+    saveReviews();
+    renderReviewsSection();
+    toast('Google Reviews updated! (' + fetched.length + ' from Google)');
 }
 
 function saveGoogleApiKey() {

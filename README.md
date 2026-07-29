@@ -9,6 +9,7 @@ Business dashboard for **Fullhouse Delivery LLC** — track customer jobs, reven
 - **Bank Statement Import** — upload CSV or PDF bank statements with automatic transaction categorization
 - **Pie & Bar Charts** — visual overview of job distribution and financial performance
 - **Cloud Sync via Supabase** — sign in to sync data across phone and computer; works offline with local storage fallback
+- **Live Updates** — Supabase Realtime pushes changes made on one device to every other signed-in device
 - **Export/Import** — JSON and CSV export for backups
 
 ## Setup
@@ -26,6 +27,8 @@ This creates three tables with Row Level Security (RLS):
 - `categories` — delivery job categories  
 - `job_entries` — individual job/delivery records  
 - `finance_entries` — revenue and expense records  
+
+The same script also enables **Realtime** on those tables (`ALTER PUBLICATION supabase_realtime ADD TABLE ...`), which powers live updates — changes made on one device appear on the others without a refresh. Alternatively, enable Replication for each table in Dashboard → Database → Replication.
 
 ### 3. Authentication
 
