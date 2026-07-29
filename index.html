@@ -770,7 +770,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v42</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v43</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:#2196F3;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -1873,6 +1873,71 @@ function setSyncStatus(msg) {
     if (el && currentUser) el.textContent = msg;
 }
 
+/* Keys of the rows this device last saw in the cloud. A row that is in the cloud
+   now but not in the snapshot was created by another device; a row in the snapshot
+   but not local was deleted here. Lets the delete-then-insert upload keep other
+   devices' new rows without resurrecting locally deleted ones. */
+var _cloudSnapshot = { jobs: {}, fin: {}, cats: {} };
+
+function keySet(list, keyFn) {
+    var set = {};
+    list.forEach(function(item) { set[keyFn ? keyFn(item) : item] = true; });
+    return set;
+}
+
+function setCloudSnapshot(jobs, fin, cats) {
+    _cloudSnapshot = { jobs: keySet(jobs, jobKey), fin: keySet(fin, finKey), cats: keySet(cats) };
+}
+
+function mapCloudJob(e) {
+    return {
+        id: e.id, date: e.date, category: e.category, amount: e.amount,
+        revenue: (typeof e.revenue === 'number') ? e.revenue : 0,
+        customer: e.customer || '', phone: e.phone || '', email: e.email || '',
+        storeName: e.store_name || '', referredBy: e.referred_by || '', note: e.note || ''
+    };
+}
+
+function mapCloudFinance(e) {
+    return { id: e.id, date: e.date, type: e.type, amount: parseFloat(e.amount), note: e.note || '' };
+}
+
+/* Pull rows other devices added since our last load into the local state, so the
+   upload below (which replaces every row) does not delete them. */
+async function mergeRemoteAdditions() {
+    var jobResult = await supaClient.from('job_entries').select('*').eq('user_id', currentUser.id);
+    if (jobResult.error) throw jobResult.error;
+    var finResult = await supaClient.from('finance_entries').select('*').eq('user_id', currentUser.id);
+    if (finResult.error) throw finResult.error;
+    var catResult = await supaClient.from('categories').select('*').eq('user_id', currentUser.id).order('sort_order');
+    if (catResult.error) throw catResult.error;
+
+    var added = 0;
+    var localJobKeys = keySet(entries, jobKey);
+    (jobResult.data || []).map(mapCloudJob).forEach(function(e) {
+        var k = jobKey(e);
+        if (!localJobKeys[k] && !_cloudSnapshot.jobs[k]) { entries.push(e); localJobKeys[k] = true; added++; }
+    });
+
+    var localFinKeys = keySet(financeEntries, finKey);
+    (finResult.data || []).map(mapCloudFinance).forEach(function(e) {
+        var k = finKey(e);
+        if (!localFinKeys[k] && !_cloudSnapshot.fin[k]) { financeEntries.push(e); localFinKeys[k] = true; added++; }
+    });
+
+    var localCats = keySet(categories);
+    (catResult.data || []).forEach(function(c) {
+        if (!localCats[c.name] && !_cloudSnapshot.cats[c.name]) { categories.push(c.name); localCats[c.name] = true; added++; }
+    });
+
+    if (added > 0) {
+        console.log('[SYNC] Adopted ' + added + ' row(s) added by another device before upload');
+        saveLocal();
+        renderAll();
+        renderFinanceAll();
+    }
+}
+
 async function loadFromSupabase() {
     if (!supaClient || !currentUser) return;
 
@@ -1907,20 +1972,11 @@ async function loadFromSupabase() {
             return;
         }
 
-        var cloudJobs = (jobResult.data || []).map(function(e) {
-            return {
-                id: e.id, date: e.date, category: e.category, amount: e.amount,
-                revenue: (typeof e.revenue === 'number') ? e.revenue : 0,
-                customer: e.customer || '', phone: e.phone || '', email: e.email || '',
-                storeName: e.store_name || '', referredBy: e.referred_by || '', note: e.note || ''
-            };
-        });
-
-        var cloudFinance = (finResult.data || []).map(function(e) {
-            return { id: e.id, date: e.date, type: e.type, amount: parseFloat(e.amount), note: e.note || '' };
-        });
-
+        var cloudJobs = (jobResult.data || []).map(mapCloudJob);
+        var cloudFinance = (finResult.data || []).map(mapCloudFinance);
         var cloudCats = (catResult.data || []).map(function(c) { return c.name; });
+
+        setCloudSnapshot(cloudJobs, cloudFinance, cloudCats);
 
         console.log('[SYNC] Cloud data: ' + cloudJobs.length + ' jobs, ' + cloudFinance.length + ' finance, ' + cloudCats.length + ' categories. Local dirty: ' + hasDirty + ', local jobs: ' + entries.length);
 
@@ -1978,6 +2034,8 @@ async function syncToSupabase() {
     markLocalWriteStart();
 
     try {
+        await mergeRemoteAdditions();
+
         var r1 = await supaClient.from('categories').delete().eq('user_id', currentUser.id);
         if (r1.error) throw r1.error;
         if (categories.length > 0) {
@@ -2024,6 +2082,7 @@ async function syncToSupabase() {
             var r6 = await supaClient.from('finance_entries').insert(finRows);
             if (r6.error) throw r6.error;
         }
+        setCloudSnapshot(entries, financeEntries, categories);
         localStorage.removeItem('fhd_dirty');
         _lastSyncTime = Date.now();
         setSyncStatus(_realtimeChannel ? 'Live' : 'Synced');
@@ -2223,6 +2282,16 @@ function _flushSync() {
     });
     return _syncChain;
 }
+
+/* Fallback for when Realtime replication is not enabled (or the socket drops):
+   poll while the tab is visible so every device still converges. */
+var POLL_INTERVAL_MS = 30000;
+setInterval(function() {
+    if (document.visibilityState !== 'visible') return;
+    if (!currentUser || !supaClient) return;
+    if (_localWriteInFlight || _syncScheduled || _syncTimer) return;
+    scheduleRealtimeReload();
+}, POLL_INTERVAL_MS);
 
 var _lastCloudRefresh = 0;
 document.addEventListener('visibilitychange', function() {
