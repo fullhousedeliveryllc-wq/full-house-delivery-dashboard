@@ -1799,7 +1799,8 @@ var _localWriteInFlight = false;
 var _ignoreRealtimeUntil = 0;
 
 /* syncToSupabase() deletes and re-inserts every row, so our own writes produce a
-   burst of events. Mark a quiet window around them and ignore what arrives. */
+   burst of events. Reloads are deferred past that window rather than dropped, so a
+   change from another device landing during a local save is still picked up. */
 function markLocalWriteStart() { _localWriteInFlight = true; }
 function markLocalWriteEnd() { _localWriteInFlight = false; _ignoreRealtimeUntil = Date.now() + 5000; }
 
@@ -1823,18 +1824,25 @@ function subscribeRealtime() {
 }
 
 function onRealtimeChange(payload) {
-    if (_localWriteInFlight || Date.now() < _ignoreRealtimeUntil) return;
     console.log('[REALTIME] change on ' + (payload && payload.table) + ': ' + (payload && payload.eventType));
+    scheduleRealtimeReload();
+}
+
+function scheduleRealtimeReload() {
+    var wait = 2000;
+    if (_localWriteInFlight) wait = 5000;
+    else if (Date.now() < _ignoreRealtimeUntil) wait = Math.max(wait, _ignoreRealtimeUntil - Date.now() + 500);
+
     if (_realtimeTimer) clearTimeout(_realtimeTimer);
     _realtimeTimer = setTimeout(function() {
         _realtimeTimer = null;
-        if (_localWriteInFlight || Date.now() < _ignoreRealtimeUntil) return;
         if (!currentUser || !supaClient) return;
+        if (_localWriteInFlight || Date.now() < _ignoreRealtimeUntil) { scheduleRealtimeReload(); return; }
         loadFromSupabase().then(function() {
             renderAll();
             renderFinanceAll();
         });
-    }, 2000);
+    }, wait);
 }
 
 function unsubscribeRealtime() {
