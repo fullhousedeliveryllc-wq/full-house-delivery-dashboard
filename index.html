@@ -690,88 +690,30 @@
         .job-status.in-progress { background: #f3e5f5; color: #7b1fa2; }
         .job-status.completed { background: #e8f5e9; color: #2e7d32; }
 
-        /* Google Reviews */
-        .reviews-card { background: #fff; border-top: 3px solid #fbbc04; }
-        .reviews-header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
-        .reviews-overall { display: flex; align-items: center; gap: 16px; padding: 16px; background: linear-gradient(135deg, #f8f9fa, #fff); border-radius: 12px; margin-bottom: 18px; border: 1px solid #e8e8e8; }
-        .reviews-rating-big { font-size: 48px; font-weight: 800; color: #202124; line-height: 1; }
-        .reviews-rating-info { display: flex; flex-direction: column; gap: 4px; }
-        .reviews-stars { color: #fbbc04; font-size: 22px; letter-spacing: 2px; }
-        .reviews-count { font-size: 13px; color: #70757a; }
-        .review-carousel { position: relative; min-height: 100px; overflow: hidden; margin-bottom: 14px; }
-        .review-slide { padding: 16px; background: #f8f9fa; border-radius: 12px; border-left: 4px solid #fbbc04; transition: opacity 0.5s ease, transform 0.5s ease; }
-        .review-slide.fade-out { opacity: 0; transform: translateY(-10px); }
-        .review-slide.fade-in { opacity: 1; transform: translateY(0); }
-        .review-author { font-weight: 700; color: #202124; font-size: 14px; margin-bottom: 4px; }
-        .review-date { font-size: 11px; color: #70757a; margin-bottom: 8px; }
-        .review-text { font-size: 13px; color: #3c4043; line-height: 1.5; font-style: italic; }
-        .review-text::before { content: '\201C'; font-size: 24px; color: #fbbc04; vertical-align: text-top; line-height: 0.5; margin-right: 2px; }
-        .review-text::after { content: '\201D'; font-size: 24px; color: #fbbc04; vertical-align: text-bottom; line-height: 0.5; margin-left: 2px; }
-        .review-no-data { text-align: center; padding: 24px; color: #999; font-size: 13px; }
-        .review-dots { display: flex; justify-content: center; gap: 6px; margin: 10px 0; }
-        .review-dot { width: 8px; height: 8px; border-radius: 50%; background: #ddd; cursor: pointer; transition: background 0.2s; }
-        .review-dot.active { background: #fbbc04; }
-        .reviews-actions { display: flex; gap: 8px; margin-top: 12px; }
-        .reviews-actions button { flex: 1; padding: 10px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
-        .btn-add-review { background: linear-gradient(135deg, #4285f4, #356ac3); color: #fff; }
-        .btn-add-review:hover { box-shadow: 0 4px 12px rgba(66,133,244,0.3); }
-        .btn-manage-reviews { background: #f1f3f4; color: #3c4043; }
-        .btn-manage-reviews:hover { background: #e8eaed; }
-        .review-form-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
-        .review-form-overlay.show { display: flex; }
-        .review-form-modal { background: #fff; border-radius: 20px; padding: 28px; width: 90%; max-width: 420px; box-shadow: 0 24px 80px rgba(0,0,0,0.25); }
-        .review-form-modal h3 { margin-bottom: 16px; font-size: 18px; color: #202124; }
-        .review-form-modal .form-group { margin-bottom: 14px; }
-        .review-form-modal label { display: block; font-size: 13px; font-weight: 600; color: #5f6368; margin-bottom: 5px; }
-        .review-form-modal input, .review-form-modal textarea { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; font-family: inherit; }
-        .review-form-modal textarea { resize: vertical; min-height: 80px; }
-        .star-picker { display: flex; gap: 6px; font-size: 28px; cursor: pointer; }
-        .star-picker .star { color: #ddd; transition: color 0.15s; user-select: none; }
-        .star-picker .star.active { color: #fbbc04; }
-        .star-picker .star:hover { color: #f4a900; }
-        .review-form-actions { display: flex; gap: 8px; margin-top: 18px; }
-        .review-form-actions button { flex: 1; padding: 10px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
-        .review-alert { display: none; padding: 12px 16px; background: linear-gradient(135deg, #fff3cd, #ffeeba); border: 1px solid #ffc107; border-radius: 10px; margin-bottom: 14px; animation: alertPulse 2s ease-in-out; }
-        .review-alert.show { display: flex; align-items: center; gap: 10px; }
-        .review-alert .alert-icon { font-size: 22px; }
-        .review-alert .alert-text { flex: 1; font-size: 13px; color: #856404; }
-        .review-alert .alert-text strong { color: #664d03; }
-        .review-alert .alert-dismiss { background: none; border: none; font-size: 18px; cursor: pointer; color: #856404; padding: 0 4px; }
-        @keyframes alertPulse { 0%, 100% { box-shadow: 0 0 0 rgba(255,193,7,0); } 50% { box-shadow: 0 0 16px rgba(255,193,7,0.4); } }
-        .review-manage-list { max-height: 250px; overflow-y: auto; margin-top: 10px; }
-        .review-manage-item { display: flex; align-items: center; gap: 10px; padding: 8px; border-bottom: 1px solid #f0f0f0; font-size: 12px; }
-        .review-manage-item:last-child { border-bottom: none; }
-        .review-manage-item .rm-stars { color: #fbbc04; font-size: 14px; white-space: nowrap; }
-        .review-manage-item .rm-author { font-weight: 600; color: #333; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .review-manage-item .rm-delete { background: none; border: none; color: #c0392b; cursor: pointer; font-size: 16px; padding: 2px 6px; }
-        .review-manage-item .rm-delete:hover { background: #fdeaea; border-radius: 4px; }
-
-        /* Review request tracker */
-        .request-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px; }
-        .request-stat { background: #f8f9fa; border: 1px solid #e8e8e8; border-radius: 10px; padding: 10px; text-align: center; }
-        .request-stat .rs-value { font-size: 22px; font-weight: 800; color: #202124; line-height: 1.1; }
-        .request-stat .rs-label { font-size: 10px; color: #70757a; text-transform: uppercase; letter-spacing: 0.4px; margin-top: 2px; }
-        .request-stat.due .rs-value { color: var(--accent); }
-        .request-stat.received .rs-value { color: var(--success); }
-        .request-filters { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
-        .request-filter { padding: 6px 12px; border: 1px solid var(--border); background: #fff; border-radius: 20px; font-size: 12px; font-weight: 600; color: var(--text-light); cursor: pointer; transition: all 0.15s; }
-        .request-filter.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-        .request-list { max-height: 340px; overflow-y: auto; }
-        .request-item { display: flex; align-items: center; gap: 10px; padding: 10px; border-bottom: 1px solid #f0f0f0; flex-wrap: wrap; }
-        .request-item:last-child { border-bottom: none; }
-        .request-item.overdue { background: #fff8e1; border-radius: 8px; }
-        .request-who { flex: 1; min-width: 140px; }
-        .request-name { font-weight: 700; font-size: 13px; color: var(--text); }
-        .request-meta { font-size: 11px; color: var(--text-light); margin-top: 2px; }
-        .request-actions { display: flex; gap: 6px; flex-wrap: wrap; }
-        .request-actions a, .request-actions button { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: #fff; font-size: 11px; font-weight: 600; color: var(--text); cursor: pointer; text-decoration: none; display: inline-block; }
-        .request-actions a:hover, .request-actions button:hover { background: #f1f3f4; }
-        .request-actions .primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-        .request-badge { font-size: 10px; padding: 3px 8px; border-radius: 12px; font-weight: 700; text-transform: uppercase; }
-        .request-badge.asked { background: #e3f2fd; color: #1565c0; }
-        .request-badge.received { background: #e8f5e9; color: #2e7d32; }
-        .request-badge.declined { background: #eceff1; color: #546e7a; }
-        @media (max-width: 600px) { .request-stats { grid-template-columns: repeat(2, 1fr); } }
+        /* Money snapshot */
+        .money-card { background: #fff; border-top: 3px solid var(--success); }
+        .money-header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+        .money-blocks { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+        .money-block { background: linear-gradient(135deg, #f8f9fa, #fff); border: 1px solid #e8e8e8; border-radius: 12px; padding: 14px; }
+        .money-period { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-light); display: flex; justify-content: space-between; gap: 6px; }
+        .money-period span { font-weight: 500; text-transform: none; letter-spacing: 0; }
+        .money-profit { font-size: 30px; font-weight: 800; line-height: 1.2; margin: 6px 0 4px; }
+        .money-profit.up { color: var(--success); }
+        .money-profit.down { color: #c0392b; }
+        .money-split { display: flex; gap: 10px; font-size: 12px; }
+        .money-split .in { color: var(--success); font-weight: 600; }
+        .money-split .out { color: #c0392b; font-weight: 600; }
+        .money-notes { border-top: 1px solid #f0f0f0; }
+        .money-note { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 2px; border-bottom: 1px solid #f5f5f5; font-size: 13px; }
+        .money-note:last-child { border-bottom: none; }
+        .mn-label { color: var(--text-light); }
+        .mn-value { font-weight: 700; color: var(--text); text-align: right; }
+        .mn-value.up { color: var(--success); }
+        .mn-value.down { color: #c0392b; }
+        .money-unpaid { margin-top: 10px; background: #fff8e1; border: 1px solid #ffe082; border-radius: 10px; padding: 8px 12px; }
+        .mu-row { display: flex; justify-content: space-between; font-size: 12px; padding: 3px 0; color: #7a5c00; }
+        .mu-more { font-size: 11px; color: #a08000; padding-top: 3px; }
+        @media (max-width: 600px) { .money-blocks { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body>
@@ -796,7 +738,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v44</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v45</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:#2196F3;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -836,77 +778,16 @@
         <div class="chart-legend" id="chartLegend"></div>
     </div>
 
-    <!-- Review Requests -->
-    <div class="card reviews-card">
-        <div class="reviews-header">
-            <span style="font-size:30px;line-height:1;">&#11088;</span>
+    <!-- Money Snapshot -->
+    <div class="card money-card">
+        <div class="money-header">
+            <span style="font-size:30px;line-height:1;">&#128176;</span>
             <div>
-                <h2 style="margin:0;font-size:18px;">Review Requests</h2>
-                <span style="font-size:11px;color:#70757a;">Ask happy customers for a Google review</span>
-            </div>
-            <button class="btn-manage-reviews" onclick="toggleReviewLinkSetup()" style="margin-left:auto;padding:6px 12px;font-size:11px;" title="Set your Google review link">&#128279; Review Link</button>
-        </div>
-
-        <div id="reviewLinkSetup" style="display:none;margin-bottom:14px;padding:14px;background:#f8f9fa;border:1px solid #e8e8e8;border-radius:10px;font-size:12px;">
-            <strong>Your Google review link</strong>
-            <p style="margin:6px 0;color:#5f6368;">Open your Google Business Profile, click <em>Ask for reviews</em>, and paste the short link here. It is added to every request message.</p>
-            <div style="display:flex;gap:6px;">
-                <input type="text" id="reviewLinkInput" placeholder="https://g.page/r/..." style="flex:1;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;" autocomplete="off">
-                <button class="btn-add-review" onclick="saveReviewLink()" style="padding:8px 14px;font-size:12px;white-space:nowrap;">Save Link</button>
+                <h2 style="margin:0;font-size:18px;">Money Snapshot</h2>
+                <span style="font-size:11px;color:#70757a;">Profit, spending and gaps at a glance</span>
             </div>
         </div>
-
-        <div class="request-stats" id="requestStats"></div>
-
-        <div class="request-filters">
-            <button class="request-filter active" data-filter="toask" onclick="setRequestFilter('toask')">To ask</button>
-            <button class="request-filter" data-filter="waiting" onclick="setRequestFilter('waiting')">Waiting</button>
-            <button class="request-filter" data-filter="received" onclick="setRequestFilter('received')">Received</button>
-            <button class="request-filter" data-filter="all" onclick="setRequestFilter('all')">All</button>
-        </div>
-
-        <div class="request-list" id="requestList"></div>
-    </div>
-
-    <!-- Customer Reviews (manually logged) -->
-    <div class="card reviews-card">
-        <div class="reviews-header">
-            <span style="font-size:30px;line-height:1;">&#128172;</span>
-            <div>
-                <h2 style="margin:0;font-size:18px;">Customer Reviews</h2>
-                <span style="font-size:11px;color:#70757a;">Logged by hand — add each review as it comes in</span>
-            </div>
-        </div>
-
-        <div class="review-alert" id="reviewAlert">
-            <span class="alert-icon">&#9888;&#65039;</span>
-            <div class="alert-text" id="reviewAlertText"></div>
-            <button class="alert-dismiss" onclick="dismissReviewAlert()">&times;</button>
-        </div>
-
-        <div class="reviews-overall" id="reviewsOverall">
-            <div class="reviews-rating-big" id="reviewsRatingBig">—</div>
-            <div class="reviews-rating-info">
-                <div class="reviews-stars" id="reviewsStars">&#9734;&#9734;&#9734;&#9734;&#9734;</div>
-                <div class="reviews-count" id="reviewsCount">No reviews yet</div>
-            </div>
-        </div>
-
-        <div class="review-carousel" id="reviewCarousel">
-            <div class="review-no-data" id="reviewNoData">
-                <span style="font-size:32px;">&#11088;</span><br>
-                No reviews logged yet.
-            </div>
-        </div>
-        <div class="review-dots" id="reviewDots"></div>
-
-        <div class="reviews-actions">
-            <button class="btn-add-review" onclick="openReviewForm()">&#43; Add Review</button>
-            <button class="btn-manage-reviews" onclick="toggleManageReviews()">&#9881; Manage</button>
-        </div>
-        <div id="reviewManagePanel" style="display:none;">
-            <div class="review-manage-list" id="reviewManageList"></div>
-        </div>
+        <div id="moneySnapshot"></div>
     </div>
 
     <!-- Data Entry -->
@@ -1607,39 +1488,6 @@
 </div>
 
 <div class="toast" id="toast"></div>
-
-<!-- Review Form Modal -->
-<div class="review-form-overlay" id="reviewFormOverlay">
-    <div class="review-form-modal">
-        <h3 id="reviewFormTitle">Add Google Review</h3>
-        <div class="form-group">
-            <label>Rating</label>
-            <div class="star-picker" id="starPicker">
-                <span class="star" data-val="1" onclick="setReviewRating(1)">&#9733;</span>
-                <span class="star" data-val="2" onclick="setReviewRating(2)">&#9733;</span>
-                <span class="star" data-val="3" onclick="setReviewRating(3)">&#9733;</span>
-                <span class="star" data-val="4" onclick="setReviewRating(4)">&#9733;</span>
-                <span class="star" data-val="5" onclick="setReviewRating(5)">&#9733;</span>
-            </div>
-        </div>
-        <div class="form-group">
-            <label for="reviewAuthor">Reviewer Name</label>
-            <input type="text" id="reviewAuthor" placeholder="e.g., John Smith" autocomplete="off">
-        </div>
-        <div class="form-group">
-            <label for="reviewDate">Date</label>
-            <input type="date" id="reviewDate">
-        </div>
-        <div class="form-group">
-            <label for="reviewComment">Review Comment</label>
-            <textarea id="reviewComment" placeholder="What did the customer say?"></textarea>
-        </div>
-        <div class="review-form-actions">
-            <button type="button" style="background:#e0e0e0;color:#333;" onclick="closeReviewForm()">Cancel</button>
-            <button type="button" style="background:linear-gradient(135deg,#4285f4,#356ac3);color:#fff;" onclick="saveReview()">Save Review</button>
-        </div>
-    </div>
-</div>
 
 <script>
 /* ═══════════════════════════════════════
@@ -5234,395 +5082,107 @@ function copyQuoteLink() {
 })();
 
 /* ═══════════════════════════════════════
-   CUSTOMER REVIEWS (manually logged)
+   MONEY SNAPSHOT
+   Week/month revenue vs expenses pulled from the same data the Revenues &
+   Expenses tab uses, plus jobs with no revenue logged and the biggest
+   expense category this month.
    ═══════════════════════════════════════ */
-var googleReviews = JSON.parse(localStorage.getItem('fhd_reviews')) || [];
-var reviewRotateTimer = null;
-var currentReviewIndex = 0;
-var reviewFormRating = 5;
-var dismissedAlerts = JSON.parse(localStorage.getItem('fhd_review_dismissed')) || [];
-
-function saveReviews() {
-    localStorage.setItem('fhd_reviews', JSON.stringify(googleReviews));
+function monthRange(offset) {
+    var now = new Date();
+    var start = new Date(now.getFullYear(), now.getMonth() + (offset || 0), 1);
+    var end = new Date(start.getFullYear(), start.getMonth() + 1, 0);
+    return { start: localDateStr(start), end: localDateStr(end) };
 }
 
-/* ═══════════════════════════════════════
-   REVIEW REQUEST TRACKER
-   Which finished jobs have been asked for a Google review, who replied, and
-   who needs a nudge. Keyed by jobKey() so state survives cloud reloads.
-   ═══════════════════════════════════════ */
-var FOLLOW_UP_DAYS = 5;
-var REQUEST_WINDOW_DAYS = 90;
-var reviewRequests = JSON.parse(localStorage.getItem('fhd_review_requests')) || {};
-var reviewLink = localStorage.getItem('fhd_review_link') || '';
-var requestFilter = 'toask';
-
-function saveReviewRequests() {
-    localStorage.setItem('fhd_review_requests', JSON.stringify(reviewRequests));
+function weekRange() {
+    var now = new Date();
+    var day = now.getDay();
+    var monday = new Date(now);
+    monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+    var sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    return { start: localDateStr(monday), end: localDateStr(sunday) };
 }
 
-function toggleReviewLinkSetup() {
-    var box = document.getElementById('reviewLinkSetup');
-    box.style.display = box.style.display === 'block' ? 'none' : 'block';
-    document.getElementById('reviewLinkInput').value = reviewLink;
+function localDateStr(d) {
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 
-function saveReviewLink() {
-    reviewLink = document.getElementById('reviewLinkInput').value.trim();
-    localStorage.setItem('fhd_review_link', reviewLink);
-    document.getElementById('reviewLinkSetup').style.display = 'none';
-    renderReviewRequests();
-    toast(reviewLink ? 'Review link saved!' : 'Review link cleared.');
+function inRange(dateStr, range) {
+    return dateStr >= range.start && dateStr <= range.end;
 }
 
-function requestMessage(entry) {
-    var name = (entry.customer || '').split(' ')[0];
-    return 'Hi' + (name ? ' ' + name : '') + ', thanks for choosing Full House Delivery! ' +
-        'If everything went well, would you leave us a quick Google review? ' +
-        (reviewLink || '[add your review link in the dashboard]') +
-        ' It really helps our small business.';
+function moneyForRange(range) {
+    var revenue = entries.reduce(function(s, e) {
+        return s + (inRange(e.date, range) && typeof e.revenue === 'number' ? e.revenue : 0);
+    }, 0);
+    var expenses = financeEntries.reduce(function(s, e) {
+        return s + (inRange(e.date, range) && e.type !== 'Money Received' ? e.amount : 0);
+    }, 0);
+    return { revenue: revenue, expenses: expenses, profit: revenue - expenses };
 }
 
-function daysSince(dateStr) {
-    if (!dateStr) return 0;
-    return Math.floor((Date.now() - new Date(dateStr + 'T00:00:00').getTime()) / 86400000);
-}
-
-function requestCandidates() {
-    return entries.filter(function(e) {
-        return e.customer && daysSince(e.date) <= REQUEST_WINDOW_DAYS;
-    }).sort(function(a, b) {
-        return a.date < b.date ? 1 : -1;
+function topExpenseCategory(range) {
+    var totals = {};
+    financeEntries.forEach(function(e) {
+        if (!inRange(e.date, range) || e.type === 'Money Received') return;
+        totals[e.type] = (totals[e.type] || 0) + e.amount;
     });
-}
-
-function requestState(entry) {
-    return reviewRequests[jobKey(entry)] || { status: 'none' };
-}
-
-function isOverdue(state) {
-    return state.status === 'asked' && state.askedAt && daysSince(state.askedAt.substring(0, 10)) >= FOLLOW_UP_DAYS;
-}
-
-function setRequestState(key, status) {
-    var state = reviewRequests[key] || {};
-    if (status === 'none') {
-        delete reviewRequests[key];
-    } else {
-        state.status = status;
-        if (status === 'asked') state.askedAt = new Date().toISOString();
-        if (status === 'received') state.receivedAt = new Date().toISOString();
-        reviewRequests[key] = state;
-    }
-    saveReviewRequests();
-    renderReviewRequests();
-}
-
-function markAsked(key) {
-    var state = reviewRequests[key];
-    if (state && state.status && state.status !== 'none') { renderReviewRequests(); return; }
-    setRequestState(key, 'asked');
-}
-
-function copyRequestMessage(key) {
-    var entry = entries.filter(function(e) { return jobKey(e) === key; })[0];
-    if (!entry) return;
-    var area = document.createElement('textarea');
-    area.value = requestMessage(entry);
-    document.body.appendChild(area);
-    area.select();
-    document.execCommand('copy');
-    document.body.removeChild(area);
-    toast('Request message copied!');
-    markAsked(key);
-}
-
-function setRequestFilter(filter) {
-    requestFilter = filter;
-    document.querySelectorAll('.request-filter').forEach(function(b) {
-        b.classList.toggle('active', b.getAttribute('data-filter') === filter);
+    var best = null;
+    Object.keys(totals).forEach(function(type) {
+        if (!best || totals[type] > best.amount) best = { type: type, amount: totals[type] };
     });
-    renderReviewRequests();
+    return best;
 }
 
-function renderReviewRequests() {
-    var listEl = document.getElementById('requestList');
-    var statsEl = document.getElementById('requestStats');
-    if (!listEl || !statsEl) return;
+function money(n) {
+    return (n < 0 ? '-$' : '$') + Math.abs(n).toFixed(2);
+}
 
-    var candidates = requestCandidates();
-    var toAsk = 0, waiting = 0, received = 0, followUp = 0;
-    candidates.forEach(function(e) {
-        var state = requestState(e);
-        if (state.status === 'received') received++;
-        else if (state.status === 'asked') { waiting++; if (isOverdue(state)) followUp++; }
-        else if (state.status !== 'declined') toAsk++;
+function moneyBlock(label, sub, data) {
+    return '<div class="money-block">' +
+        '<div class="money-period">' + label + '<span>' + sub + '</span></div>' +
+        '<div class="money-profit ' + (data.profit >= 0 ? 'up' : 'down') + '">' + money(data.profit) + '</div>' +
+        '<div class="money-split">' +
+            '<span class="in">In ' + money(data.revenue) + '</span>' +
+            '<span class="out">Out ' + money(data.expenses) + '</span>' +
+        '</div>' +
+    '</div>';
+}
+
+function renderMoneySnapshot() {
+    var el = document.getElementById('moneySnapshot');
+    if (!el) return;
+
+    var week = weekRange();
+    var month = monthRange(0);
+    var prevMonth = monthRange(-1);
+    var thisMonth = moneyForRange(month);
+    var lastMonth = moneyForRange(prevMonth);
+    var delta = thisMonth.profit - lastMonth.profit;
+
+    var unpaid = entries.filter(function(e) {
+        return inRange(e.date, month) && !(typeof e.revenue === 'number' && e.revenue > 0);
     });
+    var top = topExpenseCategory(month);
+    var monthName = new Date(month.start + 'T00:00:00').toLocaleString('en-US', { month: 'long' });
 
-    statsEl.innerHTML =
-        '<div class="request-stat"><div class="rs-value">' + toAsk + '</div><div class="rs-label">To ask</div></div>' +
-        '<div class="request-stat"><div class="rs-value">' + waiting + '</div><div class="rs-label">Waiting</div></div>' +
-        '<div class="request-stat due"><div class="rs-value">' + followUp + '</div><div class="rs-label">Follow up</div></div>' +
-        '<div class="request-stat received"><div class="rs-value">' + received + '</div><div class="rs-label">Received</div></div>';
-
-    var shown = candidates.filter(function(e) {
-        var status = requestState(e).status;
-        if (requestFilter === 'toask') return status === 'none';
-        if (requestFilter === 'waiting') return status === 'asked';
-        if (requestFilter === 'received') return status === 'received';
-        return true;
-    });
-
-    var banner = reviewLink ? '' : '<div class="review-no-data" style="padding:10px;color:#856404;background:#fff3cd;border-radius:8px;margin-bottom:8px;">' +
-        'Add your Google review link (the \u201cReview Link\u201d button above) so it is included in every message.</div>';
-
-    if (shown.length === 0) {
-        listEl.innerHTML = banner + '<div class="review-no-data">' +
-            (candidates.length === 0
-                ? 'No jobs with a customer name in the last ' + REQUEST_WINDOW_DAYS + ' days. Log a job with a customer to start requesting reviews.'
-                : 'Nothing here \u2014 try another filter.') + '</div>';
-        return;
-    }
-
-    listEl.innerHTML = banner + shown.slice(0, 50).map(function(e) {
-        var key = escapeHTML(jobKey(e).replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
-        var state = requestState(e);
-        var msg = encodeURIComponent(requestMessage(e));
-        var actions = [];
-
-        if (state.status !== 'received') {
-            if (e.phone) actions.push('<a href="sms:' + encodeURIComponent(e.phone) + '?&body=' + msg + '" onclick="markAsked(\'' + key + '\')">\u2709 Text</a>');
-            if (e.email) actions.push('<a href="mailto:' + encodeURIComponent(e.email) + '?subject=' + encodeURIComponent('How did we do?') + '&body=' + msg + '" onclick="markAsked(\'' + key + '\')">\u2709 Email</a>');
-            actions.push('<button onclick="copyRequestMessage(\'' + key + '\')">\u29C9 Copy</button>');
-        }
-        if (state.status === 'asked') {
-            actions.push('<button class="primary" onclick="setRequestState(\'' + key + '\', \'received\')">\u2713 Got it</button>');
-            actions.push('<button onclick="setRequestState(\'' + key + '\', \'declined\')">Skip</button>');
-        } else if (state.status === 'none') {
-            actions.push('<button onclick="setRequestState(\'' + key + '\', \'asked\')">Mark asked</button>');
-        } else {
-            actions.push('<button onclick="setRequestState(\'' + key + '\', \'none\')">Undo</button>');
-        }
-
-        var badge = '';
-        if (state.status === 'asked') badge = '<span class="request-badge asked">' + (isOverdue(state) ? 'follow up' : 'asked') + '</span>';
-        else if (state.status === 'received') badge = '<span class="request-badge received">review in</span>';
-        else if (state.status === 'declined') badge = '<span class="request-badge declined">skipped</span>';
-
-        var contact = [e.phone, e.email].filter(Boolean).join(' \u00b7 ') || 'no contact info';
-        return '<div class="request-item' + (isOverdue(state) ? ' overdue' : '') + '">' +
-            '<div class="request-who">' +
-                '<div class="request-name">' + escapeHTML(e.customer) + ' ' + badge + '</div>' +
-                '<div class="request-meta">' + formatReviewDate(e.date) + ' \u00b7 ' + escapeHTML(e.category || '') + ' \u00b7 ' + escapeHTML(contact) + '</div>' +
-            '</div>' +
-            '<div class="request-actions">' + actions.join('') + '</div>' +
-        '</div>';
-    }).join('');
-}
-
-function renderReviewsSection() {
-    var ratingEl = document.getElementById('reviewsRatingBig');
-    var starsEl = document.getElementById('reviewsStars');
-    var countEl = document.getElementById('reviewsCount');
-    var carouselEl = document.getElementById('reviewCarousel');
-    var dotsEl = document.getElementById('reviewDots');
-    if (!ratingEl) return;
-
-    if (googleReviews.length === 0) {
-        ratingEl.textContent = '\u2014';
-        starsEl.innerHTML = '\u2606\u2606\u2606\u2606\u2606';
-        countEl.textContent = 'No reviews yet';
-        carouselEl.innerHTML = '<div class="review-no-data"><span style="font-size:32px;">\u2B50</span><br>' +
-            'Log reviews with “Add Review” as customers post them.</div>';
-        dotsEl.innerHTML = '';
-        return;
-    }
-
-    var avg = googleReviews.reduce(function(s, r) { return s + r.rating; }, 0) / googleReviews.length;
-    var count = googleReviews.length;
-    ratingEl.textContent = avg.toFixed(1);
-    starsEl.innerHTML = renderStarsHTML(avg);
-    countEl.textContent = count + ' review' + (count !== 1 ? 's' : '') + ' logged';
-
-    var fiveStars = googleReviews.filter(function(r) { return r.rating === 5; });
-    if (fiveStars.length === 0) {
-        carouselEl.innerHTML = '<div class="review-no-data">No 5-star reviews logged yet.</div>';
-        dotsEl.innerHTML = '';
-        checkReviewAlerts();
-        return;
-    }
-
-    if (currentReviewIndex >= fiveStars.length) currentReviewIndex = 0;
-    var review = fiveStars[currentReviewIndex];
-    carouselEl.innerHTML = '<div class="review-slide fade-in">' +
-        '<div class="review-author">' + escapeHTML(review.author) + ' <span style="color:#fbbc04;font-size:16px;">\u2605\u2605\u2605\u2605\u2605</span></div>' +
-        '<div class="review-date">' + formatReviewDate(review.date) + '</div>' +
-        (review.text ? '<div class="review-text">' + escapeHTML(review.text) + '</div>' : '') +
-        '</div>';
-
-    dotsEl.innerHTML = '';
-    for (var i = 0; i < fiveStars.length; i++) {
-        var dot = document.createElement('span');
-        dot.className = 'review-dot' + (i === currentReviewIndex ? ' active' : '');
-        dot.setAttribute('data-idx', i);
-        dot.onclick = (function(idx) { return function() { currentReviewIndex = idx; renderReviewsSection(); resetReviewRotation(); }; })(i);
-        dotsEl.appendChild(dot);
-    }
-
-    checkReviewAlerts();
-}
-
-function renderStarsHTML(rating) {
-    var html = '';
-    for (var i = 1; i <= 5; i++) {
-        if (rating >= i) html += '\u2605';
-        else if (rating >= i - 0.5) html += '\u2605';
-        else html += '\u2606';
-    }
-    return html;
-}
-
-function formatReviewDate(dateStr) {
-    if (!dateStr) return '';
-    var d = new Date(dateStr + 'T00:00:00');
-    var months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-    return months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
-}
-
-function rotateReview() {
-    var fiveStars = googleReviews.filter(function(r) { return r.rating === 5; });
-    if (fiveStars.length <= 1) return;
-    var slide = document.querySelector('.review-slide');
-    if (slide) slide.className = 'review-slide fade-out';
-    setTimeout(function() {
-        currentReviewIndex = (currentReviewIndex + 1) % fiveStars.length;
-        renderReviewsSection();
-    }, 500);
-}
-
-function startReviewRotation() {
-    if (reviewRotateTimer) clearInterval(reviewRotateTimer);
-    reviewRotateTimer = setInterval(rotateReview, 6000);
-}
-
-function resetReviewRotation() {
-    if (reviewRotateTimer) clearInterval(reviewRotateTimer);
-    startReviewRotation();
-}
-
-function checkReviewAlerts() {
-    var alertEl = document.getElementById('reviewAlert');
-    var alertTextEl = document.getElementById('reviewAlertText');
-    if (!alertEl) return;
-    var belowFive = googleReviews.filter(function(r) {
-        return r.rating < 5 && dismissedAlerts.indexOf(r.id) === -1;
-    });
-    if (belowFive.length > 0) {
-        var latest = belowFive[belowFive.length - 1];
-        alertTextEl.innerHTML = '<strong>Alert:</strong> ' + escapeHTML(latest.author) + ' left a <strong>' + latest.rating + '-star</strong> review' +
-            (latest.text ? ' \u2014 "' + escapeHTML(latest.text.substring(0, 80)) + (latest.text.length > 80 ? '...' : '') + '"' : '') +
-            ' <span style="font-size:11px;color:#888;">(' + belowFive.length + ' below 5\u2605)</span>';
-        alertEl.className = 'review-alert show';
-    } else {
-        alertEl.className = 'review-alert';
-    }
-}
-
-function dismissReviewAlert() {
-    var belowFive = googleReviews.filter(function(r) {
-        return r.rating < 5 && dismissedAlerts.indexOf(r.id) === -1;
-    });
-    belowFive.forEach(function(r) { dismissedAlerts.push(r.id); });
-    localStorage.setItem('fhd_review_dismissed', JSON.stringify(dismissedAlerts));
-    checkReviewAlerts();
-}
-
-function setReviewRating(n) {
-    reviewFormRating = n;
-    var stars = document.querySelectorAll('#starPicker .star');
-    stars.forEach(function(s) {
-        s.classList.toggle('active', parseInt(s.getAttribute('data-val')) <= n);
-    });
-}
-
-function openReviewForm() {
-    document.getElementById('reviewFormOverlay').classList.add('show');
-    document.getElementById('reviewAuthor').value = '';
-    document.getElementById('reviewDate').value = today();
-    document.getElementById('reviewComment').value = '';
-    reviewFormRating = 5;
-    setReviewRating(5);
-}
-
-function closeReviewForm() {
-    document.getElementById('reviewFormOverlay').classList.remove('show');
-}
-
-function saveReview() {
-    var author = document.getElementById('reviewAuthor').value.trim();
-    var date = document.getElementById('reviewDate').value;
-    var text = document.getElementById('reviewComment').value.trim();
-    if (!author) { toast('Please enter the reviewer name', true); return; }
-    if (!date) { toast('Please select a date', true); return; }
-
-    var review = {
-        id: Date.now() + '-' + Math.random().toString(36).substr(2, 5),
-        rating: reviewFormRating,
-        author: author,
-        date: date,
-        text: text,
-        addedAt: new Date().toISOString()
-    };
-    googleReviews.push(review);
-    saveReviews();
-    closeReviewForm();
-    renderReviewsSection();
-    renderManageReviewList();
-
-    if (reviewFormRating < 5) {
-        toast('Review added \u2014 below 5 stars!', true);
-    } else {
-        toast('5-star review added!');
-    }
-}
-
-function toggleManageReviews() {
-    var panel = document.getElementById('reviewManagePanel');
-    if (panel.style.display === 'none') {
-        panel.style.display = 'block';
-        renderManageReviewList();
-    } else {
-        panel.style.display = 'none';
-    }
-}
-
-function renderManageReviewList() {
-    var list = document.getElementById('reviewManageList');
-    if (!list) return;
-    if (googleReviews.length === 0) {
-        list.innerHTML = '<div style="text-align:center;padding:12px;color:#999;font-size:12px;">No reviews yet.</div>';
-        return;
-    }
-    var sorted = googleReviews.slice().sort(function(a, b) { return b.date > a.date ? 1 : -1; });
-    list.innerHTML = sorted.map(function(r) {
-        var stars = '';
-        for (var i = 0; i < r.rating; i++) stars += '\u2605';
-        for (var j = r.rating; j < 5; j++) stars += '\u2606';
-        return '<div class="review-manage-item">' +
-            '<span class="rm-stars">' + stars + '</span>' +
-            '<span class="rm-author">' + escapeHTML(r.author) + '</span>' +
-            '<span style="color:#999;font-size:11px;">' + r.date + '</span>' +
-            '<button class="rm-delete" onclick="deleteReview(\'' + r.id + '\')" title="Delete">&times;</button>' +
-            '</div>';
-    }).join('');
-}
-
-function deleteReview(id) {
-    googleReviews = googleReviews.filter(function(r) { return r.id !== id; });
-    saveReviews();
-    renderReviewsSection();
-    renderManageReviewList();
-    toast('Review deleted');
+    el.innerHTML =
+        '<div class="money-blocks">' +
+            moneyBlock('This week', week.start.slice(5) + ' \u2013 ' + week.end.slice(5), moneyForRange(week)) +
+            moneyBlock('This month', monthName, thisMonth) +
+        '</div>' +
+        '<div class="money-notes">' +
+            '<div class="money-note"><span class="mn-label">vs last month</span>' +
+                '<span class="mn-value ' + (delta >= 0 ? 'up' : 'down') + '">' + (delta >= 0 ? '\u25B2 ' : '\u25BC ') + money(Math.abs(delta)) + '</span></div>' +
+            '<div class="money-note"><span class="mn-label">Jobs with no revenue logged</span>' +
+                '<span class="mn-value' + (unpaid.length ? ' down' : '') + '">' + unpaid.length + '</span></div>' +
+            '<div class="money-note"><span class="mn-label">Biggest expense this month</span>' +
+                '<span class="mn-value">' + (top ? escapeHTML(top.type) + ' \u00b7 ' + money(top.amount) : '\u2014') + '</span></div>' +
+        '</div>' +
+        (unpaid.length ? '<div class="money-unpaid">' + unpaid.slice(0, 5).map(function(e) {
+            return '<div class="mu-row"><span>' + escapeHTML(e.customer || e.category) + '</span><span>' + e.date + '</span></div>';
+        }).join('') + (unpaid.length > 5 ? '<div class="mu-more">+' + (unpaid.length - 5) + ' more</div>' : '') + '</div>' : '');
 }
 
 function escapeHTML(str) {
@@ -5635,10 +5195,10 @@ function escapeHTML(str) {
    INIT
    ═══════════════════════════════════════ */
 function renderAll() {
-    renderCategories(); buildChart(); renderSummary(); renderLog(); renderReviewRequests();
+    renderCategories(); buildChart(); renderSummary(); renderLog(); renderMoneySnapshot();
 }
 function renderFinanceAll() {
-    renderFinanceTypes(); renderFinanceSummary(); renderFinanceBreakdown(); drawFinanceChart(); renderFinanceLog();
+    renderFinanceTypes(); renderFinanceSummary(); renderFinanceBreakdown(); drawFinanceChart(); renderFinanceLog(); renderMoneySnapshot();
 }
 
 document.getElementById('entryDate').value = today();
@@ -5647,9 +5207,6 @@ document.getElementById('chimeDate').value = today();
 document.getElementById('footerYear').textContent = new Date().getFullYear();
 renderAll();
 renderFinanceAll();
-renderReviewsSection();
-startReviewRotation();
-renderReviewRequests();
 </script>
 </body>
 </html>
