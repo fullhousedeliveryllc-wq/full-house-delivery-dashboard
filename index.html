@@ -439,6 +439,18 @@
         .invoice-viewer img { max-width: 100%; max-height: 400px; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.15); }
 
         /* Square tab */
+        .square-connect { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+        .sq-status { font-size: 14px; font-weight: 700; color: var(--text); }
+        .sq-status.linked { color: var(--success); }
+        .sq-status.warn { color: #b8860b; }
+        .sq-hint { font-size: 12px; color: var(--text-light); margin-top: 3px; }
+        .sq-actions { display: flex; gap: 8px; align-items: center; }
+        .sq-actions select { padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; }
+        .sq-setup { display: none; margin-top: 14px; padding: 14px; background: #f8f9fa; border: 1px solid #e8e8e8; border-radius: 10px; font-size: 12px; color: #5f6368; }
+        .sq-setup.show { display: block; }
+        .sq-setup ol { margin: 8px 0 0 18px; }
+        .sq-setup li { margin-bottom: 5px; }
+        .sq-setup code { background: #eef0f2; padding: 1px 5px; border-radius: 4px; font-size: 11px; }
         .chime-balance-card { background: linear-gradient(135deg, #1e3a5f, #2563eb); color: white; border-radius: 14px; padding: 24px; text-align: center; border: none; }
         .chime-balance-card .num { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
         .chime-balance-card .label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; opacity: 0.7; margin-top: 6px; font-weight: 500; }
@@ -738,7 +750,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v46</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v47</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:#2196F3;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -1073,6 +1085,33 @@
 
 <div class="container">
 
+    <!-- Square Connection -->
+    <div class="card full-width">
+        <h2><span class="icon">&#128279;</span> Square Account</h2>
+        <div class="square-connect">
+            <div>
+                <div class="sq-status" id="squareStatus">Checking connection...</div>
+                <div class="sq-hint" id="squareHint"></div>
+            </div>
+            <div class="sq-actions">
+                <select id="squareSyncDays" title="How far back to pull">
+                    <option value="30">Last 30 days</option>
+                    <option value="90" selected>Last 90 days</option>
+                    <option value="365">Last 12 months</option>
+                </select>
+                <button class="btn btn-primary" id="squareSyncBtn" onclick="syncSquare()">&#128260; Sync from Square</button>
+            </div>
+        </div>
+        <div class="sq-setup" id="squareSetup">
+            <strong>One-time setup</strong>
+            <ol>
+                <li>In the Supabase dashboard, add the secret <code>SQUARE_ACCESS_TOKEN</code> (your Square production access token) under Edge Functions &rarr; Secrets.</li>
+                <li>Deploy the <code>square-sync</code> function from <code>supabase/functions/square-sync</code> in this repo.</li>
+                <li>Sign in here, then press <em>Sync from Square</em>. Payments, tips, processing fees and refunds are imported and kept up to date.</li>
+            </ol>
+        </div>
+    </div>
+
     <!-- Square Chart -->
     <div class="card full-width">
         <h2><span class="icon">&#128200;</span> Square Overview</h2>
@@ -1166,7 +1205,7 @@
         <div style="overflow-x:auto;">
             <table class="finance-table">
                 <thead>
-                    <tr><th>Date</th><th>Type</th><th>Amount</th><th>Description</th><th>Actions</th></tr>
+                    <tr><th>Date</th><th>Type</th><th>Amount</th><th>Description</th><th>Source</th><th>Actions</th></tr>
                 </thead>
                 <tbody id="chimeLogBody"></tbody>
             </table>
@@ -1585,6 +1624,7 @@ function updateAuthUI() {
         statusEl.classList.remove('online');
         syncBtn.style.display = 'none';
     }
+    renderSquareConnection();
 }
 
 async function handleAuth() {
@@ -4178,11 +4218,12 @@ function renderChimeLog() {
     if (monthFilter) filtered = filtered.filter(function(e) { return e.date.startsWith(monthFilter); });
     filtered.sort(function(a, b) { return b.date.localeCompare(a.date) || b.id - a.id; });
     var body = document.getElementById('chimeLogBody');
-    if (!filtered.length) { body.innerHTML = '<tr><td colspan="5" class="empty-log">No Chime transactions yet.</td></tr>'; return; }
+    if (!filtered.length) { body.innerHTML = '<tr><td colspan="6" class="empty-log">No Square transactions yet.</td></tr>'; return; }
     body.innerHTML = filtered.map(function(e) {
         var cls = isChimeDeposit(e.type) ? 'amount-pos' : 'amount-neg';
         var prefix = isChimeDeposit(e.type) ? '+' : '-';
-        return '<tr><td>' + e.date + '</td><td>' + esc(e.type) + '</td><td class="' + cls + '">' + prefix + '$' + e.amount.toFixed(2) + '</td><td>' + esc(e.description || '\u2014') + '</td><td class="action-cell"><button class="btn-edit" onclick="editChimeEntry(' + e.id + ')" title="Edit">&#9998;</button><button class="btn btn-danger" onclick="deleteChimeEntry(' + e.id + ')" title="Delete">&times;</button></td></tr>';
+        var source = e.source === 'square' ? 'Square' : 'Manual';
+        return '<tr><td>' + e.date + '</td><td>' + esc(e.type) + '</td><td class="' + cls + '">' + prefix + '$' + e.amount.toFixed(2) + '</td><td>' + esc(e.description || '\u2014') + '</td><td>' + source + '</td><td class="action-cell"><button class="btn-edit" onclick="editChimeEntry(' + e.id + ')" title="Edit">&#9998;</button><button class="btn btn-danger" onclick="deleteChimeEntry(' + e.id + ')" title="Delete">&times;</button></td></tr>';
     }).join('');
 }
 
@@ -4309,10 +4350,129 @@ function parseChimeCSV(csvText) {
 })();
 
 /* ═══════════════════════════════════════
+   SQUARE: LIVE SYNC
+   Payments come from the square-sync Edge Function, which holds the Square
+   access token server-side. Rows carry the Square id in extId so repeated
+   syncs update rather than duplicate them, and manual/CSV rows are untouched.
+   ═══════════════════════════════════════ */
+var squareLastSync = localStorage.getItem('fhd_square_last_sync') || '';
+var squareSyncing = false;
+
+function renderSquareStatus(message, cls, hint) {
+    var statusEl = document.getElementById('squareStatus');
+    var hintEl = document.getElementById('squareHint');
+    if (!statusEl) return;
+    statusEl.textContent = message;
+    statusEl.className = 'sq-status' + (cls ? ' ' + cls : '');
+    hintEl.textContent = hint || '';
+}
+
+function renderSquareConnection() {
+    var btn = document.getElementById('squareSyncBtn');
+    var setup = document.getElementById('squareSetup');
+    if (!btn) return;
+    var imported = chimeEntries.filter(function(e) { return e.source === 'square'; }).length;
+
+    if (!currentUser) {
+        btn.disabled = true;
+        setup.classList.add('show');
+        renderSquareStatus('Not connected \u2014 sign in first', 'warn',
+            'Square syncing runs through your Supabase project, so it needs you signed in.');
+        return;
+    }
+    btn.disabled = squareSyncing;
+    if (squareLastSync) {
+        setup.classList.remove('show');
+        renderSquareStatus('Connected to Square', 'linked',
+            imported + ' transaction' + (imported === 1 ? '' : 's') + ' imported \u00b7 last synced ' +
+            new Date(squareLastSync).toLocaleString());
+    } else {
+        setup.classList.add('show');
+        renderSquareStatus('Square not synced yet', 'warn',
+            'Press Sync from Square once setup below is done.');
+    }
+}
+
+async function syncSquare() {
+    if (squareSyncing) return;
+    if (!supaClient || !currentUser) { toast('Sign in first to sync Square.', true); return; }
+
+    squareSyncing = true;
+    renderSquareConnection();
+    renderSquareStatus('Syncing with Square...', '', 'Fetching payments, fees and refunds.');
+
+    var days = parseInt(document.getElementById('squareSyncDays').value, 10) || 90;
+    try {
+        var res = await supaClient.functions.invoke('square-sync', { body: { days: days } });
+        if (res.error) throw new Error(await squareErrorMessage(res.error));
+        if (res.data && res.data.error) throw new Error(res.data.error);
+
+        var result = applySquareTransactions((res.data && res.data.transactions) || []);
+        squareLastSync = (res.data && res.data.syncedAt) || new Date().toISOString();
+        localStorage.setItem('fhd_square_last_sync', squareLastSync);
+        toast(result.added + ' new, ' + result.updated + ' updated from Square.');
+    } catch (err) {
+        console.error('Square sync failed:', err);
+        renderSquareStatus('Square sync failed', 'warn', err.message);
+        toast('Square sync failed: ' + err.message, true);
+        squareSyncing = false;
+        document.getElementById('squareSyncBtn').disabled = false;
+        return;
+    }
+
+    squareSyncing = false;
+    renderChimeAll();
+}
+
+// functions.invoke hides the function's JSON body inside a Response object.
+async function squareErrorMessage(error) {
+    if (error.context && typeof error.context.json === 'function') {
+        try {
+            var body = await error.context.json();
+            if (body && body.error) return body.error;
+        } catch (e) { /* fall through to the generic message */ }
+    }
+    return error.message || 'Could not reach the square-sync function.';
+}
+
+function applySquareTransactions(transactions) {
+    var byExtId = {};
+    chimeEntries.forEach(function(e) { if (e.extId) byExtId[e.extId] = e; });
+
+    var added = 0, updated = 0;
+    transactions.forEach(function(t) {
+        var existing = byExtId[t.extId];
+        if (existing) {
+            if (existing.date !== t.date || existing.amount !== t.amount || existing.type !== t.type) {
+                existing.date = t.date;
+                existing.amount = t.amount;
+                existing.type = t.type;
+                existing.description = t.description;
+                updated++;
+            }
+            return;
+        }
+        chimeEntries.push({
+            id: Date.now() + Math.floor(Math.random() * 100000),
+            extId: t.extId,
+            source: 'square',
+            date: t.date,
+            type: t.type,
+            amount: t.amount,
+            description: t.description
+        });
+        added++;
+    });
+
+    if (added || updated) { saveChime(); saveLocal(); }
+    return { added: added, updated: updated };
+}
+
+/* ═══════════════════════════════════════
    CHIME: RENDER ALL
    ═══════════════════════════════════════ */
 function renderChimeAll() {
-    renderChimeSummary(); renderChimeBreakdown(); drawChimeChart(); renderChimeLog();
+    renderChimeSummary(); renderChimeBreakdown(); drawChimeChart(); renderChimeLog(); renderSquareConnection();
 }
 
 /* ═══════════════════════════════════════

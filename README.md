@@ -10,6 +10,7 @@ Business dashboard for **Fullhouse Delivery LLC** — track customer jobs, reven
 - **Pie & Bar Charts** — visual overview of job distribution and financial performance
 - **Cloud Sync via Supabase** — sign in to sync data across phone and computer; works offline with local storage fallback
 - **Live Updates** — Supabase Realtime pushes changes made on one device to every other signed-in device
+- **Square Payments Sync** — pull real payments, tips, processing fees, and refunds from your Square account
 - **Export/Import** — JSON and CSV export for backups
 
 ## Setup
@@ -33,6 +34,28 @@ The same script also enables **Realtime** on those tables (`ALTER PUBLICATION su
 ### 3. Authentication
 
 Users can sign up / sign in via the dashboard header. Each user's data is isolated by RLS policies.
+
+### 4. Square Payments
+
+The Square Payments tab can pull live data from Square through the [`square-sync`](supabase/functions/square-sync/index.ts) Supabase Edge Function. The Square access token lives only in Supabase — it is never shipped to the browser.
+
+1. Create a Square access token: <https://developer.squareup.com/apps> → your application → **Credentials** → *Production Access Token* (a production token from the Square dashboard's app settings works too). It needs the read scopes `PAYMENTS_READ` and `ORDERS_READ`.
+2. Store it as a secret on the Supabase project (Dashboard → Edge Functions → Secrets, or the CLI):
+
+   ```bash
+   supabase secrets set SQUARE_ACCESS_TOKEN=...
+   # optional:
+   supabase secrets set SQUARE_LOCATION_ID=...   # limit to one location
+   supabase secrets set SQUARE_ENV=sandbox       # test against Square's sandbox
+   ```
+
+3. Deploy the function:
+
+   ```bash
+   supabase functions deploy square-sync
+   ```
+
+4. Sign in on the dashboard, open **Square Payments**, and press **Sync from Square**. Each Square payment, its processing fee, and any refunds are imported; re-syncing updates existing rows instead of duplicating them (they are matched on the Square transaction id). Manual entries and CSV imports are left alone.
 
 ## Tech Stack
 
