@@ -693,7 +693,6 @@
         /* Google Reviews */
         .reviews-card { background: #fff; border-top: 3px solid #fbbc04; }
         .reviews-header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
-        .reviews-header .google-g { width: 36px; height: 36px; }
         .reviews-overall { display: flex; align-items: center; gap: 16px; padding: 16px; background: linear-gradient(135deg, #f8f9fa, #fff); border-radius: 12px; margin-bottom: 18px; border: 1px solid #e8e8e8; }
         .reviews-rating-big { font-size: 48px; font-weight: 800; color: #202124; line-height: 1; }
         .reviews-rating-info { display: flex; flex-direction: column; gap: 4px; }
@@ -746,6 +745,33 @@
         .review-manage-item .rm-author { font-weight: 600; color: #333; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .review-manage-item .rm-delete { background: none; border: none; color: #c0392b; cursor: pointer; font-size: 16px; padding: 2px 6px; }
         .review-manage-item .rm-delete:hover { background: #fdeaea; border-radius: 4px; }
+
+        /* Review request tracker */
+        .request-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px; }
+        .request-stat { background: #f8f9fa; border: 1px solid #e8e8e8; border-radius: 10px; padding: 10px; text-align: center; }
+        .request-stat .rs-value { font-size: 22px; font-weight: 800; color: #202124; line-height: 1.1; }
+        .request-stat .rs-label { font-size: 10px; color: #70757a; text-transform: uppercase; letter-spacing: 0.4px; margin-top: 2px; }
+        .request-stat.due .rs-value { color: var(--accent); }
+        .request-stat.received .rs-value { color: var(--success); }
+        .request-filters { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+        .request-filter { padding: 6px 12px; border: 1px solid var(--border); background: #fff; border-radius: 20px; font-size: 12px; font-weight: 600; color: var(--text-light); cursor: pointer; transition: all 0.15s; }
+        .request-filter.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+        .request-list { max-height: 340px; overflow-y: auto; }
+        .request-item { display: flex; align-items: center; gap: 10px; padding: 10px; border-bottom: 1px solid #f0f0f0; flex-wrap: wrap; }
+        .request-item:last-child { border-bottom: none; }
+        .request-item.overdue { background: #fff8e1; border-radius: 8px; }
+        .request-who { flex: 1; min-width: 140px; }
+        .request-name { font-weight: 700; font-size: 13px; color: var(--text); }
+        .request-meta { font-size: 11px; color: var(--text-light); margin-top: 2px; }
+        .request-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+        .request-actions a, .request-actions button { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: #fff; font-size: 11px; font-weight: 600; color: var(--text); cursor: pointer; text-decoration: none; display: inline-block; }
+        .request-actions a:hover, .request-actions button:hover { background: #f1f3f4; }
+        .request-actions .primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+        .request-badge { font-size: 10px; padding: 3px 8px; border-radius: 12px; font-weight: 700; text-transform: uppercase; }
+        .request-badge.asked { background: #e3f2fd; color: #1565c0; }
+        .request-badge.received { background: #e8f5e9; color: #2e7d32; }
+        .request-badge.declined { background: #eceff1; color: #546e7a; }
+        @media (max-width: 600px) { .request-stats { grid-template-columns: repeat(2, 1fr); } }
     </style>
 </head>
 <body>
@@ -770,7 +796,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v43</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v44</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:#2196F3;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -810,15 +836,46 @@
         <div class="chart-legend" id="chartLegend"></div>
     </div>
 
-    <!-- Google Reviews -->
+    <!-- Review Requests -->
     <div class="card reviews-card">
         <div class="reviews-header">
-            <svg class="google-g" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+            <span style="font-size:30px;line-height:1;">&#11088;</span>
             <div>
-                <h2 style="margin:0;font-size:18px;">Google Reviews</h2>
-                <span style="font-size:11px;color:#70757a;">Full House Delivery LLC</span>
+                <h2 style="margin:0;font-size:18px;">Review Requests</h2>
+                <span style="font-size:11px;color:#70757a;">Ask happy customers for a Google review</span>
             </div>
-            <button class="btn-manage-reviews" onclick="fetchGoogleReviews()" id="refreshReviewsBtn" style="margin-left:auto;padding:6px 12px;font-size:11px;" title="Refresh from Google">&#x21bb; Refresh</button>
+            <button class="btn-manage-reviews" onclick="toggleReviewLinkSetup()" style="margin-left:auto;padding:6px 12px;font-size:11px;" title="Set your Google review link">&#128279; Review Link</button>
+        </div>
+
+        <div id="reviewLinkSetup" style="display:none;margin-bottom:14px;padding:14px;background:#f8f9fa;border:1px solid #e8e8e8;border-radius:10px;font-size:12px;">
+            <strong>Your Google review link</strong>
+            <p style="margin:6px 0;color:#5f6368;">Open your Google Business Profile, click <em>Ask for reviews</em>, and paste the short link here. It is added to every request message.</p>
+            <div style="display:flex;gap:6px;">
+                <input type="text" id="reviewLinkInput" placeholder="https://g.page/r/..." style="flex:1;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;" autocomplete="off">
+                <button class="btn-add-review" onclick="saveReviewLink()" style="padding:8px 14px;font-size:12px;white-space:nowrap;">Save Link</button>
+            </div>
+        </div>
+
+        <div class="request-stats" id="requestStats"></div>
+
+        <div class="request-filters">
+            <button class="request-filter active" data-filter="toask" onclick="setRequestFilter('toask')">To ask</button>
+            <button class="request-filter" data-filter="waiting" onclick="setRequestFilter('waiting')">Waiting</button>
+            <button class="request-filter" data-filter="received" onclick="setRequestFilter('received')">Received</button>
+            <button class="request-filter" data-filter="all" onclick="setRequestFilter('all')">All</button>
+        </div>
+
+        <div class="request-list" id="requestList"></div>
+    </div>
+
+    <!-- Customer Reviews (manually logged) -->
+    <div class="card reviews-card">
+        <div class="reviews-header">
+            <span style="font-size:30px;line-height:1;">&#128172;</span>
+            <div>
+                <h2 style="margin:0;font-size:18px;">Customer Reviews</h2>
+                <span style="font-size:11px;color:#70757a;">Logged by hand — add each review as it comes in</span>
+            </div>
         </div>
 
         <div class="review-alert" id="reviewAlert">
@@ -838,36 +895,14 @@
         <div class="review-carousel" id="reviewCarousel">
             <div class="review-no-data" id="reviewNoData">
                 <span style="font-size:32px;">&#11088;</span><br>
-                Loading Google Reviews...
+                No reviews logged yet.
             </div>
         </div>
         <div class="review-dots" id="reviewDots"></div>
 
-        <div id="reviewApiSetup" style="display:none; margin-top:12px; padding:14px; background:#fff3cd; border-radius:10px; border:1px solid #ffc107; font-size:12px;">
-            <strong style="color:#664d03;">&#128273; Google Places API (New) Key Setup</strong>
-            <p style="margin:6px 0;color:#856404;">To auto-fetch your Google reviews:<br>
-            1. Sign into <a href="https://console.cloud.google.com/" target="_blank" style="color:#4285f4;">Google Cloud Console</a> with fullhousedeliveryllc@gmail.com<br>
-            2. Enable these 2 APIs in <a href="https://console.cloud.google.com/apis/library" target="_blank" style="color:#4285f4;">API Library</a>:<br>
-            &nbsp;&nbsp;&nbsp;• <a href="https://console.cloud.google.com/apis/library/places.googleapis.com" target="_blank" style="color:#4285f4;"><strong>Places API (New)</strong></a> — the legacy "Places API" is no longer enabled for new keys<br>
-            &nbsp;&nbsp;&nbsp;• <a href="https://console.cloud.google.com/apis/library/maps-backend.googleapis.com" target="_blank" style="color:#4285f4;">Maps JavaScript API</a> — loads the Places library in the browser<br>
-            3. Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color:#4285f4;">Credentials</a> → click your API key:<br>
-            &nbsp;&nbsp;&nbsp;• <strong>API restrictions</strong> → select <strong>"Don't restrict key"</strong><br>
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(if forced to restrict, add "Places API (New)" AND "Maps JavaScript API")<br>
-            &nbsp;&nbsp;&nbsp;• <strong>Application restrictions</strong> → "None" or add referrer:<br>
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code style="background:#f5f0e0;padding:2px 4px;border-radius:3px;">https://fullhousedeliveryllc-wq.github.io/*</code><br>
-            4. Ensure <a href="https://console.cloud.google.com/billing" target="_blank" style="color:#4285f4;">billing is active</a> ($200/mo free credit)<br>
-            5. <strong>Wait 1-2 minutes</strong> after saving for changes to take effect<br>
-            <em>Note: Google returns at most 5 reviews — use "Add Review" below to keep older ones.</em></p>
-            <div style="display:flex;gap:6px;">
-                <input type="text" id="googleApiKeyInput" placeholder="AIza..." style="flex:1;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;" autocomplete="off">
-                <button class="btn-add-review" onclick="saveGoogleApiKey()" style="padding:8px 14px;font-size:12px;white-space:nowrap;">Save Key</button>
-            </div>
-        </div>
-
         <div class="reviews-actions">
             <button class="btn-add-review" onclick="openReviewForm()">&#43; Add Review</button>
             <button class="btn-manage-reviews" onclick="toggleManageReviews()">&#9881; Manage</button>
-            <button class="btn-manage-reviews" onclick="showChangeApiKey()" id="changeApiKeyBtn" style="font-size:11px;">&#128273; Change API Key</button>
         </div>
         <div id="reviewManagePanel" style="display:none;">
             <div class="review-manage-list" id="reviewManageList"></div>
@@ -5199,172 +5234,190 @@ function copyQuoteLink() {
 })();
 
 /* ═══════════════════════════════════════
-   GOOGLE REVIEWS
+   CUSTOMER REVIEWS (manually logged)
    ═══════════════════════════════════════ */
 var googleReviews = JSON.parse(localStorage.getItem('fhd_reviews')) || [];
 var reviewRotateTimer = null;
 var currentReviewIndex = 0;
 var reviewFormRating = 5;
 var dismissedAlerts = JSON.parse(localStorage.getItem('fhd_review_dismissed')) || [];
-var googleApiKey = localStorage.getItem('fhd_google_api_key') || '';
-var googlePlaceId = localStorage.getItem('fhd_google_place_id') || '';
 
 function saveReviews() {
     localStorage.setItem('fhd_reviews', JSON.stringify(googleReviews));
 }
 
-function fetchGoogleReviews() {
-    if (!googleApiKey) {
-        document.getElementById('reviewApiSetup').style.display = 'block';
-        renderReviewsSection();
+/* ═══════════════════════════════════════
+   REVIEW REQUEST TRACKER
+   Which finished jobs have been asked for a Google review, who replied, and
+   who needs a nudge. Keyed by jobKey() so state survives cloud reloads.
+   ═══════════════════════════════════════ */
+var FOLLOW_UP_DAYS = 5;
+var REQUEST_WINDOW_DAYS = 90;
+var reviewRequests = JSON.parse(localStorage.getItem('fhd_review_requests')) || {};
+var reviewLink = localStorage.getItem('fhd_review_link') || '';
+var requestFilter = 'toask';
+
+function saveReviewRequests() {
+    localStorage.setItem('fhd_review_requests', JSON.stringify(reviewRequests));
+}
+
+function toggleReviewLinkSetup() {
+    var box = document.getElementById('reviewLinkSetup');
+    box.style.display = box.style.display === 'block' ? 'none' : 'block';
+    document.getElementById('reviewLinkInput').value = reviewLink;
+}
+
+function saveReviewLink() {
+    reviewLink = document.getElementById('reviewLinkInput').value.trim();
+    localStorage.setItem('fhd_review_link', reviewLink);
+    document.getElementById('reviewLinkSetup').style.display = 'none';
+    renderReviewRequests();
+    toast(reviewLink ? 'Review link saved!' : 'Review link cleared.');
+}
+
+function requestMessage(entry) {
+    var name = (entry.customer || '').split(' ')[0];
+    return 'Hi' + (name ? ' ' + name : '') + ', thanks for choosing Full House Delivery! ' +
+        'If everything went well, would you leave us a quick Google review? ' +
+        (reviewLink || '[add your review link in the dashboard]') +
+        ' It really helps our small business.';
+}
+
+function daysSince(dateStr) {
+    if (!dateStr) return 0;
+    return Math.floor((Date.now() - new Date(dateStr + 'T00:00:00').getTime()) / 86400000);
+}
+
+function requestCandidates() {
+    return entries.filter(function(e) {
+        return e.customer && daysSince(e.date) <= REQUEST_WINDOW_DAYS;
+    }).sort(function(a, b) {
+        return a.date < b.date ? 1 : -1;
+    });
+}
+
+function requestState(entry) {
+    return reviewRequests[jobKey(entry)] || { status: 'none' };
+}
+
+function isOverdue(state) {
+    return state.status === 'asked' && state.askedAt && daysSince(state.askedAt.substring(0, 10)) >= FOLLOW_UP_DAYS;
+}
+
+function setRequestState(key, status) {
+    var state = reviewRequests[key] || {};
+    if (status === 'none') {
+        delete reviewRequests[key];
+    } else {
+        state.status = status;
+        if (status === 'asked') state.askedAt = new Date().toISOString();
+        if (status === 'received') state.receivedAt = new Date().toISOString();
+        reviewRequests[key] = state;
+    }
+    saveReviewRequests();
+    renderReviewRequests();
+}
+
+function markAsked(key) {
+    var state = reviewRequests[key];
+    if (state && state.status && state.status !== 'none') { renderReviewRequests(); return; }
+    setRequestState(key, 'asked');
+}
+
+function copyRequestMessage(key) {
+    var entry = entries.filter(function(e) { return jobKey(e) === key; })[0];
+    if (!entry) return;
+    var area = document.createElement('textarea');
+    area.value = requestMessage(entry);
+    document.body.appendChild(area);
+    area.select();
+    document.execCommand('copy');
+    document.body.removeChild(area);
+    toast('Request message copied!');
+    markAsked(key);
+}
+
+function setRequestFilter(filter) {
+    requestFilter = filter;
+    document.querySelectorAll('.request-filter').forEach(function(b) {
+        b.classList.toggle('active', b.getAttribute('data-filter') === filter);
+    });
+    renderReviewRequests();
+}
+
+function renderReviewRequests() {
+    var listEl = document.getElementById('requestList');
+    var statsEl = document.getElementById('requestStats');
+    if (!listEl || !statsEl) return;
+
+    var candidates = requestCandidates();
+    var toAsk = 0, waiting = 0, received = 0, followUp = 0;
+    candidates.forEach(function(e) {
+        var state = requestState(e);
+        if (state.status === 'received') received++;
+        else if (state.status === 'asked') { waiting++; if (isOverdue(state)) followUp++; }
+        else if (state.status !== 'declined') toAsk++;
+    });
+
+    statsEl.innerHTML =
+        '<div class="request-stat"><div class="rs-value">' + toAsk + '</div><div class="rs-label">To ask</div></div>' +
+        '<div class="request-stat"><div class="rs-value">' + waiting + '</div><div class="rs-label">Waiting</div></div>' +
+        '<div class="request-stat due"><div class="rs-value">' + followUp + '</div><div class="rs-label">Follow up</div></div>' +
+        '<div class="request-stat received"><div class="rs-value">' + received + '</div><div class="rs-label">Received</div></div>';
+
+    var shown = candidates.filter(function(e) {
+        var status = requestState(e).status;
+        if (requestFilter === 'toask') return status === 'none';
+        if (requestFilter === 'waiting') return status === 'asked';
+        if (requestFilter === 'received') return status === 'received';
+        return true;
+    });
+
+    var banner = reviewLink ? '' : '<div class="review-no-data" style="padding:10px;color:#856404;background:#fff3cd;border-radius:8px;margin-bottom:8px;">' +
+        'Add your Google review link (the \u201cReview Link\u201d button above) so it is included in every message.</div>';
+
+    if (shown.length === 0) {
+        listEl.innerHTML = banner + '<div class="review-no-data">' +
+            (candidates.length === 0
+                ? 'No jobs with a customer name in the last ' + REQUEST_WINDOW_DAYS + ' days. Log a job with a customer to start requesting reviews.'
+                : 'Nothing here \u2014 try another filter.') + '</div>';
         return;
     }
-    loadMapsJsApi(function() {
-        findPlaceAndLoadReviews();
-    });
-}
 
-var mapsJsLoaded = false;
-function reviewSetupFailure(msg) {
-    toast(msg, true);
-    var setup = document.getElementById('reviewApiSetup');
-    if (setup) setup.style.display = 'block';
-    var btn = document.getElementById('refreshReviewsBtn');
-    if (btn) btn.textContent = '\u27F3 Refresh';
-}
+    listEl.innerHTML = banner + shown.slice(0, 50).map(function(e) {
+        var key = escapeHTML(jobKey(e).replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
+        var state = requestState(e);
+        var msg = encodeURIComponent(requestMessage(e));
+        var actions = [];
 
-/* Loads the Maps JS API through the bootstrap loader so the Places API (New)
-   `Place` class is available via google.maps.importLibrary(). */
-function loadMapsJsApi(callback) {
-    if (mapsJsLoaded && typeof google !== 'undefined' && google.maps && google.maps.importLibrary) { callback(); return; }
-
-    window.gm_authFailure = function() {
-        mapsJsLoaded = false;
-        reviewSetupFailure('API key was DENIED by Google. Fix: Google Cloud Console → enable "Places API (New)" → Credentials → your key → API restrictions → allow "Places API (New)" (or "Don\'t restrict key"). Save and wait 2 minutes.');
-        var noData = document.getElementById('reviewNoData');
-        if (noData) noData.innerHTML = '<span style="font-size:32px;">&#9888;&#65039;</span><br>API key denied by Google.<br><span style="font-size:11px;color:#999;">Fix your API key restrictions (see instructions below), then click Refresh.</span>';
-    };
-
-    if (!mapsJsLoaded) {
-        // Official Google Maps JS API bootstrap loader.
-        (function(g) {
-            var h, a, k, p = 'The Google Maps JavaScript API', c = 'google', l = 'importLibrary', q = '__ib__', m = document, b = window;
-            b = b[c] || (b[c] = {});
-            var d = b.maps || (b.maps = {}), r = new Set(), e = new URLSearchParams();
-            var u = function() {
-                return h || (h = new Promise(function(f, n) {
-                    a = m.createElement('script');
-                    e.set('libraries', Array.from(r).join(','));
-                    for (k in g) e.set(k.replace(/[A-Z]/g, function(t) { return '_' + t[0].toLowerCase(); }), g[k]);
-                    e.set('callback', c + '.maps.' + q);
-                    a.src = 'https://maps.' + c + 'apis.com/maps/api/js?' + e;
-                    d[q] = f;
-                    a.onerror = function() { h = n(Error(p + ' could not load.')); };
-                    m.head.append(a);
-                }));
-            };
-            if (!d[l]) d[l] = function(f) { var n = Array.prototype.slice.call(arguments, 1); r.add(f); return u().then(function() { return d[l].apply(d, [f].concat(n)); }); };
-        })({ key: googleApiKey, v: 'weekly' });
-        mapsJsLoaded = true;
-    }
-
-    google.maps.importLibrary('places').then(function() {
-        callback();
-    }).catch(function(err) {
-        mapsJsLoaded = false;
-        console.error('[Maps Loader]', err);
-        reviewSetupFailure('Failed to load the Google Maps JS API: ' + (err.message || err) + '. Check that your API key is valid and "Places API (New)" is enabled.');
-    });
-}
-
-async function findPlaceAndLoadReviews() {
-    var btn = document.getElementById('refreshReviewsBtn');
-    if (btn) btn.textContent = '\u27F3 Finding...';
-
-    try {
-        var placesLib = await google.maps.importLibrary('places');
-        var Place = placesLib.Place;
-
-        var place;
-        if (googlePlaceId) {
-            place = new Place({ id: googlePlaceId });
+        if (state.status !== 'received') {
+            if (e.phone) actions.push('<a href="sms:' + encodeURIComponent(e.phone) + '?&body=' + msg + '" onclick="markAsked(\'' + key + '\')">\u2709 Text</a>');
+            if (e.email) actions.push('<a href="mailto:' + encodeURIComponent(e.email) + '?subject=' + encodeURIComponent('How did we do?') + '&body=' + msg + '" onclick="markAsked(\'' + key + '\')">\u2709 Email</a>');
+            actions.push('<button onclick="copyRequestMessage(\'' + key + '\')">\u29C9 Copy</button>');
+        }
+        if (state.status === 'asked') {
+            actions.push('<button class="primary" onclick="setRequestState(\'' + key + '\', \'received\')">\u2713 Got it</button>');
+            actions.push('<button onclick="setRequestState(\'' + key + '\', \'declined\')">Skip</button>');
+        } else if (state.status === 'none') {
+            actions.push('<button onclick="setRequestState(\'' + key + '\', \'asked\')">Mark asked</button>');
         } else {
-            var searchResult = await Place.searchByText({
-                textQuery: 'Full House Delivery LLC',
-                fields: ['id', 'displayName'],
-                maxResultCount: 1
-            });
-            if (!searchResult.places || searchResult.places.length === 0) {
-                reviewSetupFailure('Could not find "Full House Delivery LLC" on Google. Make sure "Places API (New)" is enabled and billing is active.');
-                return;
-            }
-            place = searchResult.places[0];
-            googlePlaceId = place.id;
-            localStorage.setItem('fhd_google_place_id', googlePlaceId);
+            actions.push('<button onclick="setRequestState(\'' + key + '\', \'none\')">Undo</button>');
         }
 
-        await loadPlaceDetails(place);
-    } catch (err) {
-        console.error('[Place Search Error]', err);
-        var msg = (err && err.message) ? err.message : String(err);
-        if (msg.indexOf('REQUEST_DENIED') !== -1 || msg.indexOf('PERMISSION_DENIED') !== -1 || msg.indexOf('403') !== -1) {
-            reviewSetupFailure('Google denied the request: ' + msg + '. Enable "Places API (New)" for this key and make sure billing is active.');
-        } else {
-            reviewSetupFailure('Could not load Google Reviews: ' + msg);
-        }
-    } finally {
-        if (btn) btn.textContent = '\u27F3 Refresh';
-    }
-}
+        var badge = '';
+        if (state.status === 'asked') badge = '<span class="request-badge asked">' + (isOverdue(state) ? 'follow up' : 'asked') + '</span>';
+        else if (state.status === 'received') badge = '<span class="request-badge received">review in</span>';
+        else if (state.status === 'declined') badge = '<span class="request-badge declined">skipped</span>';
 
-async function loadPlaceDetails(place) {
-    var btn = document.getElementById('refreshReviewsBtn');
-    if (btn) btn.textContent = '\u27F3 Loading...';
-
-    // Place Details (New) returns at most 5 reviews; manually added reviews are kept.
-    await place.fetchFields({ fields: ['reviews', 'rating', 'userRatingCount'] });
-
-    var fetched = place.reviews || [];
-    if (fetched.length > 0) {
-        var manual = googleReviews.filter(function(r) { return r.source !== 'google'; });
-        var fromGoogle = fetched.map(function(r) {
-            var author = (r.authorAttribution && r.authorAttribution.displayName) || 'Google User';
-            var published = r.publishTime ? new Date(r.publishTime) : null;
-            return {
-                id: 'google-' + author + '-' + (published ? published.getTime() : ''),
-                rating: r.rating || 5,
-                author: author,
-                date: published ? published.toISOString().substring(0, 10) : today(),
-                text: (r.text && r.text.text) ? r.text.text : (r.text || ''),
-                source: 'google'
-            };
-        });
-        googleReviews = manual.concat(fromGoogle);
-    }
-
-    if (place.rating) {
-        localStorage.setItem('fhd_google_overall_rating', place.rating);
-        localStorage.setItem('fhd_google_total_reviews', place.userRatingCount || googleReviews.length);
-    }
-    saveReviews();
-    renderReviewsSection();
-    toast('Google Reviews updated! (' + fetched.length + ' from Google)');
-}
-
-function saveGoogleApiKey() {
-    var key = document.getElementById('googleApiKeyInput').value.trim();
-    if (!key) { toast('Please enter an API key', true); return; }
-    localStorage.setItem('fhd_google_api_key', key);
-    localStorage.removeItem('fhd_google_place_id');
-    toast('API key saved! Reloading page to connect to Google...');
-    setTimeout(function() { location.reload(); }, 800);
-}
-
-function showChangeApiKey() {
-    var setup = document.getElementById('reviewApiSetup');
-    setup.style.display = setup.style.display === 'none' ? 'block' : 'none';
-    var input = document.getElementById('googleApiKeyInput');
-    if (input && googleApiKey) input.value = googleApiKey;
+        var contact = [e.phone, e.email].filter(Boolean).join(' \u00b7 ') || 'no contact info';
+        return '<div class="request-item' + (isOverdue(state) ? ' overdue' : '') + '">' +
+            '<div class="request-who">' +
+                '<div class="request-name">' + escapeHTML(e.customer) + ' ' + badge + '</div>' +
+                '<div class="request-meta">' + formatReviewDate(e.date) + ' \u00b7 ' + escapeHTML(e.category || '') + ' \u00b7 ' + escapeHTML(contact) + '</div>' +
+            '</div>' +
+            '<div class="request-actions">' + actions.join('') + '</div>' +
+        '</div>';
+    }).join('');
 }
 
 function renderReviewsSection() {
@@ -5375,28 +5428,25 @@ function renderReviewsSection() {
     var dotsEl = document.getElementById('reviewDots');
     if (!ratingEl) return;
 
-    var overallRating = localStorage.getItem('fhd_google_overall_rating');
-    var totalCount = localStorage.getItem('fhd_google_total_reviews');
-
     if (googleReviews.length === 0) {
-        ratingEl.textContent = overallRating || '\u2014';
-        starsEl.innerHTML = overallRating ? renderStarsHTML(parseFloat(overallRating)) : '\u2606\u2606\u2606\u2606\u2606';
-        countEl.textContent = totalCount ? totalCount + ' reviews on Google' : 'No reviews yet';
+        ratingEl.textContent = '\u2014';
+        starsEl.innerHTML = '\u2606\u2606\u2606\u2606\u2606';
+        countEl.textContent = 'No reviews yet';
         carouselEl.innerHTML = '<div class="review-no-data"><span style="font-size:32px;">\u2B50</span><br>' +
-            (googleApiKey ? 'Click Refresh to load reviews from Google' : 'Set up your Google API key to load reviews automatically') + '</div>';
+            'Log reviews with “Add Review” as customers post them.</div>';
         dotsEl.innerHTML = '';
         return;
     }
 
-    var avg = overallRating ? parseFloat(overallRating) : (googleReviews.reduce(function(s, r) { return s + r.rating; }, 0) / googleReviews.length);
-    var count = totalCount ? parseInt(totalCount) : googleReviews.length;
+    var avg = googleReviews.reduce(function(s, r) { return s + r.rating; }, 0) / googleReviews.length;
+    var count = googleReviews.length;
     ratingEl.textContent = avg.toFixed(1);
     starsEl.innerHTML = renderStarsHTML(avg);
-    countEl.textContent = count + ' review' + (count !== 1 ? 's' : '') + ' on Google';
+    countEl.textContent = count + ' review' + (count !== 1 ? 's' : '') + ' logged';
 
     var fiveStars = googleReviews.filter(function(r) { return r.rating === 5; });
     if (fiveStars.length === 0) {
-        carouselEl.innerHTML = '<div class="review-no-data">No 5-star reviews in the latest batch.</div>';
+        carouselEl.innerHTML = '<div class="review-no-data">No 5-star reviews logged yet.</div>';
         dotsEl.innerHTML = '';
         checkReviewAlerts();
         return;
@@ -5585,7 +5635,7 @@ function escapeHTML(str) {
    INIT
    ═══════════════════════════════════════ */
 function renderAll() {
-    renderCategories(); buildChart(); renderSummary(); renderLog();
+    renderCategories(); buildChart(); renderSummary(); renderLog(); renderReviewRequests();
 }
 function renderFinanceAll() {
     renderFinanceTypes(); renderFinanceSummary(); renderFinanceBreakdown(); drawFinanceChart(); renderFinanceLog();
@@ -5599,7 +5649,7 @@ renderAll();
 renderFinanceAll();
 renderReviewsSection();
 startReviewRotation();
-if (googleApiKey) { fetchGoogleReviews(); }
+renderReviewRequests();
 </script>
 </body>
 </html>
