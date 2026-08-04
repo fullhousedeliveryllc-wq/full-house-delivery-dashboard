@@ -1,5 +1,6 @@
 -- ═══════════════════════════════════════════════════════════════
 -- Full House Delivery Dashboard — Supabase Table Setup
+-- Safe to re-run: tables use IF NOT EXISTS and policies are dropped first.
 -- Run this SQL in the Supabase SQL Editor:
 --   https://supabase.com/dashboard/project/pgjqfgkxbmlpvzcgqire/sql
 -- ═══════════════════════════════════════════════════════════════
@@ -53,32 +54,44 @@ ALTER TABLE job_entries      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE finance_entries  ENABLE ROW LEVEL SECURITY;
 
 -- Categories policies
+DROP POLICY IF EXISTS "Users can view their own categories" ON categories;
 CREATE POLICY "Users can view their own categories"
     ON categories FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can insert their own categories" ON categories;
 CREATE POLICY "Users can insert their own categories"
     ON categories FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can update their own categories" ON categories;
 CREATE POLICY "Users can update their own categories"
     ON categories FOR UPDATE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can delete their own categories" ON categories;
 CREATE POLICY "Users can delete their own categories"
     ON categories FOR DELETE USING (auth.uid() = user_id);
 
 -- Job entries policies
+DROP POLICY IF EXISTS "Users can view their own job entries" ON job_entries;
 CREATE POLICY "Users can view their own job entries"
     ON job_entries FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can insert their own job entries" ON job_entries;
 CREATE POLICY "Users can insert their own job entries"
     ON job_entries FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can update their own job entries" ON job_entries;
 CREATE POLICY "Users can update their own job entries"
     ON job_entries FOR UPDATE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can delete their own job entries" ON job_entries;
 CREATE POLICY "Users can delete their own job entries"
     ON job_entries FOR DELETE USING (auth.uid() = user_id);
 
 -- Finance entries policies
+DROP POLICY IF EXISTS "Users can view their own finance entries" ON finance_entries;
 CREATE POLICY "Users can view their own finance entries"
     ON finance_entries FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can insert their own finance entries" ON finance_entries;
 CREATE POLICY "Users can insert their own finance entries"
     ON finance_entries FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can update their own finance entries" ON finance_entries;
 CREATE POLICY "Users can update their own finance entries"
     ON finance_entries FOR UPDATE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can delete their own finance entries" ON finance_entries;
 CREATE POLICY "Users can delete their own finance entries"
     ON finance_entries FOR DELETE USING (auth.uid() = user_id);
 
