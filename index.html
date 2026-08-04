@@ -738,7 +738,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v45</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v46</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:#2196F3;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -784,7 +784,7 @@
             <span style="font-size:30px;line-height:1;">&#128176;</span>
             <div>
                 <h2 style="margin:0;font-size:18px;">Money Snapshot</h2>
-                <span style="font-size:11px;color:#70757a;">Profit, spending and gaps at a glance</span>
+                <span style="font-size:11px;color:#70757a;">Straight from your Revenues &amp; Expenses data</span>
             </div>
         </div>
         <div id="moneySnapshot"></div>
@@ -3016,15 +3016,54 @@ function getJobRevenueTotals() {
     return { revenue: totalRevenue, jobs: totalJobs, entries: entries.length };
 }
 
+/* Single source of truth for every revenue/expense figure in the app: the
+   Revenues & Expenses tab and the Money Snapshot both read these.
+   A null range means "all time". */
+function inRange(dateStr, range) {
+    return !range || (dateStr >= range.start && dateStr <= range.end);
+}
+
+function isExpenseEntry(e) {
+    return e.type !== 'Money Received';
+}
+
+function jobRevenueIn(range) {
+    return entries.reduce(function(s, e) {
+        return s + (inRange(e.date, range) && typeof e.revenue === 'number' ? e.revenue : 0);
+    }, 0);
+}
+
+function financeExpensesIn(range) {
+    return getFilteredFinance().reduce(function(s, e) {
+        return s + (inRange(e.date, range) && isExpenseEntry(e) ? e.amount : 0);
+    }, 0);
+}
+
+function expensesByTypeIn(range) {
+    var totals = {};
+    getFilteredFinance().forEach(function(e) {
+        if (!inRange(e.date, range) || !isExpenseEntry(e)) return;
+        totals[e.type] = (totals[e.type] || 0) + e.amount;
+    });
+    return totals;
+}
+
+function financeTotals(range) {
+    var revenue = jobRevenueIn(range);
+    var expenses = financeExpensesIn(range);
+    return { revenue: revenue, expenses: expenses, profit: revenue - expenses };
+}
+
 /* ═══════════════════════════════════════
    FINANCE: SUMMARY
    ═══════════════════════════════════════ */
 function renderFinanceSummary() {
     var all = getFilteredFinance();
     var jobTotals = getJobRevenueTotals();
-    var revenue = jobTotals.revenue;
-    var expenses = all.filter(function(e) { return e.type !== 'Money Received'; }).reduce(function(s, e) { return s + e.amount; }, 0);
-    var net = revenue - expenses;
+    var totals = financeTotals(null);
+    var revenue = totals.revenue;
+    var expenses = totals.expenses;
+    var net = totals.profit;
     var netClass = net >= 0 ? 'green' : 'red';
     var totalTransactions = all.length + jobTotals.entries;
     document.getElementById('financeSummaryStrip').innerHTML =
@@ -3040,28 +3079,15 @@ function renderFinanceSummary() {
    ═══════════════════════════════════════ */
 function getCurrentPeriodRange() {
     var now = new Date();
-    var todayStr = now.toISOString().slice(0, 10);
-    if (currentPeriod === 'daily') {
-        return { start: todayStr, end: todayStr };
-    }
-    if (currentPeriod === 'weekly') {
-        var day = now.getDay();
-        var diff = now.getDate() - day + (day === 0 ? -6 : 1);
-        var monday = new Date(now); monday.setDate(diff);
-        var sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
-        return { start: monday.toISOString().slice(0, 10), end: sunday.toISOString().slice(0, 10) };
-    }
-    if (currentPeriod === 'monthly') {
-        var monthStart = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-01';
-        var lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-        var monthEnd = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(lastDay).padStart(2, '0');
-        return { start: monthStart, end: monthEnd };
-    }
+    var todayStr = localDateStr(now);
+    if (currentPeriod === 'weekly') return weekRange();
+    if (currentPeriod === 'monthly') return monthRange(0);
     if (currentPeriod === 'quarterly') {
         var q = Math.floor(now.getMonth() / 3);
-        var qStart = new Date(now.getFullYear(), q * 3, 1);
-        var qEnd = new Date(now.getFullYear(), q * 3 + 3, 0);
-        return { start: qStart.toISOString().slice(0, 10), end: qEnd.toISOString().slice(0, 10) };
+        return {
+            start: localDateStr(new Date(now.getFullYear(), q * 3, 1)),
+            end: localDateStr(new Date(now.getFullYear(), q * 3 + 3, 0))
+        };
     }
     return { start: todayStr, end: todayStr };
 }
@@ -3069,12 +3095,8 @@ function getCurrentPeriodRange() {
 function renderFinanceBreakdown() {
     document.getElementById('periodLabel').textContent = getPeriodLabel();
     var range = getCurrentPeriodRange();
-    var all = getFilteredFinance().filter(function(e) {
-        return e.date >= range.start && e.date <= range.end;
-    });
-    var periodJobRevenue = entries.filter(function(e) {
-        return e.date >= range.start && e.date <= range.end && typeof e.revenue === 'number';
-    }).reduce(function(s, e) { return s + e.revenue; }, 0);
+    var byType = expensesByTypeIn(range);
+    var periodJobRevenue = jobRevenueIn(range);
 
     var expenseTypes = financeTypes.filter(function(t) { return t !== 'Money Received'; });
     var types = ['Job Revenue'].concat(expenseTypes);
@@ -3085,7 +3107,7 @@ function renderFinanceBreakdown() {
             total = periodJobRevenue;
             cls = 'fi-green';
         } else {
-            total = all.filter(function(e) { return e.type === type; }).reduce(function(s, e) { return s + e.amount; }, 0);
+            total = byType[type] || 0;
             cls = 'fi-red';
         }
         html += '<div class="finance-item"><span class="fi-label">' + type + '</span><span class="fi-value ' + cls + '">$' + total.toFixed(2) + '</span></div>';
@@ -3100,12 +3122,9 @@ function drawFinanceChart() {
     var fc = document.getElementById('financeBarChart');
     var fctx = fc.getContext('2d');
     var range = getCurrentPeriodRange();
-    var all = getFilteredFinance().filter(function(e) {
-        return e.date >= range.start && e.date <= range.end;
-    });
-    var periodJobRevenue = entries.filter(function(e) {
-        return e.date >= range.start && e.date <= range.end && typeof e.revenue === 'number';
-    }).reduce(function(s, e) { return s + e.revenue; }, 0);
+    var byType = expensesByTypeIn(range);
+    var all = getFilteredFinance().filter(function(e) { return inRange(e.date, range); });
+    var periodJobRevenue = jobRevenueIn(range);
 
     var hasData = all.length > 0 || periodJobRevenue > 0;
 
@@ -3119,7 +3138,7 @@ function drawFinanceChart() {
     }
     var expenseTypes = financeTypes.filter(function(t) { return t !== 'Money Received'; });
     expenseTypes.forEach(function(type) {
-        var total = all.filter(function(e) { return e.type === type; }).reduce(function(s, e) { return s + e.amount; }, 0);
+        var total = byType[type] || 0;
         if (total > 0) {
             barData.push({ label: type, value: total, color: '#e94560' });
         }
@@ -5083,9 +5102,8 @@ function copyQuoteLink() {
 
 /* ═══════════════════════════════════════
    MONEY SNAPSHOT
-   Week/month revenue vs expenses pulled from the same data the Revenues &
-   Expenses tab uses, plus jobs with no revenue logged and the biggest
-   expense category this month.
+   Every figure comes from the shared finance helpers (financeTotals /
+   expensesByTypeIn), so the card always matches the Revenues & Expenses tab.
    ═══════════════════════════════════════ */
 function monthRange(offset) {
     var now = new Date();
@@ -5108,26 +5126,8 @@ function localDateStr(d) {
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 
-function inRange(dateStr, range) {
-    return dateStr >= range.start && dateStr <= range.end;
-}
-
-function moneyForRange(range) {
-    var revenue = entries.reduce(function(s, e) {
-        return s + (inRange(e.date, range) && typeof e.revenue === 'number' ? e.revenue : 0);
-    }, 0);
-    var expenses = financeEntries.reduce(function(s, e) {
-        return s + (inRange(e.date, range) && e.type !== 'Money Received' ? e.amount : 0);
-    }, 0);
-    return { revenue: revenue, expenses: expenses, profit: revenue - expenses };
-}
-
 function topExpenseCategory(range) {
-    var totals = {};
-    financeEntries.forEach(function(e) {
-        if (!inRange(e.date, range) || e.type === 'Money Received') return;
-        totals[e.type] = (totals[e.type] || 0) + e.amount;
-    });
+    var totals = expensesByTypeIn(range);
     var best = null;
     Object.keys(totals).forEach(function(type) {
         if (!best || totals[type] > best.amount) best = { type: type, amount: totals[type] };
@@ -5157,8 +5157,8 @@ function renderMoneySnapshot() {
     var week = weekRange();
     var month = monthRange(0);
     var prevMonth = monthRange(-1);
-    var thisMonth = moneyForRange(month);
-    var lastMonth = moneyForRange(prevMonth);
+    var thisMonth = financeTotals(month);
+    var lastMonth = financeTotals(prevMonth);
     var delta = thisMonth.profit - lastMonth.profit;
 
     var unpaid = entries.filter(function(e) {
@@ -5169,7 +5169,7 @@ function renderMoneySnapshot() {
 
     el.innerHTML =
         '<div class="money-blocks">' +
-            moneyBlock('This week', week.start.slice(5) + ' \u2013 ' + week.end.slice(5), moneyForRange(week)) +
+            moneyBlock('This week', week.start.slice(5) + ' \u2013 ' + week.end.slice(5), financeTotals(week)) +
             moneyBlock('This month', monthName, thisMonth) +
         '</div>' +
         '<div class="money-notes">' +
