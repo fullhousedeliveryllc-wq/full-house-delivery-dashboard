@@ -738,7 +738,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v46</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v48</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:#2196F3;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -1021,7 +1021,9 @@
             <strong>How it works:</strong> Download your bank statement as a CSV or PDF file from your bank's website.
             Upload it here and the system will automatically categorize transactions into your expense types
             (insurance, gas, tolls, etc.) based on the description. You'll get a preview to review and adjust
-            categories before importing. <em>CSV works best; PDF support extracts text-based data from common statement formats.</em>
+            categories before importing. Deposits, refunds and credit-card payments are left out so they can't be counted as expenses,
+            and anything the system can't confidently categorize is highlighted in red for you to pick a type.
+            <em>CSV works best; PDF support extracts text-based data from common statement formats.</em>
         </div>
     </div>
 
@@ -3450,21 +3452,26 @@ var CATEGORY_RULES = [
     { pattern: /advance auto|autozone|tire kingdom|firestone|napa auto|o'?reilly|pep\s*boys|jiffy lube|meineke|midas|valvoline|maaco|caliber collision/i, type: 'Truck Repair/Maintenance' },
     { pattern: /solid\s*waste/i, type: 'Trash Removal Fee' },
     { pattern: /ascendant/i, type: 'Insurance' },
-    { pattern: /orion|westar/i, type: 'Gas' },
-    { pattern: /insur/i, type: 'Insurance' },
-    { pattern: /truck\s*repair|maintenance|mechanic|auto\s*repair|body\s*shop|oil\s*change|tire|brake|transmission|alignment/i, type: 'Truck Repair/Maintenance' },
-    { pattern: /costco\s*gas|gas\b|fuel|shell|exxon|mobil|chevron|bp\b|sunoco|wawa\s*fuel|speedway|circle\s*k|pilot|love.?s|marathon|7.?eleven|sheetz|racetrac|getgo|casey|murphy/i, type: 'Gas' },
-    { pattern: /toll|e.?z.?pass|sun.?pass|ez\s*tag|i.?pass|fast.?trak|pike|turnpike|expressway\s*auth/i, type: 'Tolls' },
-    { pattern: /home\s*depot|lowe|u.?haul|uline|moving\s*blanket|dolly|strap|bubble\s*wrap|packing|box|tape|supply|supplies/i, type: 'Supplies' },
-    { pattern: /payroll|driver\s*pay|wage|salary|compensation|contractor\s*pay/i, type: 'Driver Pay' },
-    { pattern: /deposit|payment\s*received|income|revenue|customer\s*pay|zelle\s*from|venmo\s*from|cash\s*app\s*from|direct\s*dep/i, type: 'Money Received' },
+    { pattern: /\borion\b|\bwestar\b/i, type: 'Gas' },
+    { pattern: /insur|geico|progressive|state\s*farm|allstate/i, type: 'Insurance' },
+    { pattern: /truck\s*repair|maintenance|mechanic|auto\s*repair|body\s*shop|oil\s*change|\btires?\b|\bbrakes?\b|transmission|alignment/i, type: 'Truck Repair/Maintenance' },
+    { pattern: /costco\s*gas|\bgas\b|\bgasoline\b|\bfuel\b|\bshell\b|\bexxon\b|\bmobil\b|\bchevron\b|\bbp\b|\bsunoco\b|\bwawa\b|\bspeedway\b|circle\s*k|pilot\s*(travel|flying)|\blove'?s\b|\bmarathon\b|7.?eleven|\bsheetz\b|\bracetrac\b|\bgetgo\b|casey'?s\s*gen|murphy\s*(usa|exp)/i, type: 'Gas' },
+    { pattern: /\btolls?\b|e.?z.?pass|sun.?pass|ez\s*tag|i.?pass|fast.?trak|\bturnpike\b|expressway\s*auth/i, type: 'Tolls' },
+    { pattern: /home\s*depot|\blowe'?s\b|u.?haul|\buline\b|moving\s*blanket|\bdolly\b|\bstraps?\b|bubble\s*wrap|packing|\bboxes?\b|\btape\b|\bsupply\b|\bsupplies\b|office\s*depot|\bstaples\b/i, type: 'Supplies' },
+    { pattern: /payroll|driver\s*pay|\bwages?\b|\bsalary\b|compensation|contractor\s*pay/i, type: 'Driver Pay' },
     { pattern: /commission|referral\s*fee|finder.?s?\s*fee|sales\s*bonus/i, type: 'Commissions' },
     { pattern: /trash\s*remov|waste\s*remov|junk\s*remov|debris\s*remov|hauling|dump\s*fee|landfill|waste\s*manage/i, type: 'Trash Removal Fee' },
     { pattern: /distribution/i, type: 'Distributions' },
-    { pattern: /google|adwords|advertising|marketing|facebook\s*ads|meta\s*ads|yelp\s*ads/i, type: 'Advertisement' },
-    { pattern: /zenbusiness|business\s*registration|llc|corp\s*filing/i, type: 'Miscellaneous' },
-    { pattern: /vehicle\s*tag|tag\s*renew|dmv|registration|title/i, type: 'Miscellaneous' }
+    { pattern: /\bgoogle\b|adwords|advertis|marketing|facebook\s*ads|meta\s*ads|yelp/i, type: 'Advertisement' },
+    { pattern: /zenbusiness|business\s*registration|corp\s*filing|\bsunbiz\b/i, type: 'Miscellaneous' },
+    { pattern: /vehicle\s*tag|tag\s*renew|\bdmv\b|tag\s*agency|title\s*(fee|service|transfer)/i, type: 'Miscellaneous' }
 ];
+
+// Descriptions that mean money coming in — never imported as an expense
+var DEPOSIT_PATTERN = /deposit|payment\s*received|\bincome\b|\brevenue\b|customer\s*pay|zelle\s*(payment\s*)?from|venmo\s*from|cash\s*app\s*from|direct\s*dep|transfer\s*in\b|refund|reversal|interest\s*paid|remote\s*(online\s*)?deposit|counter\s*credit|square\s*inc|mobile\s*deposit/i;
+
+// Card payments / internal transfers: already counted as their own card-statement expenses
+var INTERNAL_TRANSFER_PATTERN = /payment\s*to\s*chase\s*card|chase\s*credit\s*crd\s*(epay|autopay)|automatic\s*payment\s*-\s*thank/i;
 
 var COMMISSION_NAMES = ['jt', 'jorge t', 'jorge torrens'];
 
@@ -3499,7 +3506,34 @@ function categorizeTransaction(description) {
     for (var i = 0; i < CATEGORY_RULES.length; i++) {
         if (CATEGORY_RULES[i].pattern.test(desc)) return CATEGORY_RULES[i].type;
     }
-    return 'Miscellaneous';
+    return null;
+}
+
+var bankSkipStats = { deposits: 0, transfers: 0 };
+
+// Builds one preview row from a statement line, or returns null when the line
+// is money coming in / an internal transfer. Types are always validated against
+// the user's expense types so an import can never create an unknown category.
+function buildBankRow(dateStr, description, amount, isCredit) {
+    var desc = (description || '').trim();
+    if (INTERNAL_TRANSFER_PATTERN.test(desc)) { bankSkipStats.transfers++; return null; }
+    if (isCredit || DEPOSIT_PATTERN.test(desc)) { bankSkipStats.deposits++; return null; }
+
+    var isZelle = /zelle\s*payment\s*to\s/i.test(desc);
+    var type = isZelle ? categorizeZellePayment(desc, amount) : null;
+    if (!type) type = categorizeTransaction(desc);
+
+    var needsSelect = !type || financeTypes.indexOf(type) === -1;
+    if (needsSelect) type = financeTypes.indexOf('Miscellaneous') !== -1 ? 'Miscellaneous' : financeTypes[0];
+
+    return {
+        date: dateStr,
+        description: desc,
+        amount: Math.abs(amount),
+        type: type,
+        include: true,
+        needsSelect: needsSelect
+    };
 }
 
 function parseCSVLine(line) {
@@ -3550,13 +3584,14 @@ function parseAmount(val) {
 }
 
 function detectColumns(headers) {
-    var result = { date: -1, description: -1, amount: -1, debit: -1, credit: -1 };
+    var result = { date: -1, description: -1, amount: -1, debit: -1, credit: -1, kind: -1 };
     headers.forEach(function(h, i) {
         var lc = h.toLowerCase().replace(/[^a-z0-9]/g, '');
         if (result.date === -1 && /^(date|postdate|transdate|postingdate|transactiondate)$/.test(lc)) result.date = i;
         if (result.amount === -1 && /^(amount|transactionamount|amt)$/.test(lc)) result.amount = i;
         if (result.debit === -1 && /^(debit|withdrawal|debits|withdrawals|expense)$/.test(lc)) result.debit = i;
         if (result.credit === -1 && /^(credit|deposit|credits|deposits|income)$/.test(lc)) result.credit = i;
+        if (result.kind === -1 && /^(details|type|transactiontype|debitcredit|debitorcredit|crdr|drcr)$/.test(lc)) result.kind = i;
     });
     // Two-pass for description: prefer exact "description" over "details"
     headers.forEach(function(h, i) {
@@ -3682,7 +3717,7 @@ function parsePDFText(text) {
     console.log(text.substring(0, 2000));
 
     var lines = text.split(/\n/);
-    bankParsedRows = [];
+    var candidates = [];
 
     var datePatterns = [
         /(\d{1,2}\/\d{1,2}\/\d{2,4})/,
@@ -3729,28 +3764,31 @@ function parsePDFText(text) {
         var desc = searchText.replace(/[-]?\$?\s*[\d,]+\.\d{2}/g, '').replace(/[-]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
         if (desc.length < 2) desc = 'PDF Transaction';
 
-        var amtObj = amounts[amounts.length > 1 ? amounts.length - 1 : 0];
-        var amount = amtObj.value;
-        var isCredit = !amtObj.negative && (/deposit|credit|transfer\s*in|payment\s*received|direct\s*dep/i.test(line));
-        var autoType = categorizeTransaction(desc);
+        candidates.push({ date: usableDate, description: desc.substring(0, 80), amounts: amounts, line: line });
+    });
 
-        if (isCredit || autoType === 'Money Received' || /deposit|credit|transfer\s*in/i.test(line)) {
-            autoType = 'Money Received';
-        }
+    // Statement rows usually read "date  description  amount  balance"; when most
+    // rows carry two amounts the trailing one is the running balance, not the
+    // transaction, so importing it would inflate every expense.
+    var multi = candidates.filter(function(c) { return c.amounts.length > 1; }).length;
+    var hasBalanceColumn = candidates.length > 0 && multi > candidates.length / 2;
 
-        bankParsedRows.push({
-            date: usableDate,
-            description: desc.substring(0, 80) || 'PDF Transaction',
-            amount: amount,
-            type: autoType,
-            include: true
-        });
+    bankSkipStats = { deposits: 0, transfers: 0 };
+    bankParsedRows = [];
+    candidates.forEach(function(c) {
+        var idx = hasBalanceColumn && c.amounts.length > 1 ? c.amounts.length - 2 : c.amounts.length - 1;
+        var amtObj = c.amounts[idx];
+        var isCredit = !amtObj.negative && /deposit|credit|transfer\s*in|payment\s*received|direct\s*dep/i.test(c.line);
+        var row = buildBankRow(c.date, c.description || 'PDF Transaction', amtObj.value, isCredit);
+        if (row) bankParsedRows.push(row);
     });
 
     if (bankParsedRows.length === 0) {
-        console.log('[PDF Debug] No transactions found. Full text dump:');
+        console.log('[PDF Debug] No expenses found. Full text dump:');
         console.log(text);
-        toast('No transactions could be extracted. Open browser console (F12) to see extracted text for debugging. Try CSV export for best results.', true);
+        toast(bankSkipStats.deposits > 0
+            ? 'Only deposits (' + bankSkipStats.deposits + ') were found in this PDF — nothing to import as an expense.'
+            : 'No transactions could be extracted. Open browser console (F12) to see extracted text for debugging. Try CSV export for best results.', true);
         return;
     }
 
@@ -3759,14 +3797,45 @@ function parsePDFText(text) {
     toast(bankParsedRows.length + ' transactions found in PDF.');
 }
 
+var CREDIT_MARKERS = /^(credit|cr|c|deposit|deposits|creditcard|payment|refund)$/;
+var DEBIT_MARKERS = /^(debit|dr|d|withdrawal|withdrawals|check|checkcard|ach|sale|purchase|fee|charge|debitcard)$/;
+
+function kindIsCredit(value) {
+    var v = (value || '').toLowerCase().replace(/[^a-z]/g, '');
+    if (CREDIT_MARKERS.test(v)) return true;
+    if (DEBIT_MARKERS.test(v)) return false;
+    if (/credit$/.test(v)) return true;
+    if (/debit$/.test(v)) return false;
+    return null;
+}
+
+// Banks disagree on signs: some export expenses as negative, credit-card exports
+// often list charges as positive. Work out which convention this file uses so
+// expenses are never dropped as if they were deposits.
+function detectSignConvention(amounts, descriptions) {
+    var negatives = 0, positives = 0;
+    amounts.forEach(function(a) { if (a < 0) negatives++; else if (a > 0) positives++; });
+    if (negatives > 0) return 'negative-is-expense';
+    if (positives === 0) return 'negative-is-expense';
+
+    // Everything is positive: fall back to the description to spot the deposits.
+    var deposits = descriptions.filter(function(d) { return DEPOSIT_PATTERN.test(d); }).length;
+    return deposits < positives ? 'all-positive-are-expenses' : 'negative-is-expense';
+}
+
 function parseBankCSV(csvText) {
     var lines = csvText.split(/\r?\n/).filter(function(l) { return l.trim().length > 0; });
     if (lines.length < 2) { toast('File appears empty or has no data rows.'); return; }
 
     var headers = parseCSVLine(lines[0]);
     var cols = detectColumns(headers);
+    if (cols.kind !== -1 && cols.description === cols.kind) {
+        for (var d = 0; d < headers.length; d++) {
+            if (d !== cols.date && d !== cols.amount && d !== cols.debit && d !== cols.credit && d !== cols.kind) { cols.description = d; break; }
+        }
+    }
 
-    bankParsedRows = [];
+    var parsed = [];
     for (var i = 1; i < lines.length; i++) {
         var fields = parseCSVLine(lines[i]);
         if (fields.length < 2) continue;
@@ -3774,67 +3843,65 @@ function parseBankCSV(csvText) {
         var dateStr = parseDate(fields[cols.date]);
         if (!dateStr) continue;
 
-        var desc = (fields[cols.description] || '').trim();
-        var amount = null;
+        var signedAmount = null;
+        var explicitCredit = null;
 
         if (cols.amount !== -1) {
-            amount = parseAmount(fields[cols.amount]);
+            signedAmount = parseAmount(fields[cols.amount]);
         } else {
             var debitVal = cols.debit !== -1 ? parseAmount(fields[cols.debit]) : null;
             var creditVal = cols.credit !== -1 ? parseAmount(fields[cols.credit]) : null;
-            if (creditVal && creditVal > 0) amount = creditVal;
-            else if (debitVal) amount = Math.abs(debitVal);
+            if (creditVal) { signedAmount = Math.abs(creditVal); explicitCredit = true; }
+            else if (debitVal) { signedAmount = -Math.abs(debitVal); explicitCredit = false; }
             else continue;
         }
 
-        if (amount === null || amount === 0) continue;
+        if (signedAmount === null || signedAmount === 0) continue;
 
-        var isCredit = false;
-        if (cols.amount !== -1) {
-            isCredit = amount > 0;
-            amount = Math.abs(amount);
-        } else {
-            isCredit = cols.credit !== -1 && parseAmount(fields[cols.credit]) > 0;
-        }
+        if (explicitCredit === null && cols.kind !== -1) explicitCredit = kindIsCredit(fields[cols.kind]);
 
-        if (isCredit) continue;
-
-        // Omit credit card payments from Chase activity
-        if (/payment\s*to\s*chase\s*card/i.test(desc)) continue;
-
-        var autoType = null;
-        var needsSelect = false;
-        var isZelle = /zelle\s*payment\s*to\s/i.test(desc);
-        if (isZelle) {
-            autoType = categorizeZellePayment(desc, amount);
-        }
-        if (!autoType) {
-            autoType = categorizeTransaction(desc);
-        }
-        if (autoType === 'Money Received') continue;
-
-        if (autoType === 'Miscellaneous' && isZelle) {
-            needsSelect = true;
-        }
-
-        bankParsedRows.push({
+        parsed.push({
             date: dateStr,
-            description: desc,
-            amount: amount,
-            type: autoType,
-            include: true,
-            needsSelect: needsSelect
+            description: (fields[cols.description] || '').trim(),
+            signedAmount: signedAmount,
+            explicitCredit: explicitCredit
         });
     }
 
-    if (bankParsedRows.length === 0) { toast('No valid transactions found in the file.'); return; }
+    var convention = detectSignConvention(
+        parsed.filter(function(r) { return r.explicitCredit === null; }).map(function(r) { return r.signedAmount; }),
+        parsed.map(function(r) { return r.description; })
+    );
+
+    bankSkipStats = { deposits: 0, transfers: 0 };
+    bankParsedRows = [];
+    parsed.forEach(function(r) {
+        var isCredit = r.explicitCredit;
+        if (isCredit === null) {
+            isCredit = convention === 'all-positive-are-expenses' ? false : r.signedAmount > 0;
+        }
+        var row = buildBankRow(r.date, r.description, r.signedAmount, isCredit);
+        if (row) bankParsedRows.push(row);
+    });
+
+    if (bankParsedRows.length === 0) {
+        toast(bankSkipStats.deposits > 0
+            ? 'No expenses found — the ' + bankSkipStats.deposits + ' transaction(s) in this file all look like deposits.'
+            : 'No valid transactions found in the file.', true);
+        return;
+    }
 
     bankParsedRows.sort(function(a, b) { return a.date.localeCompare(b.date); });
     showBankPreview();
 }
 
+function bankTypeOptions(selected) {
+    return financeTypes.map(function(t) {
+        return '<option value="' + esc(t) + '"' + (t === selected ? ' selected' : '') + '>' + esc(t) + '</option>';
+    }).join('');
+}
+
 function showBankPreview() {
-    var optionsHtml = financeTypes.map(function(t) { return '<option value="' + t + '">' + t + '</option>'; }).join('');
 
     var html = '<table class="preview-table"><thead><tr><th style="width:30px"><input type="checkbox" class="preview-check" checked onchange="toggleAllBankRows(this)"></th><th>Date</th><th>Description</th><th>Amount</th><th>Category</th></tr></thead><tbody>';
     bankParsedRows.forEach(function(row, idx) {
@@ -3842,11 +3909,14 @@ function showBankPreview() {
         var prefix = '-';
         var isDupe = findDuplicateBankRow(row).length > 0;
         var rowStyle = row.needsSelect ? ' style="background:#fff0f0;border-left:3px solid #e74c3c;"' : (isDupe ? ' style="background:#fff8e1;border-left:3px solid #f9a825;"' : '');
-        var selectOpts = row.needsSelect ? '<option value="" disabled selected style="color:#c0392b;font-weight:700;">— Select —</option>' + optionsHtml : optionsHtml.replace('value="' + row.type + '"', 'value="' + row.type + '" selected');
-        var onChangeHandler = row.needsSelect ? 'bankParsedRows[' + idx + '].type=this.value;bankParsedRows[' + idx + '].needsSelect=false;this.closest(\"tr\").style.background=\"\";this.closest(\"tr\").style.borderLeft=\"\"' : 'bankParsedRows[' + idx + '].type=this.value';
+        var selectOpts = row.needsSelect
+            ? '<option value="" disabled selected style="color:#c0392b;font-weight:700;">— Select —</option>' + bankTypeOptions(null)
+            : bankTypeOptions(row.type);
+        var onChangeHandler = 'bankRowTypeChanged(' + idx + ', this)';
         var dupeTag = isDupe ? '<span style="font-size:9px;background:#f9a825;color:#fff;padding:1px 5px;border-radius:4px;margin-left:4px;font-weight:600;">DUPLICATE?</span>' : '';
-        html += '<tr id="bankRow' + idx + '"' + rowStyle + '>' +
-            '<td><input type="checkbox" class="preview-check"' + (isDupe ? '' : ' checked') + ' onchange="toggleBankRow(' + idx + ', this)"></td>' +
+        if (isDupe) row.include = false;
+        html += '<tr id="bankRow' + idx + '"' + rowStyle + (row.include ? '' : ' class="skip-row"') + '>' +
+            '<td><input type="checkbox" class="preview-check"' + (row.include ? ' checked' : '') + ' onchange="toggleBankRow(' + idx + ', this)"></td>' +
             '<td>' + row.date + '</td>' +
             '<td>' + esc(row.description.substring(0, 60)) + dupeTag + '</td>' +
             '<td class="' + cls + '">' + prefix + '$' + row.amount.toFixed(2) + '</td>' +
@@ -3867,10 +3937,35 @@ function updateBankPreviewStats() {
     var needsSelect = included.filter(function(r) { return r.needsSelect; }).length;
     var statsHtml = included.length + ' of ' + bankParsedRows.length + ' expenses selected &nbsp;|&nbsp; ' +
         'Total: <strong style="color:#c0392b">$' + exp.toFixed(2) + '</strong>';
+    var skipped = [];
+    if (bankSkipStats.deposits > 0) skipped.push(bankSkipStats.deposits + ' deposit' + (bankSkipStats.deposits === 1 ? '' : 's'));
+    if (bankSkipStats.transfers > 0) skipped.push(bankSkipStats.transfers + ' card payment' + (bankSkipStats.transfers === 1 ? '' : 's'));
+    if (skipped.length) {
+        statsHtml += ' &nbsp;|&nbsp; <span style="color:#666">' + skipped.join(' and ') + ' skipped (not expenses)</span>';
+    }
     if (needsSelect > 0) {
-        statsHtml += ' &nbsp;|&nbsp; <strong style="color:#e74c3c">' + needsSelect + ' need category selection</strong>';
+        statsHtml += ' &nbsp;|&nbsp; <strong style="color:#e74c3c">' + needsSelect + ' need category selection</strong>' +
+            ' <button onclick="setUncategorizedToMisc()" style="font-size:11px;padding:2px 8px;margin-left:6px;cursor:pointer">Set all to Miscellaneous</button>';
     }
     document.getElementById('bankPreviewStats').innerHTML = statsHtml;
+}
+
+function bankRowTypeChanged(idx, select) {
+    var row = bankParsedRows[idx];
+    if (!row || !select.value) return;
+    row.type = select.value;
+    row.needsSelect = false;
+    var tr = document.getElementById('bankRow' + idx);
+    if (tr) { tr.style.background = ''; tr.style.borderLeft = ''; }
+    updateBankPreviewStats();
+}
+
+function setUncategorizedToMisc() {
+    var fallback = financeTypes.indexOf('Miscellaneous') !== -1 ? 'Miscellaneous' : financeTypes[0];
+    bankParsedRows.forEach(function(row) {
+        if (row.needsSelect) { row.type = fallback; row.needsSelect = false; }
+    });
+    showBankPreview();
 }
 
 function toggleBankRow(idx, cb) {
@@ -3900,7 +3995,7 @@ function closeBankPreview() {
 function confirmBankImport() {
     var toImport = bankParsedRows.filter(function(r) { return r.include; });
     if (toImport.length === 0) { toast('No transactions selected.'); return; }
-    var unselected = toImport.filter(function(r) { return r.needsSelect; });
+    var unselected = toImport.filter(function(r) { return r.needsSelect || financeTypes.indexOf(r.type) === -1; });
     if (unselected.length > 0) { toast(unselected.length + ' transaction(s) still need a category. Look for rows highlighted in red.', true); return; }
 
     toImport.forEach(function(row) {
