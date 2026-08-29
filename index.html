@@ -234,6 +234,13 @@
         .reorder-btns button:hover { background: #ddd; }
         .add-cat-row { display: flex; gap: 8px; }
         .add-cat-row input { flex: 1; }
+        .category-list.grid-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 8px;
+        }
+        .category-list.grid-list li { margin-bottom: 0; }
+        .grid-list-card .add-cat-row { max-width: 520px; }
 
         /* Log Table */
         .log-controls { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
@@ -1042,9 +1049,9 @@
     </div>
 
     <!-- Manage Finance Types -->
-    <div class="card">
+    <div class="card full-width grid-list-card">
         <h2><span class="icon">&#127991;&#65039;</span> Manage Types</h2>
-        <ul class="category-list" id="finTypeList"></ul>
+        <ul class="category-list grid-list" id="finTypeList"></ul>
         <div class="add-cat-row">
             <input type="text" id="newFinTypeName" placeholder="New type name..." maxlength="40">
             <button class="btn btn-success btn-sm" onclick="addFinType()">+ Add</button>
