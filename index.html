@@ -4902,7 +4902,11 @@ function renameTeamMember(type, index, oldName, newName) {
         var day = scheduleData[dateKey];
         ['crew1', 'crew2', 'drivers'].forEach(function(field) {
             if (Array.isArray(day[field])) {
-                day[field] = day[field].map(function(n) { return n === oldName ? newName : n; });
+                day[field] = day[field].map(function(m) {
+                    if (typeof m === 'string') return m === oldName ? newName : m;
+                    if (m && m.name === oldName) m.name = newName;
+                    return m;
+                });
             }
         });
         if (day.dispatcher === oldName) day.dispatcher = newName;
