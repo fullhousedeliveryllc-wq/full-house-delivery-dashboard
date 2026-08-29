@@ -255,8 +255,8 @@
         .conditional-field.visible { display: block; }
 
         /* Finance bar chart */
-        .bar-chart-wrapper { position: relative; max-width: 700px; margin: 0 auto; }
-        #financeBarChart { width: 100%; height: 320px; }
+        .bar-chart-wrapper { position: relative; max-width: 900px; margin: 0 auto; }
+        #financeBarChart { width: 100%; height: 320px; display: block; }
 
         /* Period selector */
         .period-selector { display: flex; gap: 6px; margin-bottom: 20px; flex-wrap: wrap; }
@@ -594,6 +594,12 @@
         .cal-day:hover { background: #f8f9fa; }
         .cal-day.other-month { background: #f5f5f5; opacity: 0.5; }
         .cal-day.today { background: #fff5f5; box-shadow: inset 0 0 0 2px #e94560; }
+        .cal-day.other-month.today { opacity: 1; }
+        .cal-day.today-flash { animation: todayFlash 1.2s ease-out 2; }
+        @keyframes todayFlash {
+            0%, 100% { box-shadow: inset 0 0 0 2px #e94560; }
+            50% { box-shadow: inset 0 0 0 4px #e94560, 0 0 0 3px rgba(233,69,96,0.25); }
+        }
         .cal-day .day-num { font-size: 13px; font-weight: 600; color: #333; margin-bottom: 4px; }
         .cal-day.today .day-num { color: #e94560; }
 
@@ -738,7 +744,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v46</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v49</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:#2196F3;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -1021,7 +1027,10 @@
             <strong>How it works:</strong> Download your bank statement as a CSV or PDF file from your bank's website.
             Upload it here and the system will automatically categorize transactions into your expense types
             (insurance, gas, tolls, etc.) based on the description. You'll get a preview to review and adjust
-            categories before importing. <em>CSV works best; PDF support extracts text-based data from common statement formats.</em>
+            categories before importing. Every charge is imported — anything the system can't confidently label comes in as
+            <strong>Uncategorized</strong> (highlighted amber) so you can fix it later from the Finance Log.
+            Deposits, refunds and credit-card payments are left out so they can't be counted as expenses.
+            <em>CSV works best; PDF support extracts text-based data from common statement formats.</em>
         </div>
     </div>
 
@@ -1210,13 +1219,14 @@
         <h2><span class="icon">&#128197;</span> Schedule</h2>
         <div class="schedule-nav">
             <button onclick="schedNavPrev()">&larr; Prev</button>
+
             <span class="nav-label" id="schedNavLabel"></span>
             <button onclick="schedNavNext()">Next &rarr;</button>
             <div class="view-toggle">
                 <button id="viewWeekBtn" class="active" onclick="setSchedView('week')">Week</button>
                 <button id="viewMonthBtn" onclick="setSchedView('month')">Month</button>
             </div>
-            <button onclick="goToday()">Today</button>
+            <button id="schedTodayBtn" onclick="goToday()">Today</button>
         </div>
         <div id="schedContainer"></div>
     </div>
@@ -1284,7 +1294,7 @@
                 <option value="Completed">Completed</option>
                 <option value="Lost">Lost</option>
             </select>
-            <input type="search" id="leadSearchBar" placeholder="Search leads..." oninput="renderLeads()" autocomplete="off">
+            <input type="search" id="leadSearchBar" placeholder="Search leads..." oninput="renderLeads()" autocomplete="new-password" name="lead-search-nofill" data-form-type="other" data-lpignore="true" data-1p-ignore="true" role="searchbox">
             <button class="btn btn-outline btn-sm" onclick="document.getElementById('filterLeadStatus').value='all';document.getElementById('leadSearchBar').value='';renderLeads();">Clear</button>
         </div>
         <div style="overflow-x:auto;">
@@ -1299,8 +1309,79 @@
             </table>
         </div>
     </div>
+
+    <!-- Contact Book (CRM) -->
+    <div class="card full-width" style="border-left:3px solid var(--primary);">
+        <h2><span class="icon">&#128100;</span> Contact Book</h2>
+        <p style="font-size:13px;color:#666;margin:0 0 12px;">
+            Every customer from a job, lead or quote request is saved here automatically and stays until you delete it.
+        </p>
+        <div class="search-bar-wrap">
+            <span class="search-icon">&#128269;</span>
+            <input type="search" id="contactSearchBar" placeholder="Search name, phone, email, address, service or notes..."
+                   oninput="contactPage=1;renderContacts()" autocomplete="new-password" name="contact-search-nofill"
+                   data-form-type="other" data-lpignore="true" data-1p-ignore="true" role="searchbox">
+        </div>
+        <div class="log-controls">
+            <select id="contactFilter" onchange="contactPage=1;renderContacts()">
+                <option value="all">All contacts</option>
+                <option value="customers">Customers (booked a job)</option>
+                <option value="leads">Leads only</option>
+                <option value="repeat">Repeat customers (2+ jobs)</option>
+                <option value="stale">No activity in 60+ days</option>
+            </select>
+            <select id="contactSort" onchange="renderContacts()">
+                <option value="recent">Sort: Last activity</option>
+                <option value="name">Sort: Name (A–Z)</option>
+                <option value="jobs">Sort: Most jobs</option>
+                <option value="revenue">Sort: Most revenue</option>
+            </select>
+            <button class="btn btn-outline btn-sm" onclick="openContactForm()">+ Add Contact</button>
+            <button class="btn btn-outline btn-sm" onclick="exportContactsCSV()">Export CSV</button>
+            <button class="btn btn-outline btn-sm" onclick="document.getElementById('contactSearchBar').value='';document.getElementById('contactFilter').value='all';contactPage=1;renderContacts();">Clear</button>
+        </div>
+        <div id="contactStats" style="font-size:12px;color:#666;margin:6px 0 10px;"></div>
+        <div style="overflow-x:auto;">
+            <table class="finance-table">
+                <thead>
+                    <tr>
+                        <th>Name</th><th>Phone</th><th>Email</th>
+                        <th>Jobs</th><th>Revenue</th><th>Last activity</th><th>Source</th><th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="contactsBody"></tbody>
+            </table>
+        </div>
+        <div class="pagination" id="contactsPagination"></div>
+    </div>
 </div>
 </div><!-- end tab-leads -->
+
+<!-- Contact Edit Modal -->
+<div class="modal-overlay" id="contactModal">
+    <div class="modal-box" style="max-width:520px;">
+        <div class="modal-header">
+            <h3 id="contactModalTitle">Contact</h3>
+            <button class="btn btn-outline btn-sm" onclick="closeContactForm()">&times; Close</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="contactEditId">
+            <div class="form-group"><label>Name *</label><input type="text" id="contactName" placeholder="John Smith"></div>
+            <div class="form-group"><label>Phone</label><input type="tel" id="contactPhone" placeholder="(786) 555-1234"></div>
+            <div class="form-group"><label>Email</label><input type="email" id="contactEmail" placeholder="john@email.com"></div>
+            <div class="form-group"><label>Address</label><input type="text" id="contactAddress" placeholder="123 Main St, Miami FL"></div>
+            <div class="form-group"><label>Notes</label><textarea id="contactNotes" rows="3" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;font-family:inherit;"></textarea></div>
+            <div id="contactHistory" style="font-size:12px;color:#666;"></div>
+        </div>
+        <div class="modal-footer">
+            <span class="stats"></span>
+            <div style="display:flex;gap:8px;">
+                <button class="btn btn-outline" onclick="closeContactForm()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveContactForm()">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- Schedule Popup (injected dynamically) -->
 <div class="sched-popup" id="schedPopup" style="display:none;"></div>
@@ -2081,7 +2162,7 @@ function switchTab(tab) {
     if (tab === 'finance') { setTimeout(function() { renderFinanceAll(); }, 50); }
     if (tab === 'chime') renderChimeAll();
     if (tab === 'team') renderTeamAll();
-    if (tab === 'leads') renderLeads();
+    if (tab === 'leads') { renderLeads(); renderContacts(); }
 }
 
 /* ═══════════════════════════════════════
@@ -2104,7 +2185,8 @@ var FINANCE_COLORS = {
     'Miscellaneous': '#636e72',
     'Insurance': '#2c3e50',
     'Truck Repair/Maintenance': '#d35400',
-    'Commissions': '#9b59b6'
+    'Commissions': '#9b59b6',
+    'Uncategorized': '#95a5a6'
 };
 
 /* ═══════════════════════════════════════
@@ -2118,8 +2200,11 @@ var financeEntries = JSON.parse(localStorage.getItem('fhd_finance')) || [];
 var financeTypes = JSON.parse(localStorage.getItem('fhd_financeTypes')) || [
     'Driver Pay', 'Gas', 'Tolls', 'Supplies',
     'Insurance', 'Truck Repair/Maintenance',
-    'Commissions', 'Trash Removal Fee', 'Distributions', 'Advertisement', 'Miscellaneous'
+    'Commissions', 'Trash Removal Fee', 'Distributions', 'Advertisement', 'Miscellaneous', 'Uncategorized'
 ];
+// Bank imports fall back to this type, so it always has to exist
+var UNCATEGORIZED = 'Uncategorized';
+if (financeTypes.indexOf(UNCATEGORIZED) === -1) { financeTypes.push(UNCATEGORIZED); localStorage.setItem('fhd_financeTypes', JSON.stringify(financeTypes)); }
 // Remove legacy Money Received if present
 var mrIdx = financeTypes.indexOf('Money Received');
 if (mrIdx !== -1) { financeTypes.splice(mrIdx, 1); localStorage.setItem('fhd_financeTypes', JSON.stringify(financeTypes)); }
@@ -2336,6 +2421,15 @@ function buildChart() {
 }
 
 window.addEventListener('resize', function() { if (animProgress >= 1) drawPie(1); });
+
+var chartResizeTimer = null;
+window.addEventListener('resize', function() {
+    clearTimeout(chartResizeTimer);
+    chartResizeTimer = setTimeout(function() {
+        if (document.getElementById('tab-finance').classList.contains('active')) drawFinanceChart();
+        if (document.getElementById('tab-chime').classList.contains('active')) drawChimeChart();
+    }, 150);
+});
 
 /* ═══════════════════════════════════════
    JOB SUMMARY
@@ -3179,7 +3273,16 @@ function drawFinanceChart() {
         if (tw > maxLabelW) maxLabelW = tw;
     });
 
-    var pad = { top: 12, right: Math.ceil(maxLabelW) + 20, bottom: 12, left: 140 };
+    // Category names on the left need room too, or long ones get clipped off-canvas
+    fctx.font = '12px "Segoe UI", system-ui, sans-serif';
+    var maxNameW = 0;
+    barData.forEach(function(d) {
+        var tw = fctx.measureText(d.label).width;
+        if (tw > maxNameW) maxNameW = tw;
+    });
+    var nameSpace = Math.min(Math.ceil(maxNameW) + 24, Math.floor(w * 0.4));
+
+    var pad = { top: 12, right: Math.ceil(maxLabelW) + 20, bottom: 12, left: Math.max(70, nameSpace) };
     var chartW = w - pad.left - pad.right;
     var barH = Math.min(26, (h - pad.top - pad.bottom) / barData.length - 10);
     var gap = (h - pad.top - pad.bottom - barData.length * barH) / (barData.length + 1);
@@ -3198,7 +3301,7 @@ function drawFinanceChart() {
         fctx.fillStyle = '#444';
         fctx.font = '12px "Segoe UI", system-ui, sans-serif';
         fctx.textAlign = 'right'; fctx.textBaseline = 'middle';
-        fctx.fillText(item.label, pad.left - 12, y + barH / 2);
+        fctx.fillText(ellipsize(fctx, item.label, pad.left - 16), pad.left - 12, y + barH / 2);
 
         // Bar with gradient
         var grad = fctx.createLinearGradient(pad.left, 0, pad.left + Math.max(barLen, 2), 0);
@@ -3215,6 +3318,13 @@ function drawFinanceChart() {
         fctx.textAlign = 'left'; fctx.textBaseline = 'middle';
         fctx.fillText(fmtDollar(item.value), pad.left + barLen + 8, y + barH / 2);
     });
+}
+
+function ellipsize(ctx, text, maxWidth) {
+    if (maxWidth <= 0 || ctx.measureText(text).width <= maxWidth) return text;
+    var out = text;
+    while (out.length > 1 && ctx.measureText(out + '\u2026').width > maxWidth) out = out.slice(0, -1);
+    return out + '\u2026';
 }
 
 function roundRect(ctx, x, y, w, h, r) {
@@ -3450,21 +3560,26 @@ var CATEGORY_RULES = [
     { pattern: /advance auto|autozone|tire kingdom|firestone|napa auto|o'?reilly|pep\s*boys|jiffy lube|meineke|midas|valvoline|maaco|caliber collision/i, type: 'Truck Repair/Maintenance' },
     { pattern: /solid\s*waste/i, type: 'Trash Removal Fee' },
     { pattern: /ascendant/i, type: 'Insurance' },
-    { pattern: /orion|westar/i, type: 'Gas' },
-    { pattern: /insur/i, type: 'Insurance' },
-    { pattern: /truck\s*repair|maintenance|mechanic|auto\s*repair|body\s*shop|oil\s*change|tire|brake|transmission|alignment/i, type: 'Truck Repair/Maintenance' },
-    { pattern: /costco\s*gas|gas\b|fuel|shell|exxon|mobil|chevron|bp\b|sunoco|wawa\s*fuel|speedway|circle\s*k|pilot|love.?s|marathon|7.?eleven|sheetz|racetrac|getgo|casey|murphy/i, type: 'Gas' },
-    { pattern: /toll|e.?z.?pass|sun.?pass|ez\s*tag|i.?pass|fast.?trak|pike|turnpike|expressway\s*auth/i, type: 'Tolls' },
-    { pattern: /home\s*depot|lowe|u.?haul|uline|moving\s*blanket|dolly|strap|bubble\s*wrap|packing|box|tape|supply|supplies/i, type: 'Supplies' },
-    { pattern: /payroll|driver\s*pay|wage|salary|compensation|contractor\s*pay/i, type: 'Driver Pay' },
-    { pattern: /deposit|payment\s*received|income|revenue|customer\s*pay|zelle\s*from|venmo\s*from|cash\s*app\s*from|direct\s*dep/i, type: 'Money Received' },
+    { pattern: /\borion\b|\bwestar\b/i, type: 'Gas' },
+    { pattern: /insur|geico|progressive|state\s*farm|allstate/i, type: 'Insurance' },
+    { pattern: /truck\s*repair|maintenance|mechanic|auto\s*repair|body\s*shop|oil\s*change|\btires?\b|\bbrakes?\b|transmission|alignment/i, type: 'Truck Repair/Maintenance' },
+    { pattern: /costco\s*gas|\bgas\b|\bgasoline\b|\bfuel\b|\bshell\b|\bexxon\b|\bmobil\b|\bchevron\b|\bbp\b|\bsunoco\b|\bwawa\b|\bspeedway\b|circle\s*k|pilot\s*(travel|flying)|\blove'?s\b|\bmarathon\b|7.?eleven|\bsheetz\b|\bracetrac\b|\bgetgo\b|casey'?s\s*gen|murphy\s*(usa|exp)/i, type: 'Gas' },
+    { pattern: /\btolls?\b|e.?z.?pass|sun.?pass|ez\s*tag|i.?pass|fast.?trak|\bturnpike\b|expressway\s*auth/i, type: 'Tolls' },
+    { pattern: /home\s*depot|\blowe'?s\b|u.?haul|\buline\b|moving\s*blanket|\bdolly\b|\bstraps?\b|bubble\s*wrap|packing|\bboxes?\b|\btape\b|\bsupply\b|\bsupplies\b|office\s*depot|\bstaples\b/i, type: 'Supplies' },
+    { pattern: /payroll|driver\s*pay|\bwages?\b|\bsalary\b|compensation|contractor\s*pay/i, type: 'Driver Pay' },
     { pattern: /commission|referral\s*fee|finder.?s?\s*fee|sales\s*bonus/i, type: 'Commissions' },
     { pattern: /trash\s*remov|waste\s*remov|junk\s*remov|debris\s*remov|hauling|dump\s*fee|landfill|waste\s*manage/i, type: 'Trash Removal Fee' },
     { pattern: /distribution/i, type: 'Distributions' },
-    { pattern: /google|adwords|advertising|marketing|facebook\s*ads|meta\s*ads|yelp\s*ads/i, type: 'Advertisement' },
-    { pattern: /zenbusiness|business\s*registration|llc|corp\s*filing/i, type: 'Miscellaneous' },
-    { pattern: /vehicle\s*tag|tag\s*renew|dmv|registration|title/i, type: 'Miscellaneous' }
+    { pattern: /\bgoogle\b|adwords|advertis|marketing|facebook\s*ads|meta\s*ads|yelp/i, type: 'Advertisement' },
+    { pattern: /zenbusiness|business\s*registration|corp\s*filing|\bsunbiz\b/i, type: 'Miscellaneous' },
+    { pattern: /vehicle\s*tag|tag\s*renew|\bdmv\b|tag\s*agency|title\s*(fee|service|transfer)/i, type: 'Miscellaneous' }
 ];
+
+// Descriptions that mean money coming in — never imported as an expense
+var DEPOSIT_PATTERN = /deposit|payment\s*received|\bincome\b|\brevenue\b|customer\s*pay|zelle\s*(payment\s*)?from|venmo\s*from|cash\s*app\s*from|direct\s*dep|transfer\s*in\b|refund|reversal|interest\s*paid|remote\s*(online\s*)?deposit|counter\s*credit|square\s*inc|mobile\s*deposit/i;
+
+// Card payments / internal transfers: already counted as their own card-statement expenses
+var INTERNAL_TRANSFER_PATTERN = /payment\s*to\s*chase\s*card|chase\s*credit\s*crd\s*(epay|autopay)|automatic\s*payment\s*-\s*thank/i;
 
 var COMMISSION_NAMES = ['jt', 'jorge t', 'jorge torrens'];
 
@@ -3499,7 +3614,34 @@ function categorizeTransaction(description) {
     for (var i = 0; i < CATEGORY_RULES.length; i++) {
         if (CATEGORY_RULES[i].pattern.test(desc)) return CATEGORY_RULES[i].type;
     }
-    return 'Miscellaneous';
+    return null;
+}
+
+var bankSkipStats = { deposits: 0, transfers: 0 };
+
+// Builds one preview row from a statement line, or returns null when the line
+// is money coming in / an internal transfer. Types are always validated against
+// the user's expense types so an import can never create an unknown category.
+function buildBankRow(dateStr, description, amount, isCredit) {
+    var desc = (description || '').trim();
+    if (INTERNAL_TRANSFER_PATTERN.test(desc)) { bankSkipStats.transfers++; return null; }
+    if (isCredit || DEPOSIT_PATTERN.test(desc)) { bankSkipStats.deposits++; return null; }
+
+    var isZelle = /zelle\s*payment\s*to\s/i.test(desc);
+    var type = isZelle ? categorizeZellePayment(desc, amount) : null;
+    if (!type) type = categorizeTransaction(desc);
+
+    var needsSelect = !type || financeTypes.indexOf(type) === -1;
+    if (needsSelect) type = UNCATEGORIZED;
+
+    return {
+        date: dateStr,
+        description: desc,
+        amount: Math.abs(amount),
+        type: type,
+        include: true,
+        needsSelect: needsSelect
+    };
 }
 
 function parseCSVLine(line) {
@@ -3550,13 +3692,14 @@ function parseAmount(val) {
 }
 
 function detectColumns(headers) {
-    var result = { date: -1, description: -1, amount: -1, debit: -1, credit: -1 };
+    var result = { date: -1, description: -1, amount: -1, debit: -1, credit: -1, kind: -1 };
     headers.forEach(function(h, i) {
         var lc = h.toLowerCase().replace(/[^a-z0-9]/g, '');
         if (result.date === -1 && /^(date|postdate|transdate|postingdate|transactiondate)$/.test(lc)) result.date = i;
         if (result.amount === -1 && /^(amount|transactionamount|amt)$/.test(lc)) result.amount = i;
         if (result.debit === -1 && /^(debit|withdrawal|debits|withdrawals|expense)$/.test(lc)) result.debit = i;
         if (result.credit === -1 && /^(credit|deposit|credits|deposits|income)$/.test(lc)) result.credit = i;
+        if (result.kind === -1 && /^(details|type|transactiontype|debitcredit|debitorcredit|crdr|drcr)$/.test(lc)) result.kind = i;
     });
     // Two-pass for description: prefer exact "description" over "details"
     headers.forEach(function(h, i) {
@@ -3682,7 +3825,7 @@ function parsePDFText(text) {
     console.log(text.substring(0, 2000));
 
     var lines = text.split(/\n/);
-    bankParsedRows = [];
+    var candidates = [];
 
     var datePatterns = [
         /(\d{1,2}\/\d{1,2}\/\d{2,4})/,
@@ -3729,28 +3872,31 @@ function parsePDFText(text) {
         var desc = searchText.replace(/[-]?\$?\s*[\d,]+\.\d{2}/g, '').replace(/[-]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
         if (desc.length < 2) desc = 'PDF Transaction';
 
-        var amtObj = amounts[amounts.length > 1 ? amounts.length - 1 : 0];
-        var amount = amtObj.value;
-        var isCredit = !amtObj.negative && (/deposit|credit|transfer\s*in|payment\s*received|direct\s*dep/i.test(line));
-        var autoType = categorizeTransaction(desc);
+        candidates.push({ date: usableDate, description: desc.substring(0, 80), amounts: amounts, line: line });
+    });
 
-        if (isCredit || autoType === 'Money Received' || /deposit|credit|transfer\s*in/i.test(line)) {
-            autoType = 'Money Received';
-        }
+    // Statement rows usually read "date  description  amount  balance"; when most
+    // rows carry two amounts the trailing one is the running balance, not the
+    // transaction, so importing it would inflate every expense.
+    var multi = candidates.filter(function(c) { return c.amounts.length > 1; }).length;
+    var hasBalanceColumn = candidates.length > 0 && multi > candidates.length / 2;
 
-        bankParsedRows.push({
-            date: usableDate,
-            description: desc.substring(0, 80) || 'PDF Transaction',
-            amount: amount,
-            type: autoType,
-            include: true
-        });
+    bankSkipStats = { deposits: 0, transfers: 0 };
+    bankParsedRows = [];
+    candidates.forEach(function(c) {
+        var idx = hasBalanceColumn && c.amounts.length > 1 ? c.amounts.length - 2 : c.amounts.length - 1;
+        var amtObj = c.amounts[idx];
+        var isCredit = !amtObj.negative && /deposit|credit|transfer\s*in|payment\s*received|direct\s*dep/i.test(c.line);
+        var row = buildBankRow(c.date, c.description || 'PDF Transaction', amtObj.value, isCredit);
+        if (row) bankParsedRows.push(row);
     });
 
     if (bankParsedRows.length === 0) {
-        console.log('[PDF Debug] No transactions found. Full text dump:');
+        console.log('[PDF Debug] No expenses found. Full text dump:');
         console.log(text);
-        toast('No transactions could be extracted. Open browser console (F12) to see extracted text for debugging. Try CSV export for best results.', true);
+        toast(bankSkipStats.deposits > 0
+            ? 'Only deposits (' + bankSkipStats.deposits + ') were found in this PDF — nothing to import as an expense.'
+            : 'No transactions could be extracted. Open browser console (F12) to see extracted text for debugging. Try CSV export for best results.', true);
         return;
     }
 
@@ -3759,14 +3905,45 @@ function parsePDFText(text) {
     toast(bankParsedRows.length + ' transactions found in PDF.');
 }
 
+var CREDIT_MARKERS = /^(credit|cr|c|deposit|deposits|creditcard|payment|refund)$/;
+var DEBIT_MARKERS = /^(debit|dr|d|withdrawal|withdrawals|check|checkcard|ach|sale|purchase|fee|charge|debitcard)$/;
+
+function kindIsCredit(value) {
+    var v = (value || '').toLowerCase().replace(/[^a-z]/g, '');
+    if (CREDIT_MARKERS.test(v)) return true;
+    if (DEBIT_MARKERS.test(v)) return false;
+    if (/credit$/.test(v)) return true;
+    if (/debit$/.test(v)) return false;
+    return null;
+}
+
+// Banks disagree on signs: some export expenses as negative, credit-card exports
+// often list charges as positive. Work out which convention this file uses so
+// expenses are never dropped as if they were deposits.
+function detectSignConvention(amounts, descriptions) {
+    var negatives = 0, positives = 0;
+    amounts.forEach(function(a) { if (a < 0) negatives++; else if (a > 0) positives++; });
+    if (negatives > 0) return 'negative-is-expense';
+    if (positives === 0) return 'negative-is-expense';
+
+    // Everything is positive: fall back to the description to spot the deposits.
+    var deposits = descriptions.filter(function(d) { return DEPOSIT_PATTERN.test(d); }).length;
+    return deposits < positives ? 'all-positive-are-expenses' : 'negative-is-expense';
+}
+
 function parseBankCSV(csvText) {
     var lines = csvText.split(/\r?\n/).filter(function(l) { return l.trim().length > 0; });
     if (lines.length < 2) { toast('File appears empty or has no data rows.'); return; }
 
     var headers = parseCSVLine(lines[0]);
     var cols = detectColumns(headers);
+    if (cols.kind !== -1 && cols.description === cols.kind) {
+        for (var d = 0; d < headers.length; d++) {
+            if (d !== cols.date && d !== cols.amount && d !== cols.debit && d !== cols.credit && d !== cols.kind) { cols.description = d; break; }
+        }
+    }
 
-    bankParsedRows = [];
+    var parsed = [];
     for (var i = 1; i < lines.length; i++) {
         var fields = parseCSVLine(lines[i]);
         if (fields.length < 2) continue;
@@ -3774,79 +3951,78 @@ function parseBankCSV(csvText) {
         var dateStr = parseDate(fields[cols.date]);
         if (!dateStr) continue;
 
-        var desc = (fields[cols.description] || '').trim();
-        var amount = null;
+        var signedAmount = null;
+        var explicitCredit = null;
 
         if (cols.amount !== -1) {
-            amount = parseAmount(fields[cols.amount]);
+            signedAmount = parseAmount(fields[cols.amount]);
         } else {
             var debitVal = cols.debit !== -1 ? parseAmount(fields[cols.debit]) : null;
             var creditVal = cols.credit !== -1 ? parseAmount(fields[cols.credit]) : null;
-            if (creditVal && creditVal > 0) amount = creditVal;
-            else if (debitVal) amount = Math.abs(debitVal);
+            if (creditVal) { signedAmount = Math.abs(creditVal); explicitCredit = true; }
+            else if (debitVal) { signedAmount = -Math.abs(debitVal); explicitCredit = false; }
             else continue;
         }
 
-        if (amount === null || amount === 0) continue;
+        if (signedAmount === null || signedAmount === 0) continue;
 
-        var isCredit = false;
-        if (cols.amount !== -1) {
-            isCredit = amount > 0;
-            amount = Math.abs(amount);
-        } else {
-            isCredit = cols.credit !== -1 && parseAmount(fields[cols.credit]) > 0;
-        }
+        if (explicitCredit === null && cols.kind !== -1) explicitCredit = kindIsCredit(fields[cols.kind]);
 
-        if (isCredit) continue;
-
-        // Omit credit card payments from Chase activity
-        if (/payment\s*to\s*chase\s*card/i.test(desc)) continue;
-
-        var autoType = null;
-        var needsSelect = false;
-        var isZelle = /zelle\s*payment\s*to\s/i.test(desc);
-        if (isZelle) {
-            autoType = categorizeZellePayment(desc, amount);
-        }
-        if (!autoType) {
-            autoType = categorizeTransaction(desc);
-        }
-        if (autoType === 'Money Received') continue;
-
-        if (autoType === 'Miscellaneous' && isZelle) {
-            needsSelect = true;
-        }
-
-        bankParsedRows.push({
+        parsed.push({
             date: dateStr,
-            description: desc,
-            amount: amount,
-            type: autoType,
-            include: true,
-            needsSelect: needsSelect
+            description: (fields[cols.description] || '').trim(),
+            signedAmount: signedAmount,
+            explicitCredit: explicitCredit
         });
     }
 
-    if (bankParsedRows.length === 0) { toast('No valid transactions found in the file.'); return; }
+    var convention = detectSignConvention(
+        parsed.filter(function(r) { return r.explicitCredit === null; }).map(function(r) { return r.signedAmount; }),
+        parsed.map(function(r) { return r.description; })
+    );
+
+    bankSkipStats = { deposits: 0, transfers: 0 };
+    bankParsedRows = [];
+    parsed.forEach(function(r) {
+        var isCredit = r.explicitCredit;
+        if (isCredit === null) {
+            isCredit = convention === 'all-positive-are-expenses' ? false : r.signedAmount > 0;
+        }
+        var row = buildBankRow(r.date, r.description, r.signedAmount, isCredit);
+        if (row) bankParsedRows.push(row);
+    });
+
+    if (bankParsedRows.length === 0) {
+        toast(bankSkipStats.deposits > 0
+            ? 'No expenses found — the ' + bankSkipStats.deposits + ' transaction(s) in this file all look like deposits.'
+            : 'No valid transactions found in the file.', true);
+        return;
+    }
 
     bankParsedRows.sort(function(a, b) { return a.date.localeCompare(b.date); });
     showBankPreview();
 }
 
+function bankTypeOptions(selected) {
+    return financeTypes.map(function(t) {
+        return '<option value="' + esc(t) + '"' + (t === selected ? ' selected' : '') + '>' + esc(t) + '</option>';
+    }).join('');
+}
+
 function showBankPreview() {
-    var optionsHtml = financeTypes.map(function(t) { return '<option value="' + t + '">' + t + '</option>'; }).join('');
 
     var html = '<table class="preview-table"><thead><tr><th style="width:30px"><input type="checkbox" class="preview-check" checked onchange="toggleAllBankRows(this)"></th><th>Date</th><th>Description</th><th>Amount</th><th>Category</th></tr></thead><tbody>';
     bankParsedRows.forEach(function(row, idx) {
         var cls = 'amount-neg';
         var prefix = '-';
         var isDupe = findDuplicateBankRow(row).length > 0;
-        var rowStyle = row.needsSelect ? ' style="background:#fff0f0;border-left:3px solid #e74c3c;"' : (isDupe ? ' style="background:#fff8e1;border-left:3px solid #f9a825;"' : '');
-        var selectOpts = row.needsSelect ? '<option value="" disabled selected style="color:#c0392b;font-weight:700;">— Select —</option>' + optionsHtml : optionsHtml.replace('value="' + row.type + '"', 'value="' + row.type + '" selected');
-        var onChangeHandler = row.needsSelect ? 'bankParsedRows[' + idx + '].type=this.value;bankParsedRows[' + idx + '].needsSelect=false;this.closest(\"tr\").style.background=\"\";this.closest(\"tr\").style.borderLeft=\"\"' : 'bankParsedRows[' + idx + '].type=this.value';
+        var rowStyle = row.needsSelect ? ' style="background:#fff8e1;border-left:3px solid #f9a825;"' : (isDupe ? ' style="background:#fff8e1;border-left:3px solid #f9a825;"' : '');
+        var selectOpts = bankTypeOptions(row.type);
+        var onChangeHandler = 'bankRowTypeChanged(' + idx + ', this)';
         var dupeTag = isDupe ? '<span style="font-size:9px;background:#f9a825;color:#fff;padding:1px 5px;border-radius:4px;margin-left:4px;font-weight:600;">DUPLICATE?</span>' : '';
-        html += '<tr id="bankRow' + idx + '"' + rowStyle + '>' +
-            '<td><input type="checkbox" class="preview-check"' + (isDupe ? '' : ' checked') + ' onchange="toggleBankRow(' + idx + ', this)"></td>' +
+        if (isDupe) row.include = false;
+        html += '<tr id="bankRow' + idx + '"' + rowStyle + (row.include ? '' : ' class="skip-row"') + '>' +
+            '<td><input type="checkbox" class="preview-check"' + (row.include ? ' checked' : '') + ' onchange="toggleBankRow(' + idx + ', this)"></td>' +
             '<td>' + row.date + '</td>' +
             '<td>' + esc(row.description.substring(0, 60)) + dupeTag + '</td>' +
             '<td class="' + cls + '">' + prefix + '$' + row.amount.toFixed(2) + '</td>' +
@@ -3867,10 +4043,35 @@ function updateBankPreviewStats() {
     var needsSelect = included.filter(function(r) { return r.needsSelect; }).length;
     var statsHtml = included.length + ' of ' + bankParsedRows.length + ' expenses selected &nbsp;|&nbsp; ' +
         'Total: <strong style="color:#c0392b">$' + exp.toFixed(2) + '</strong>';
+    var skipped = [];
+    if (bankSkipStats.deposits > 0) skipped.push(bankSkipStats.deposits + ' deposit' + (bankSkipStats.deposits === 1 ? '' : 's'));
+    if (bankSkipStats.transfers > 0) skipped.push(bankSkipStats.transfers + ' card payment' + (bankSkipStats.transfers === 1 ? '' : 's'));
+    if (skipped.length) {
+        statsHtml += ' &nbsp;|&nbsp; <span style="color:#666">' + skipped.join(' and ') + ' skipped (not expenses)</span>';
+    }
     if (needsSelect > 0) {
-        statsHtml += ' &nbsp;|&nbsp; <strong style="color:#e74c3c">' + needsSelect + ' need category selection</strong>';
+        statsHtml += ' &nbsp;|&nbsp; <strong style="color:#b8860b">' + needsSelect + ' imported as ' + UNCATEGORIZED + '</strong>' +
+            ' <button onclick="setUncategorizedToMisc()" style="font-size:11px;padding:2px 8px;margin-left:6px;cursor:pointer">Set all to Miscellaneous</button>';
     }
     document.getElementById('bankPreviewStats').innerHTML = statsHtml;
+}
+
+function bankRowTypeChanged(idx, select) {
+    var row = bankParsedRows[idx];
+    if (!row || !select.value) return;
+    row.type = select.value;
+    row.needsSelect = false;
+    var tr = document.getElementById('bankRow' + idx);
+    if (tr) { tr.style.background = ''; tr.style.borderLeft = ''; }
+    updateBankPreviewStats();
+}
+
+function setUncategorizedToMisc() {
+    var fallback = financeTypes.indexOf('Miscellaneous') !== -1 ? 'Miscellaneous' : financeTypes[0];
+    bankParsedRows.forEach(function(row) {
+        if (row.needsSelect) { row.type = fallback; row.needsSelect = false; }
+    });
+    showBankPreview();
 }
 
 function toggleBankRow(idx, cb) {
@@ -3900,8 +4101,11 @@ function closeBankPreview() {
 function confirmBankImport() {
     var toImport = bankParsedRows.filter(function(r) { return r.include; });
     if (toImport.length === 0) { toast('No transactions selected.'); return; }
-    var unselected = toImport.filter(function(r) { return r.needsSelect; });
-    if (unselected.length > 0) { toast(unselected.length + ' transaction(s) still need a category. Look for rows highlighted in red.', true); return; }
+    var uncategorized = 0;
+    toImport.forEach(function(row) {
+        if (financeTypes.indexOf(row.type) === -1) row.type = UNCATEGORIZED;
+        if (row.type === UNCATEGORIZED) uncategorized++;
+    });
 
     toImport.forEach(function(row) {
         financeEntries.push({
@@ -3917,7 +4121,8 @@ function confirmBankImport() {
     save();
     renderFinanceAll();
     closeBankPreview();
-    toast(toImport.length + ' transactions imported successfully!');
+    toast(toImport.length + ' transactions imported' +
+        (uncategorized > 0 ? ' — ' + uncategorized + ' as "' + UNCATEGORIZED + '", filter the Finance Log by that type to fix them.' : ' successfully!'));
 }
 
 // Drag & drop support
@@ -4638,7 +4843,28 @@ function setSchedView(v) {
 }
 function schedNavPrev() { schedOffset--; renderSchedule(); }
 function schedNavNext() { schedOffset++; renderSchedule(); }
-function goToday() { schedOffset = 0; renderSchedule(); }
+
+function goToday() {
+    schedOffset = 0;
+    renderSchedule();
+    var cell = document.querySelector('#schedContainer .cal-day.today');
+    if (!cell) return;
+    cell.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    cell.classList.remove('today-flash');
+    void cell.offsetWidth;
+    cell.classList.add('today-flash');
+}
+
+/* Keep the red outline on the real current day even when the dashboard is left
+   open across midnight. */
+var _schedTodayKey = null;
+setInterval(function() {
+    var key = fmtDate(new Date());
+    if (_schedTodayKey && key !== _schedTodayKey && document.getElementById('tab-team').classList.contains('active')) {
+        renderSchedule();
+    }
+    _schedTodayKey = key;
+}, 60000);
 
 function getWeekDates(offset) {
     var now = new Date(); var day = now.getDay();
@@ -4710,6 +4936,7 @@ function renderSchedule() {
     var container = document.getElementById('schedContainer');
     var label = document.getElementById('schedNavLabel');
     var todayKey = fmtDate(new Date());
+    _schedTodayKey = todayKey;
 
     if (schedView === 'week') {
         var dates = getWeekDates(schedOffset);
@@ -4986,7 +5213,10 @@ document.getElementById('leadForm').addEventListener('submit', function(e) {
     };
     leads.push(lead);
     saveLeads();
+    upsertContact({ name: lead.name, phone: lead.phone, email: lead.email, notes: lead.notes }, 'Lead');
+    saveContacts();
     renderLeads();
+    renderContacts();
     e.target.reset();
     toast('Lead added!');
 });
@@ -5101,6 +5331,292 @@ function copyQuoteLink() {
 })();
 
 /* ═══════════════════════════════════════
+   CONTACT BOOK (CRM)
+   Contacts are harvested from jobs, leads and quote requests and then kept
+   forever: nothing removes a contact except an explicit delete, which is
+   remembered so the harvester cannot resurrect it.
+   ═══════════════════════════════════════ */
+var contacts = JSON.parse(localStorage.getItem('fhd_contacts')) || [];
+var deletedContactKeys = JSON.parse(localStorage.getItem('fhd_contacts_deleted')) || [];
+var contactPage = 1;
+var CONTACT_PAGE_SIZE = 20;
+
+function saveContacts() {
+    localStorage.setItem('fhd_contacts', JSON.stringify(contacts));
+    localStorage.setItem('fhd_contacts_deleted', JSON.stringify(deletedContactKeys));
+}
+
+function phoneKey(phone) {
+    var digits = (phone || '').replace(/\D/g, '');
+    if (digits.length > 10) digits = digits.slice(-10);
+    return digits.length >= 7 ? digits : '';
+}
+
+function contactKeys(c) {
+    var keys = [];
+    var p = phoneKey(c.phone);
+    if (p) keys.push('p:' + p);
+    if (c.email) keys.push('e:' + c.email.trim().toLowerCase());
+    if (c.name) keys.push('n:' + c.name.trim().toLowerCase());
+    return keys;
+}
+
+function findContact(candidate) {
+    var p = phoneKey(candidate.phone);
+    var em = (candidate.email || '').trim().toLowerCase();
+    var nm = (candidate.name || '').trim().toLowerCase();
+    for (var i = 0; i < contacts.length; i++) {
+        var c = contacts[i];
+        if (p && phoneKey(c.phone) === p) return c;
+    }
+    for (var j = 0; j < contacts.length; j++) {
+        if (em && (contacts[j].email || '').trim().toLowerCase() === em) return contacts[j];
+    }
+    for (var k = 0; k < contacts.length; k++) {
+        if (nm && (contacts[k].name || '').trim().toLowerCase() === nm) return contacts[k];
+    }
+    return null;
+}
+
+function isDeletedContact(candidate) {
+    var keys = contactKeys(candidate);
+    for (var i = 0; i < keys.length; i++) {
+        if (deletedContactKeys.indexOf(keys[i]) !== -1) return true;
+    }
+    return false;
+}
+
+/* Adds or enriches a contact. Existing fields are never blanked out — a later
+   record can only fill in details the contact was missing. */
+function upsertContact(candidate, source) {
+    if (!candidate) return null;
+    var name = (candidate.name || '').trim();
+    var phone = (candidate.phone || '').trim();
+    var email = (candidate.email || '').trim();
+    if (!name && !phone && !email) return null;
+    if (isDeletedContact({ name: name, phone: phone, email: email })) return null;
+
+    var existing = findContact({ name: name, phone: phone, email: email });
+    if (existing) {
+        var changed = false;
+        if (!existing.name && name) { existing.name = name; changed = true; }
+        if (!existing.phone && phone) { existing.phone = phone; changed = true; }
+        if (!existing.email && email) { existing.email = email; changed = true; }
+        if (!existing.address && candidate.address) { existing.address = candidate.address; changed = true; }
+        if (candidate.notes && (existing.notes || '').indexOf(candidate.notes) === -1) {
+            existing.notes = existing.notes ? existing.notes + '\n' + candidate.notes : candidate.notes;
+            changed = true;
+        }
+        if (changed) existing.updated = new Date().toISOString();
+        return existing;
+    }
+
+    var contact = {
+        id: Date.now() + Math.floor(Math.random() * 100000),
+        name: name || phone || email,
+        phone: phone,
+        email: email,
+        address: candidate.address || '',
+        notes: candidate.notes || '',
+        source: source || 'Manual',
+        created: new Date().toISOString(),
+        updated: new Date().toISOString()
+    };
+    contacts.push(contact);
+    return contact;
+}
+
+/* Rebuilds the book from every job and lead on record. Safe to call often. */
+function syncContacts() {
+    var before = JSON.stringify(contacts);
+    entries.forEach(function(e) {
+        upsertContact({ name: e.customer, phone: e.phone, email: e.email }, 'Job');
+    });
+    leads.forEach(function(l) {
+        upsertContact({ name: l.name, phone: l.phone, email: l.email, notes: l.notes }, 'Lead');
+    });
+    if (JSON.stringify(contacts) !== before) saveContacts();
+}
+
+function contactActivity(c) {
+    var p = phoneKey(c.phone);
+    var em = (c.email || '').trim().toLowerCase();
+    var nm = (c.name || '').trim().toLowerCase();
+    function matches(name, phone, email) {
+        if (p && phoneKey(phone) === p) return true;
+        if (em && (email || '').trim().toLowerCase() === em) return true;
+        return !!nm && (name || '').trim().toLowerCase() === nm;
+    }
+    var jobs = entries.filter(function(e) { return matches(e.customer, e.phone, e.email); });
+    var myLeads = leads.filter(function(l) { return matches(l.name, l.phone, l.email); });
+    var revenue = jobs.reduce(function(s, e) { return s + (e.revenue || 0); }, 0);
+    var dates = jobs.map(function(e) { return e.date; }).concat(myLeads.map(function(l) { return l.date; }));
+    dates.sort();
+    return {
+        jobs: jobs.length,
+        jobCount: jobs.reduce(function(s, e) { return s + (e.amount || 1); }, 0),
+        revenue: revenue,
+        last: dates.length ? dates[dates.length - 1] : (c.created || '').slice(0, 10),
+        services: myLeads.map(function(l) { return l.service; }).join(' '),
+        status: myLeads.length ? myLeads[myLeads.length - 1].status : ''
+    };
+}
+
+/* Every search term must match somewhere on the contact; phone terms are
+   compared digits-only so "7865551234" finds "(786) 555-1234". */
+function contactMatchesSearch(c, act, search) {
+    if (!search) return true;
+    var haystack = [c.name, c.phone, phoneKey(c.phone), c.email, c.address, c.notes, c.source, act.services, act.status]
+        .join(' ').toLowerCase();
+    return search.split(/\s+/).every(function(term) {
+        if (/^[\d()\-+.\s]+$/.test(term) && term.replace(/\D/g, '').length >= 3) {
+            return haystack.replace(/\D/g, ' ').indexOf(term.replace(/\D/g, '')) !== -1 || haystack.indexOf(term) !== -1;
+        }
+        return haystack.indexOf(term) !== -1;
+    });
+}
+
+function renderContacts() {
+    var body = document.getElementById('contactsBody');
+    if (!body) return;
+    syncContacts();
+
+    var search = (document.getElementById('contactSearchBar').value || '').trim().toLowerCase();
+    var filter = document.getElementById('contactFilter').value;
+    var sort = document.getElementById('contactSort').value;
+    var staleCutoff = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
+
+    var rows = contacts.map(function(c) { return { c: c, act: contactActivity(c) }; }).filter(function(r) {
+        if (filter === 'customers' && r.act.jobs === 0) return false;
+        if (filter === 'leads' && r.act.jobs > 0) return false;
+        if (filter === 'repeat' && r.act.jobs < 2) return false;
+        if (filter === 'stale' && r.act.last >= staleCutoff) return false;
+        return contactMatchesSearch(r.c, r.act, search);
+    });
+
+    rows.sort(function(a, b) {
+        if (sort === 'name') return (a.c.name || '').localeCompare(b.c.name || '');
+        if (sort === 'jobs') return b.act.jobs - a.act.jobs;
+        if (sort === 'revenue') return b.act.revenue - a.act.revenue;
+        return (b.act.last || '').localeCompare(a.act.last || '');
+    });
+
+    var totalPages = Math.max(1, Math.ceil(rows.length / CONTACT_PAGE_SIZE));
+    if (contactPage > totalPages) contactPage = totalPages;
+    var pageRows = rows.slice((contactPage - 1) * CONTACT_PAGE_SIZE, contactPage * CONTACT_PAGE_SIZE);
+
+    if (!rows.length) {
+        body.innerHTML = '<tr><td colspan="8" class="empty-log">' +
+            (contacts.length ? 'No contacts match this search.' : 'No contacts yet — they appear here as soon as you log a job or a lead.') +
+            '</td></tr>';
+    } else {
+        body.innerHTML = pageRows.map(function(r) {
+            var c = r.c, act = r.act;
+            var tel = c.phone ? '<a href="tel:' + esc(c.phone.replace(/[^\d+]/g, '')) + '">' + esc(c.phone) + '</a>' : '—';
+            var mail = c.email ? '<a href="mailto:' + esc(c.email) + '">' + esc(c.email) + '</a>' : '—';
+            var badge = act.jobs >= 2 ? ' <span style="font-size:9px;background:#28a745;color:#fff;padding:1px 5px;border-radius:4px;">REPEAT</span>' : '';
+            return '<tr>' +
+                '<td><strong>' + esc(c.name) + '</strong>' + badge +
+                    (c.address ? '<br><span style="font-size:10px;color:#888;">' + esc(c.address) + '</span>' : '') + '</td>' +
+                '<td>' + tel + '</td>' +
+                '<td>' + mail + '</td>' +
+                '<td>' + act.jobs + '</td>' +
+                '<td>' + (act.revenue > 0 ? '$' + act.revenue.toFixed(2) : '—') + '</td>' +
+                '<td>' + esc(act.last || '—') + '</td>' +
+                '<td><span style="font-size:11px;color:#888;">' + esc(c.source) + '</span></td>' +
+                '<td class="action-cell">' +
+                    '<button class="btn-edit" onclick="openContactForm(' + c.id + ')" title="View / edit">&#9998;</button>' +
+                    '<button class="btn btn-danger" onclick="deleteContact(' + c.id + ')" title="Delete">&times;</button>' +
+                '</td></tr>';
+        }).join('');
+    }
+
+    document.getElementById('contactsPagination').innerHTML = buildPagination(contactPage, totalPages, rows.length, 'setContactPage');
+    var customers = contacts.filter(function(c) { return contactActivity(c).jobs > 0; }).length;
+    document.getElementById('contactStats').innerHTML =
+        '<strong>' + contacts.length + '</strong> saved contacts &nbsp;|&nbsp; ' + customers + ' have booked a job &nbsp;|&nbsp; ' +
+        'showing ' + rows.length;
+}
+
+function setContactPage(p) { contactPage = p; renderContacts(); }
+
+function openContactForm(id) {
+    var c = id ? contacts.find(function(x) { return x.id === id; }) : null;
+    document.getElementById('contactModalTitle').textContent = c ? 'Edit contact' : 'New contact';
+    document.getElementById('contactEditId').value = c ? c.id : '';
+    document.getElementById('contactName').value = c ? c.name : '';
+    document.getElementById('contactPhone').value = c ? c.phone : '';
+    document.getElementById('contactEmail').value = c ? (c.email || '') : '';
+    document.getElementById('contactAddress').value = c ? (c.address || '') : '';
+    document.getElementById('contactNotes').value = c ? (c.notes || '') : '';
+    var hist = document.getElementById('contactHistory');
+    if (c) {
+        var act = contactActivity(c);
+        hist.innerHTML = '<strong>History:</strong> ' + act.jobs + ' job(s), $' + act.revenue.toFixed(2) +
+            ' revenue, last activity ' + esc(act.last || '—') + (act.status ? ', lead status ' + esc(act.status) : '');
+    } else {
+        hist.innerHTML = '';
+    }
+    document.getElementById('contactModal').classList.add('active');
+}
+
+function closeContactForm() { document.getElementById('contactModal').classList.remove('active'); }
+
+function saveContactForm() {
+    var id = document.getElementById('contactEditId').value;
+    var name = document.getElementById('contactName').value.trim();
+    if (!name) { toast('Name is required.'); return; }
+    var data = {
+        name: name,
+        phone: document.getElementById('contactPhone').value.trim(),
+        email: document.getElementById('contactEmail').value.trim(),
+        address: document.getElementById('contactAddress').value.trim(),
+        notes: document.getElementById('contactNotes').value.trim()
+    };
+    if (id) {
+        var c = contacts.find(function(x) { return x.id === parseInt(id, 10); });
+        if (c) {
+            c.name = data.name; c.phone = data.phone; c.email = data.email;
+            c.address = data.address; c.notes = data.notes;
+            c.updated = new Date().toISOString();
+        }
+    } else {
+        var created = upsertContact(data, 'Manual');
+        if (!created) { toast('That contact was deleted before — re-add it with a different phone or email.', true); return; }
+    }
+    saveContacts();
+    closeContactForm();
+    renderContacts();
+    toast('Contact saved.');
+}
+
+function deleteContact(id) {
+    var c = contacts.find(function(x) { return x.id === id; });
+    if (!c) return;
+    if (!confirm('Delete ' + c.name + ' from the contact book? Their jobs and leads stay untouched.')) return;
+    contactKeys(c).forEach(function(k) {
+        if (deletedContactKeys.indexOf(k) === -1) deletedContactKeys.push(k);
+    });
+    contacts = contacts.filter(function(x) { return x.id !== id; });
+    saveContacts();
+    renderContacts();
+    toast('Contact deleted.');
+}
+
+function exportContactsCSV() {
+    syncContacts();
+    var rows = [['Name', 'Phone', 'Email', 'Address', 'Jobs', 'Revenue', 'Last activity', 'Source', 'Notes']];
+    contacts.forEach(function(c) {
+        var act = contactActivity(c);
+        rows.push([c.name, c.phone, c.email || '', c.address || '', act.jobs, act.revenue.toFixed(2), act.last || '', c.source, (c.notes || '').replace(/\n/g, ' ')]);
+    });
+    var csv = rows.map(function(r) {
+        return r.map(function(v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(',');
+    }).join('\n');
+    dl(new Blob([csv], { type: 'text/csv' }), 'fhd-contacts-' + today() + '.csv');
+}
+
+/* ═══════════════════════════════════════
    MONEY SNAPSHOT
    Every figure comes from the shared finance helpers (financeTotals /
    expensesByTypeIn), so the card always matches the Revenues & Expenses tab.
@@ -5196,6 +5712,8 @@ function escapeHTML(str) {
    ═══════════════════════════════════════ */
 function renderAll() {
     renderCategories(); buildChart(); renderSummary(); renderLog(); renderMoneySnapshot();
+    syncContacts();
+    if (document.getElementById('tab-leads').classList.contains('active')) renderContacts();
 }
 function renderFinanceAll() {
     renderFinanceTypes(); renderFinanceSummary(); renderFinanceBreakdown(); drawFinanceChart(); renderFinanceLog(); renderMoneySnapshot();
