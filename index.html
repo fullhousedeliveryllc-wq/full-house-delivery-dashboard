@@ -778,7 +778,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v55</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v56</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -1780,6 +1780,7 @@ async function handleSignOut() {
     if (!supaClient) return;
     unsubscribeRealtime();
     try {
+        await pushState();
         await flushSync();
     } catch (err) {
         console.error('Flush sync before sign-out failed:', err);
@@ -1794,7 +1795,7 @@ async function handleSignOut() {
    SUPABASE REALTIME (live updates)
    ═══════════════════════════════════════ */
 
-var REALTIME_TABLES = ['job_entries', 'finance_entries', 'categories'];
+var REALTIME_TABLES = ['job_entries', 'finance_entries', 'categories', 'app_state'];
 var _realtimeChannel = null;
 var _realtimeTimer = null;
 var _localWriteInFlight = false;
@@ -1827,7 +1828,16 @@ function subscribeRealtime() {
 
 function onRealtimeChange(payload) {
     console.log('[REALTIME] change on ' + (payload && payload.table) + ': ' + (payload && payload.eventType));
+    if (payload && payload.table === 'app_state') { scheduleStatePull(); return; }
     scheduleRealtimeReload();
+}
+
+function scheduleStatePull() {
+    if (_statePullTimer) clearTimeout(_statePullTimer);
+    _statePullTimer = setTimeout(function() {
+        _statePullTimer = null;
+        pullState();
+    }, 600);
 }
 
 function scheduleRealtimeReload() {
@@ -1849,6 +1859,7 @@ function scheduleRealtimeReload() {
 
 function unsubscribeRealtime() {
     if (_realtimeTimer) { clearTimeout(_realtimeTimer); _realtimeTimer = null; }
+    if (_statePullTimer) { clearTimeout(_statePullTimer); _statePullTimer = null; }
     if (_realtimeChannel && supaClient) {
         try { supaClient.removeChannel(_realtimeChannel); }
         catch (err) { console.error('[REALTIME] unsubscribe failed:', err); }
@@ -2020,6 +2031,8 @@ async function loadFromSupabase() {
             localStorage.removeItem('fhd_dirty');
         }
 
+        await pullState();
+
         _lastSyncTime = Date.now();
         setSyncStatus(_realtimeChannel ? 'Live' : 'Synced');
     } catch (err) {
@@ -2141,9 +2154,150 @@ function saveLocal() {
     localStorage.setItem('fhd_categories', JSON.stringify(categories));
     localStorage.setItem('fhd_entries', JSON.stringify(entries));
     localStorage.setItem('fhd_finance', JSON.stringify(financeEntries));
-    localStorage.setItem('fhd_financeTypes', JSON.stringify(financeTypes));
-    localStorage.setItem('fhd_chime', JSON.stringify(chimeEntries));
+    saveState('fhd_financeTypes', financeTypes);
+    saveState('fhd_chime', chimeEntries);
     localStorage.setItem('fhd_dirty', '1');
+}
+
+/* ═══════════════════════════════════════
+   CLOUD APP STATE
+   Jobs, finance entries and job categories have their own tables. Everything
+   else the dashboard keeps (expense types, team, schedule, availability, audit
+   log, pay overrides, leads, contacts, Chime/Square entries) is a JSON blob in
+   localStorage, mirrored row-per-key into `app_state` so every signed-in device
+   sees the same data. Last write wins per key.
+   ═══════════════════════════════════════ */
+
+var STATE_KEYS = [
+    'fhd_financeTypes', 'fhd_chime',
+    'fhd_teamDrivers2', 'fhd_teamOwners', 'fhd_schedule', 'fhd_availability',
+    'fhd_auditLog', 'fhd_ownerContacts', 'fhd_ownerUnavailDays', 'fhd_manualPay',
+    'fhd_leads', 'fhd_contacts', 'fhd_contacts_deleted'
+];
+var STATE_DIRTY_KEY = 'fhd_state_dirty';
+var _statePushTimer = null;
+var _statePullTimer = null;
+var _statePushing = false;
+
+function readJSON(key, fallback) {
+    try {
+        var raw = localStorage.getItem(key);
+        if (raw === null) return fallback;
+        var parsed = JSON.parse(raw);
+        return parsed === null ? fallback : parsed;
+    } catch (err) {
+        console.error('[STATE] could not parse ' + key, err);
+        return fallback;
+    }
+}
+
+function stateDirtyKeys() { return readJSON(STATE_DIRTY_KEY, {}); }
+
+function markStateDirty(key) {
+    var dirty = stateDirtyKeys();
+    dirty[key] = 1;
+    localStorage.setItem(STATE_DIRTY_KEY, JSON.stringify(dirty));
+}
+
+function clearStateDirty(keys) {
+    var dirty = stateDirtyKeys();
+    keys.forEach(function(k) { delete dirty[k]; });
+    localStorage.setItem(STATE_DIRTY_KEY, JSON.stringify(dirty));
+}
+
+/* Persist one state blob locally and queue it for upload. */
+function saveState(key, value) {
+    localStorage.setItem(key, JSON.stringify(value));
+    markStateDirty(key);
+    schedulePushState();
+}
+
+function schedulePushState() {
+    if (!supaClient || !currentUser) return;
+    if (_statePushTimer) clearTimeout(_statePushTimer);
+    _statePushTimer = setTimeout(function() { _statePushTimer = null; pushState(); }, 400);
+}
+
+async function pushState() {
+    if (!supaClient || !currentUser || _statePushing) return;
+    var keys = Object.keys(stateDirtyKeys()).filter(function(k) { return STATE_KEYS.indexOf(k) !== -1; });
+    if (keys.length === 0) return;
+
+    _statePushing = true;
+    try {
+        var rows = keys.map(function(k) {
+            return {
+                user_id: currentUser.id, key: k,
+                value: readJSON(k, null),
+                updated_at: new Date().toISOString()
+            };
+        });
+        var res = await supaClient.from('app_state').upsert(rows, { onConflict: 'user_id,key' });
+        if (res.error) throw res.error;
+        clearStateDirty(keys);
+        console.log('[STATE] pushed ' + keys.length + ' key(s): ' + keys.join(', '));
+    } catch (err) {
+        console.error('[STATE] push failed (kept for retry):', err);
+    } finally {
+        _statePushing = false;
+    }
+}
+
+/* Adopt cloud values for keys this device has not just changed, then upload
+   anything the cloud is missing. */
+async function pullState() {
+    if (!supaClient || !currentUser) return;
+    try {
+        var res = await supaClient.from('app_state').select('key, value').eq('user_id', currentUser.id);
+        if (res.error) throw res.error;
+
+        var dirty = stateDirtyKeys();
+        var remote = {};
+        var adopted = [];
+        (res.data || []).forEach(function(row) {
+            remote[row.key] = true;
+            if (STATE_KEYS.indexOf(row.key) === -1 || dirty[row.key]) return;
+            var json = JSON.stringify(row.value);
+            if (json !== localStorage.getItem(row.key)) {
+                localStorage.setItem(row.key, json);
+                adopted.push(row.key);
+            }
+        });
+
+        STATE_KEYS.forEach(function(key) {
+            if (!remote[key] && localStorage.getItem(key) !== null) markStateDirty(key);
+        });
+
+        if (adopted.length > 0) {
+            console.log('[STATE] adopted from cloud: ' + adopted.join(', '));
+            rehydrateState();
+        }
+        await pushState();
+    } catch (err) {
+        console.error('[STATE] pull failed:', err);
+    }
+}
+
+/* Reload the in-memory copies from localStorage and repaint the tabs. */
+function rehydrateState() {
+    financeTypes = readJSON('fhd_financeTypes', financeTypes);
+    chimeEntries = readJSON('fhd_chime', chimeEntries);
+    teamDrivers = readJSON('fhd_teamDrivers2', teamDrivers);
+    teamOwners = readJSON('fhd_teamOwners', teamOwners);
+    scheduleData = readJSON('fhd_schedule', scheduleData);
+    availData = readJSON('fhd_availability', availData);
+    auditLog = readJSON('fhd_auditLog', auditLog);
+    ownerContacts = readJSON('fhd_ownerContacts', ownerContacts);
+    ownerUnavailDays = readJSON('fhd_ownerUnavailDays', ownerUnavailDays);
+    leads = readJSON('fhd_leads', leads);
+    contacts = readJSON('fhd_contacts', contacts);
+    deletedContactKeys = readJSON('fhd_contacts_deleted', deletedContactKeys);
+    renderAll();
+    renderFinanceAll();
+    renderChimeAll();
+    renderTeamAll();
+    renderLeads();
+    renderContacts();
 }
 
 /* ═══════════════════════════════════════
@@ -2242,20 +2396,20 @@ var financeTypes = JSON.parse(localStorage.getItem('fhd_financeTypes')) || [
 ];
 // Bank imports fall back to this type, so it always has to exist
 var UNCATEGORIZED = 'Uncategorized';
-if (financeTypes.indexOf(UNCATEGORIZED) === -1) { financeTypes.push(UNCATEGORIZED); localStorage.setItem('fhd_financeTypes', JSON.stringify(financeTypes)); }
+if (financeTypes.indexOf(UNCATEGORIZED) === -1) { financeTypes.push(UNCATEGORIZED); saveState('fhd_financeTypes', financeTypes); }
 // Remove legacy Money Received if present
 var mrIdx = financeTypes.indexOf('Money Received');
-if (mrIdx !== -1) { financeTypes.splice(mrIdx, 1); localStorage.setItem('fhd_financeTypes', JSON.stringify(financeTypes)); }
+if (mrIdx !== -1) { financeTypes.splice(mrIdx, 1); saveState('fhd_financeTypes', financeTypes); }
 // Auto-add Distributions if missing from existing localStorage
-if (financeTypes.indexOf('Distributions') === -1) { financeTypes.splice(financeTypes.length - 1, 0, 'Distributions'); localStorage.setItem('fhd_financeTypes', JSON.stringify(financeTypes)); }
+if (financeTypes.indexOf('Distributions') === -1) { financeTypes.splice(financeTypes.length - 1, 0, 'Distributions'); saveState('fhd_financeTypes', financeTypes); }
 // Merge Vehicle Insurance + Liability Insurance → Insurance
 var viIdx = financeTypes.indexOf('Vehicle Insurance');
-if (viIdx !== -1) { financeTypes.splice(viIdx, 1); if (financeTypes.indexOf('Insurance') === -1) { financeTypes.splice(viIdx, 0, 'Insurance'); } localStorage.setItem('fhd_financeTypes', JSON.stringify(financeTypes)); }
+if (viIdx !== -1) { financeTypes.splice(viIdx, 1); if (financeTypes.indexOf('Insurance') === -1) { financeTypes.splice(viIdx, 0, 'Insurance'); } saveState('fhd_financeTypes', financeTypes); }
 var liIdx = financeTypes.indexOf('Liability Insurance');
-if (liIdx !== -1) { financeTypes.splice(liIdx, 1); if (financeTypes.indexOf('Insurance') === -1) { financeTypes.splice(liIdx, 0, 'Insurance'); } localStorage.setItem('fhd_financeTypes', JSON.stringify(financeTypes)); }
-if (financeTypes.indexOf('Insurance') === -1) { financeTypes.splice(financeTypes.length - 1, 0, 'Insurance'); localStorage.setItem('fhd_financeTypes', JSON.stringify(financeTypes)); }
+if (liIdx !== -1) { financeTypes.splice(liIdx, 1); if (financeTypes.indexOf('Insurance') === -1) { financeTypes.splice(liIdx, 0, 'Insurance'); } saveState('fhd_financeTypes', financeTypes); }
+if (financeTypes.indexOf('Insurance') === -1) { financeTypes.splice(financeTypes.length - 1, 0, 'Insurance'); saveState('fhd_financeTypes', financeTypes); }
 // Auto-add Advertisement if missing
-if (financeTypes.indexOf('Advertisement') === -1) { financeTypes.splice(financeTypes.length - 1, 0, 'Advertisement'); localStorage.setItem('fhd_financeTypes', JSON.stringify(financeTypes)); }
+if (financeTypes.indexOf('Advertisement') === -1) { financeTypes.splice(financeTypes.length - 1, 0, 'Advertisement'); saveState('fhd_financeTypes', financeTypes); }
 
 var chimeEntries = JSON.parse(localStorage.getItem('fhd_chime')) || [];
 var currentPeriod = 'weekly';
@@ -2297,6 +2451,7 @@ setInterval(function() {
     if (!currentUser || !supaClient) return;
     if (_localWriteInFlight || _syncScheduled || _syncTimer) return;
     scheduleRealtimeReload();
+    pullState();
 }, POLL_INTERVAL_MS);
 
 var _lastCloudRefresh = 0;
@@ -2309,6 +2464,7 @@ document.addEventListener('visibilitychange', function() {
             renderAll();
             renderFinanceAll();
         });
+        pullState();
     }
 });
 
@@ -4348,7 +4504,7 @@ function setChimePeriod(p) {
 }
 
 function saveChime() {
-    localStorage.setItem('fhd_chime', JSON.stringify(chimeEntries));
+    saveState('fhd_chime', chimeEntries);
 }
 
 /* ═══════════════════════════════════════
@@ -4651,13 +4807,13 @@ var schedView = 'week';
 var schedOffset = 0;
 
 function saveTeam() {
-    localStorage.setItem('fhd_teamDrivers2', JSON.stringify(teamDrivers));
-    localStorage.setItem('fhd_schedule', JSON.stringify(scheduleData));
-    localStorage.setItem('fhd_availability', JSON.stringify(availData));
-    localStorage.setItem('fhd_auditLog', JSON.stringify(auditLog));
-    localStorage.setItem('fhd_ownerContacts', JSON.stringify(ownerContacts));
-    localStorage.setItem('fhd_ownerUnavailDays', JSON.stringify(ownerUnavailDays));
-    localStorage.setItem('fhd_teamOwners', JSON.stringify(teamOwners));
+    saveState('fhd_teamDrivers2', teamDrivers);
+    saveState('fhd_schedule', scheduleData);
+    saveState('fhd_availability', availData);
+    saveState('fhd_auditLog', auditLog);
+    saveState('fhd_ownerContacts', ownerContacts);
+    saveState('fhd_ownerUnavailDays', ownerUnavailDays);
+    saveState('fhd_teamOwners', teamOwners);
     // Auto-remove inactive drivers past 7 days
     var now = Date.now();
     teamDrivers = teamDrivers.filter(function(d) {
@@ -4666,7 +4822,7 @@ function saveTeam() {
         }
         return true;
     });
-    localStorage.setItem('fhd_teamDrivers2', JSON.stringify(teamDrivers));
+    saveState('fhd_teamDrivers2', teamDrivers);
 }
 
 function addAudit(action, initials) {
@@ -4794,7 +4950,7 @@ function addManualPay(name) {
     var manual = JSON.parse(localStorage.getItem('fhd_manualPay')) || {};
     if (!manual[name]) manual[name] = [];
     manual[name].push({ date: dateInput.value, amount: amt, id: Date.now() });
-    localStorage.setItem('fhd_manualPay', JSON.stringify(manual));
+    saveState('fhd_manualPay', manual);
     amtInput.value = '';
     toast('$' + amt.toFixed(2) + ' pay added for ' + name);
     var payInfo = getEmployeePay(name, document.getElementById('contactPopover').dataset.type);
@@ -4806,7 +4962,7 @@ function removeManualPay(name, payId) {
     var manual = JSON.parse(localStorage.getItem('fhd_manualPay')) || {};
     if (manual[name]) {
         manual[name] = manual[name].filter(function(p) { return p.id !== payId; });
-        localStorage.setItem('fhd_manualPay', JSON.stringify(manual));
+        saveState('fhd_manualPay', manual);
     }
     var type = document.getElementById('contactPopover').dataset.type;
     var payInfo = getEmployeePay(name, type);
@@ -4951,7 +5107,7 @@ function renameTeamMember(type, index, oldName, newName) {
     if (manual[oldName]) {
         manual[newName] = (manual[newName] || []).concat(manual[oldName]);
         delete manual[oldName];
-        localStorage.setItem('fhd_manualPay', JSON.stringify(manual));
+        saveState('fhd_manualPay', manual);
     }
 
     addAudit(oldName + ' renamed to ' + newName, 'SYS');
@@ -5353,7 +5509,7 @@ document.addEventListener('click', function(e) {
 var leads = JSON.parse(localStorage.getItem('fhd_leads')) || [];
 
 function saveLeads() {
-    localStorage.setItem('fhd_leads', JSON.stringify(leads));
+    saveState('fhd_leads', leads);
 }
 
 document.getElementById('leadForm').addEventListener('submit', function(e) {
@@ -5501,8 +5657,8 @@ var contactPage = 1;
 var CONTACT_PAGE_SIZE = 20;
 
 function saveContacts() {
-    localStorage.setItem('fhd_contacts', JSON.stringify(contacts));
-    localStorage.setItem('fhd_contacts_deleted', JSON.stringify(deletedContactKeys));
+    saveState('fhd_contacts', contacts);
+    saveState('fhd_contacts_deleted', deletedContactKeys);
 }
 
 function phoneKey(phone) {

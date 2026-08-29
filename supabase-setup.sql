@@ -45,6 +45,18 @@ CREATE TABLE IF NOT EXISTS finance_entries (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- 4. App state table — one row per (user, key) holding a JSON blob for the
+--    dashboard data that has no table of its own: expense types, team members,
+--    schedule, availability, audit log, pay overrides, leads, contacts and
+--    Chime/Square entries. Keeps every signed-in device on the same data.
+CREATE TABLE IF NOT EXISTS app_state (
+    user_id     UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    key         TEXT NOT NULL,
+    value       JSONB,
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, key)
+);
+
 -- ═══════════════════════════════════════════════════════════════
 -- Row Level Security (RLS) — each user can only access their own data
 -- ═══════════════════════════════════════════════════════════════
@@ -52,6 +64,7 @@ CREATE TABLE IF NOT EXISTS finance_entries (
 ALTER TABLE categories      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE job_entries      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE finance_entries  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE app_state        ENABLE ROW LEVEL SECURITY;
 
 -- Categories policies
 DROP POLICY IF EXISTS "Users can view their own categories" ON categories;
@@ -95,6 +108,20 @@ DROP POLICY IF EXISTS "Users can delete their own finance entries" ON finance_en
 CREATE POLICY "Users can delete their own finance entries"
     ON finance_entries FOR DELETE USING (auth.uid() = user_id);
 
+-- App state policies
+DROP POLICY IF EXISTS "Users can view their own app state" ON app_state;
+CREATE POLICY "Users can view their own app state"
+    ON app_state FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can insert their own app state" ON app_state;
+CREATE POLICY "Users can insert their own app state"
+    ON app_state FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can update their own app state" ON app_state;
+CREATE POLICY "Users can update their own app state"
+    ON app_state FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can delete their own app state" ON app_state;
+CREATE POLICY "Users can delete their own app state"
+    ON app_state FOR DELETE USING (auth.uid() = user_id);
+
 -- ═══════════════════════════════════════════════════════════════
 -- Realtime (live updates across devices)
 --
@@ -112,6 +139,7 @@ CREATE POLICY "Users can delete their own finance entries"
 ALTER TABLE categories      REPLICA IDENTITY FULL;
 ALTER TABLE job_entries     REPLICA IDENTITY FULL;
 ALTER TABLE finance_entries REPLICA IDENTITY FULL;
+ALTER TABLE app_state       REPLICA IDENTITY FULL;
 
 DO $$
 BEGIN
@@ -125,6 +153,10 @@ BEGIN
     END;
     BEGIN
         ALTER PUBLICATION supabase_realtime ADD TABLE finance_entries;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE app_state;
     EXCEPTION WHEN duplicate_object THEN NULL;
     END;
 END $$;
