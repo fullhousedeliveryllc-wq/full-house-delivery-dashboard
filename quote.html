@@ -184,6 +184,52 @@
     </div>
 
     <script>
+    var ALERT_ENDPOINT = 'https://formsubmit.co/ajax/fullhousedeliveryllc@gmail.com';
+
+    function emailAlert(sub) {
+        return fetch(ALERT_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({
+                _subject: 'New quote request — ' + (sub.name || 'Unknown') + ' (' + sub.service + ')',
+                _template: 'table',
+                _captcha: 'false',
+                Name: sub.name,
+                Phone: sub.phone,
+                Email: sub.email || '(not provided)',
+                Service: sub.service,
+                'Preferred Date': sub.date,
+                Notes: sub.notes || '(none)',
+                Submitted: new Date().toLocaleString()
+            })
+        }).then(function(res) {
+            if (!res.ok) { throw new Error('alert failed: ' + res.status); }
+            return res.json();
+        }).then(function(body) {
+            // FormSubmit answers 200 with success:"false" while the address is
+            // still unactivated, so the alert has not actually been delivered.
+            if (body && String(body.success) === 'false') {
+                throw new Error(body.message || 'alert not delivered');
+            }
+            return body;
+        });
+    }
+
+    function flushPendingAlerts() {
+        var pending = JSON.parse(localStorage.getItem('fhd_quote_unsent') || '[]');
+        if (pending.length === 0) { return; }
+        localStorage.removeItem('fhd_quote_unsent');
+        pending.forEach(function(sub) {
+            emailAlert(sub).catch(function(err) {
+                console.error('Quote alert retry failed', err);
+                var left = JSON.parse(localStorage.getItem('fhd_quote_unsent') || '[]');
+                left.push(sub);
+                localStorage.setItem('fhd_quote_unsent', JSON.stringify(left));
+            });
+        });
+    }
+    flushPendingAlerts();
+
     document.getElementById('publicQuoteForm').addEventListener('submit', function(e) {
         e.preventDefault();
         var submission = {
@@ -196,6 +242,20 @@
             notes: document.getElementById('qNotes').value.trim()
         };
         localStorage.setItem('fhd_quote_submission', JSON.stringify(submission));
+
+        var pending = JSON.parse(localStorage.getItem('fhd_quote_unsent') || '[]');
+        pending.push(submission);
+        localStorage.setItem('fhd_quote_unsent', JSON.stringify(pending));
+
+        emailAlert(submission).then(function() {
+            var left = JSON.parse(localStorage.getItem('fhd_quote_unsent') || '[]');
+            localStorage.setItem('fhd_quote_unsent', JSON.stringify(left.filter(function(s) {
+                return !(s.name === submission.name && s.phone === submission.phone && s.date === submission.date);
+            })));
+        }).catch(function(err) {
+            console.error('Quote alert email failed', err);
+        });
+
         document.getElementById('quoteForm').style.display = 'none';
         document.getElementById('successCard').style.display = 'block';
     });

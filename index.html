@@ -12,22 +12,25 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <style>
         :root {
-            --primary: #14171a;
-            --secondary: #1a1a1a;
-            --accent: #b23327;
-            --highlight: #cf4436;
-            --bg: #f6f7f8;
+            --primary: #0f2744;
+            --secondary: #1e3a5f;
+            --accent: #1e40af;
+            --accent-hover: #1b3a94;
+            --highlight: #2563eb;
+            --brand: #b23327;
+            --bg: #f1f5f9;
             --card: #ffffff;
-            --text: #14171a;
-            --text-light: #6b7280;
-            --border: #e6e8eb;
-            --surface: #eef3fc;
-            --tint: rgba(37,99,235,0.085);
-            --tint-border: rgba(37,99,235,0.2);
-            --glass: linear-gradient(160deg, rgba(255,255,255,0.72) 0%, rgba(255,255,255,0.28) 55%, rgba(255,255,255,0.12) 100%);
-            --glass-inset: inset 0 1px 0 rgba(255,255,255,0.65);
-            --success: #0f9d76;
-            --danger: #c0392b;
+            --text: #0f172a;
+            --text-light: #64748b;
+            --border: #e2e8f0;
+            --surface: #f1f5f9;
+            --tint: rgba(30,64,175,0.055);
+            --tint-border: rgba(30,64,175,0.16);
+            --glass: linear-gradient(160deg, rgba(255,255,255,0.86) 0%, rgba(255,255,255,0.55) 55%, rgba(255,255,255,0.38) 100%);
+            --glass-inset: inset 0 1px 0 rgba(255,255,255,0.7);
+            --success: #059669;
+            --warning: #d97706;
+            --danger: #dc2626;
             --shadow: 0 1px 2px rgba(16,24,40,0.04);
             --shadow-lg: 0 12px 32px rgba(16,24,40,0.10);
             --radius: 12px;
@@ -45,7 +48,7 @@
 
         /* Header */
         header {
-            background: #111315;
+            background: var(--primary);
             color: white;
             padding: 0;
             display: flex;
@@ -82,8 +85,8 @@
         .tab-btn {
             padding: 11px 24px;
             border: none;
-            background: rgba(0,0,0,0.55);
-            color: rgba(255,255,255,0.6);
+            background: rgba(15,39,68,0.72);
+            color: rgba(255,255,255,0.68);
             font-size: 13px;
             font-weight: 500;
             cursor: pointer;
@@ -95,7 +98,7 @@
             color: var(--text);
             font-weight: 600;
         }
-        .tab-btn:hover:not(.active) { background: rgba(0,0,0,0.7); color: rgba(255,255,255,0.9); }
+        .tab-btn:hover:not(.active) { background: rgba(15,39,68,0.88); color: rgba(255,255,255,0.95); }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
 
@@ -183,11 +186,11 @@
 
         /* Forms */
         .form-group { margin-bottom: 16px; }
-        .form-group.highlight-field label { color: var(--accent); font-weight: 700; font-size: 14px; }
+        .form-group.highlight-field label { color: var(--brand); font-weight: 700; font-size: 14px; }
         .form-group.highlight-field input,
-        .form-group.highlight-field select { border-color: var(--accent); background: #fdf7f6; }
+        .form-group.highlight-field select { border-color: var(--brand); background: #fdf7f6; }
         .form-group.highlight-field input:focus,
-        .form-group.highlight-field select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(178,51,39,0.1); }
+        .form-group.highlight-field select:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(178,51,39,0.1); }
         .currency-input-wrap { position: relative; }
         .currency-input-wrap .currency-symbol { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-size: 15px; font-weight: 700; color: var(--text-light); pointer-events: none; }
         .currency-input-wrap input { padding-left: 28px; }
@@ -196,7 +199,7 @@
             width: 100%; padding: 10px 13px; border: 1px solid var(--border);
             border-radius: 9px; font-size: 14px; transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease; background: var(--surface);
         }
-        input:focus, select:focus { outline: none; border-color: #9aa1a9; background: #fff; box-shadow: 0 0 0 3px rgba(20,23,26,0.06); }
+        input:focus, select:focus { outline: none; border-color: var(--accent); background: #fff; box-shadow: 0 0 0 3px rgba(30,64,175,0.12); }
         .btn {
             display: inline-flex; align-items: center; gap: 6px;
             padding: 10px 20px; border: none; border-radius: 9px;
@@ -208,7 +211,7 @@
             background: var(--accent);
             color: white;
         }
-        .btn-primary:hover { background: #97291f; }
+        .btn-primary:hover { background: var(--accent-hover); }
         .btn-success { background: var(--success); color: white; }
         .btn-danger { background: var(--danger); color: white; padding: 6px 12px; font-size: 12px; }
         .btn-outline { background: #fff; color: #3f454c; border: 1px solid var(--border); }
@@ -245,7 +248,7 @@
 
         /* Toast */
         .toast {
-            position: fixed; bottom: 30px; right: 30px; background: rgba(17,19,21,0.94);
+            position: fixed; bottom: 30px; right: 30px; background: rgba(15,39,68,0.95);
             color: white; padding: 13px 20px; border-radius: 10px;
             font-size: 13px; font-weight: 500; box-shadow: var(--shadow-lg);
             transform: translateY(100px); opacity: 0;
@@ -289,6 +292,7 @@
         .finance-item .fi-value { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
         .fi-green { color: var(--success); }
         .fi-red { color: var(--danger); }
+        .fi-zero { color: var(--text-light); }
 
         /* Finance table */
         .finance-table td.amount-pos { color: var(--success); font-weight: 700; }
@@ -301,7 +305,7 @@
             background: var(--surface); margin-bottom: 16px;
         }
         .upload-zone:hover, .upload-zone.dragover {
-            border-color: var(--accent); background: #fdf5f4;
+            border-color: var(--accent); background: #eef2ff;
         }
         .upload-zone .upload-icon { font-size: 40px; display: block; margin-bottom: 8px; }
         .upload-zone p { color: var(--text-light); font-size: 14px; margin: 4px 0; }
@@ -341,22 +345,22 @@
 
         /* Auth Bar */
         .auth-bar {
-            background: #111315; color: #9aa1a9; padding: 6px 24px;
+            background: var(--primary); color: #cbd5e1; padding: 6px 24px;
             display: flex; justify-content: flex-end; align-items: center; gap: 12px;
             font-size: 12px; border-bottom: 1px solid rgba(255,255,255,0.06);
         }
-        .auth-bar .user-email { color: #aaa; font-size: 12px; }
+        .auth-bar .user-email { color: #cbd5e1; font-size: 12px; }
         .auth-bar button {
-            background: transparent; color: #d4574a; border: 1px solid rgba(212,87,74,0.55);
+            background: transparent; color: #fca5a5; border: 1px solid rgba(252,165,165,0.5);
             padding: 4px 14px; border-radius: 6px; font-size: 12px; cursor: pointer;
             transition: all 0.2s;
         }
-        .auth-bar button:hover { background: #d4574a; color: white; }
+        .auth-bar button:hover { background: var(--danger); border-color: var(--danger); color: white; }
         .auth-bar .sync-status {
             font-size: 11px; padding: 3px 10px; border-radius: 10px;
-            background: #23262a; color: #9aa1a9;
+            background: rgba(255,255,255,0.1); color: #cbd5e1;
         }
-        .auth-bar .sync-status.online { background: #16301f; color: #3fbf8f; }
+        .auth-bar .sync-status.online { background: rgba(5,150,105,0.2); color: #6ee7b7; }
 
         /* Auth Modal */
         .auth-overlay {
@@ -444,7 +448,7 @@
         .invoice-viewer img { max-width: 100%; max-height: 400px; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.15); }
 
         /* Square tab */
-        .chime-balance-card { background: #1c2431; color: white; border-radius: 12px; padding: 24px; text-align: center; border: none; }
+        .chime-balance-card { background: var(--primary); color: white; border-radius: 12px; padding: 24px; text-align: center; border: none; }
         .chime-balance-card .num { font-size: 26px; font-weight: 650; letter-spacing: -0.02em; }
         .chime-balance-card .label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; opacity: 0.7; margin-top: 6px; font-weight: 500; }
 
@@ -466,7 +470,7 @@
             width: 100%; padding: 10px 14px 10px 38px; border: 1px solid var(--border);
             border-radius: 9px; font-size: 14px; transition: all 0.15s ease; background: var(--surface);
         }
-        .search-bar-wrap input:focus { outline: none; border-color: #9aa1a9; background: #fff; box-shadow: 0 0 0 3px rgba(20,23,26,0.06); }
+        .search-bar-wrap input:focus { outline: none; border-color: var(--accent); background: #fff; box-shadow: 0 0 0 3px rgba(30,64,175,0.12); }
 
         /* ═══ MOBILE RESPONSIVE ═══ */
         @media (max-width: 768px) {
@@ -574,11 +578,11 @@
         .roster-list li:hover { background: var(--surface); }
         .roster-list li:last-child { border-bottom: none; }
         .roster-badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: 600; }
-        .badge-owner { background: #eaf6f1; color: #0f7a5d; }
-        .badge-driver { background: #eaf0f8; color: #24548f; }
-        .badge-active { background: #eaf6f1; color: #0f7a5d; }
-        .badge-inactive { background: #fdf3e7; color: #a05a12; }
-        .badge-vacation { background: #eeecf8; color: #55499b; }
+        .badge-owner { background: #e0e7ff; color: #3730a3; }
+        .badge-driver { background: #dbeafe; color: #1e40af; }
+        .badge-active { background: #d1fae5; color: #047857; }
+        .badge-inactive { background: #fef3c7; color: #b45309; }
+        .badge-vacation { background: #e2e8f0; color: #475569; }
         .roster-actions { display: flex; align-items: center; gap: 4px; }
         .roster-actions button { padding: 3px 9px; font-size: 11px; border-radius: 6px; cursor: pointer; }
         .btn-remove { color: var(--danger); }
@@ -600,28 +604,28 @@
         .cal-day { background: #fff; padding: 6px; min-height: 90px; cursor: pointer; transition: background 0.15s; position: relative; }
         .cal-day:hover { background: #f8f9fa; }
         .cal-day.other-month { background: #f5f5f5; opacity: 0.5; }
-        .cal-day.today { background: #fdf5f4; box-shadow: inset 0 0 0 2px var(--accent); }
+        .cal-day.today { background: #fdf5f4; box-shadow: inset 0 0 0 2px var(--brand); }
         .cal-day.other-month.today { opacity: 1; }
         .cal-day.today-flash { animation: todayFlash 1.2s ease-out 2; }
         @keyframes todayFlash {
-            0%, 100% { box-shadow: inset 0 0 0 2px var(--accent); }
-            50% { box-shadow: inset 0 0 0 4px var(--accent), 0 0 0 3px rgba(178,51,39,0.2); }
+            0%, 100% { box-shadow: inset 0 0 0 2px var(--brand); }
+            50% { box-shadow: inset 0 0 0 4px var(--brand), 0 0 0 3px rgba(178,51,39,0.2); }
         }
         .cal-day .day-num { font-size: 13px; font-weight: 600; color: #333; margin-bottom: 4px; }
-        .cal-day.today .day-num { color: var(--accent); }
+        .cal-day.today .day-num { color: var(--brand); }
 
         .sched-chip { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 10px; margin: 1px; font-weight: 500; cursor: pointer; line-height: 1.4; }
         .sched-chip:hover { opacity: 0.8; }
-        .sched-chip.driver { background: #e3f2fd; color: #1565c0; }
-        .sched-chip.owner { background: #fff3e0; color: #e65100; }
+        .sched-chip.driver { background: #dbeafe; color: #1e40af; }
+        .sched-chip.owner { background: #e0e7ff; color: #3730a3; }
         .sched-dispatcher { display: block; margin-top: 4px; padding: 2px 5px; background: #fdeceb; color: #b23327; border-radius: 6px; font-size: 9px; font-weight: 600; text-align: center; }
         .sched-add-btn { display: block; margin-top: 3px; background: none; border: 1px dashed #ccc; border-radius: 6px; padding: 2px; width: 100%; cursor: pointer; font-size: 10px; color: #aaa; }
         .sched-add-btn:hover { border-color: #888; color: #444; }
 
         .avail-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
-        .avail-dot.willing { background: #ff9800; }
-        .avail-dot.not-willing { background: #bdbdbd; }
-        .avail-dot.vacation { background: #9c27b0; }
+        .avail-dot.willing { background: var(--warning); }
+        .avail-dot.not-willing { background: #94a3b8; }
+        .avail-dot.vacation { background: #6366f1; }
 
         .sched-popup { position: fixed; background: #fff; border-radius: 12px; box-shadow: var(--shadow-lg); border: 1px solid var(--border); padding: 18px; z-index: 999; min-width: 240px; max-width: 360px; max-height: 80vh; overflow-y: auto; }
         .sched-popup .popup-close-x { position: sticky; top: 0; float: right; background: none; border: none; font-size: 22px; cursor: pointer; color: #999; padding: 0 4px; line-height: 1; z-index: 1; }
@@ -688,20 +692,20 @@
 
         /* Lead Status Badges */
         .lead-status { font-size: 10px; padding: 3px 8px; border-radius: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; display: inline-block; }
-        .lead-status.new { background: #e3f2fd; color: #1565c0; }
-        .lead-status.contacted { background: #fff3e0; color: #e65100; }
-        .lead-status.quoted { background: #f3e5f5; color: #7b1fa2; }
-        .lead-status.confirmed { background: #e8f5e9; color: #2e7d32; }
-        .lead-status.completed { background: #e0f2f1; color: #00695c; }
-        .lead-status.lost { background: #fce4ec; color: #c62828; }
+        .lead-status.new { background: #dbeafe; color: #1e40af; }
+        .lead-status.contacted { background: #fef3c7; color: #b45309; }
+        .lead-status.quoted { background: #fef3c7; color: #92400e; }
+        .lead-status.confirmed { background: #d1fae5; color: #047857; }
+        .lead-status.completed { background: #d1fae5; color: #065f46; }
+        .lead-status.lost { background: #fee2e2; color: #b91c1c; }
         .lead-status-select { font-size: 11px; padding: 4px 8px; border-radius: 8px; border: 1.5px solid #e0e0e0; font-weight: 600; cursor: pointer; background: #fafafa; }
 
         /* Job Status Badges */
         .job-status { font-size: 9px; padding: 2px 6px; border-radius: 10px; font-weight: 600; text-transform: uppercase; display: inline-block; }
-        .job-status.pending { background: #fff3e0; color: #e65100; }
-        .job-status.confirmed { background: #e3f2fd; color: #1565c0; }
-        .job-status.in-progress { background: #f3e5f5; color: #7b1fa2; }
-        .job-status.completed { background: #e8f5e9; color: #2e7d32; }
+        .job-status.pending { background: #fef3c7; color: #b45309; }
+        .job-status.confirmed { background: #dbeafe; color: #1e40af; }
+        .job-status.in-progress { background: #e0e7ff; color: #4338ca; }
+        .job-status.completed { background: #d1fae5; color: #047857; }
 
         /* Job status dropdown in the entry log — colour-coded so the current
            selection is readable at a glance */
@@ -715,16 +719,16 @@
         }
         .job-status-select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
         .job-status-select option { color: #222; background: #fff; font-weight: 600; }
-        .job-status-select.pending { background-color: #fff3e0; color: #e65100; border-color: #ffcc80; }
-        .job-status-select.confirmed { background-color: #e3f2fd; color: #1565c0; border-color: #90caf9; }
-        .job-status-select.in-progress { background-color: #f3e5f5; color: #7b1fa2; border-color: #ce93d8; }
-        .job-status-select.completed { background-color: #e8f5e9; color: #2e7d32; border-color: #a5d6a7; }
+        .job-status-select.pending { background-color: #fef3c7; color: #b45309; border-color: #fcd34d; }
+        .job-status-select.confirmed { background-color: #dbeafe; color: #1e40af; border-color: #93c5fd; }
+        .job-status-select.in-progress { background-color: #e0e7ff; color: #4338ca; border-color: #a5b4fc; }
+        .job-status-select.completed { background-color: #d1fae5; color: #047857; border-color: #6ee7b7; }
 
         /* Contact book type badges */
         .contact-type { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; padding: 2px 6px; border-radius: 6px; display: inline-block; }
-        .contact-type.customer { background: #e8f5e9; color: #2e7d32; }
-        .contact-type.prospect { background: #e3f2fd; color: #1565c0; }
-        .contact-type.repeat { background: #28a745; color: #fff; }
+        .contact-type.customer { background: #d1fae5; color: #047857; }
+        .contact-type.prospect { background: #dbeafe; color: #1e40af; }
+        .contact-type.repeat { background: var(--success); color: #fff; }
 
         /* Money snapshot */
         .money-card { background: #fff; border-top: 2px solid var(--success); }
@@ -735,20 +739,20 @@
         .money-period span { font-weight: 500; text-transform: none; letter-spacing: 0; }
         .money-profit { font-size: 27px; font-weight: 650; letter-spacing: -0.02em; line-height: 1.2; margin: 6px 0 4px; }
         .money-profit.up { color: var(--success); }
-        .money-profit.down { color: #c0392b; }
+        .money-profit.down { color: var(--danger); }
         .money-split { display: flex; gap: 10px; font-size: 12px; }
         .money-split .in { color: var(--success); font-weight: 600; }
-        .money-split .out { color: #c0392b; font-weight: 600; }
+        .money-split .out { color: var(--danger); font-weight: 600; }
         .money-notes { border-top: 1px solid #f0f0f0; }
         .money-note { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 2px; border-bottom: 1px solid #f5f5f5; font-size: 13px; }
         .money-note:last-child { border-bottom: none; }
         .mn-label { color: var(--text-light); }
         .mn-value { font-weight: 700; color: var(--text); text-align: right; }
         .mn-value.up { color: var(--success); }
-        .mn-value.down { color: #c0392b; }
-        .money-unpaid { margin-top: 10px; background: #fff8e1; border: 1px solid #ffe082; border-radius: 10px; padding: 8px 12px; }
-        .mu-row { display: flex; justify-content: space-between; font-size: 12px; padding: 3px 0; color: #7a5c00; }
-        .mu-more { font-size: 11px; color: #a08000; padding-top: 3px; }
+        .mn-value.down { color: var(--danger); }
+        .money-unpaid { margin-top: 10px; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 10px; padding: 8px 12px; }
+        .mu-row { display: flex; justify-content: space-between; font-size: 12px; padding: 3px 0; color: #92400e; }
+        .mu-more { font-size: 11px; color: #b45309; padding-top: 3px; }
         @media (max-width: 600px) { .money-blocks { grid-template-columns: 1fr; } }
     </style>
 </head>
@@ -774,10 +778,10 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v54</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v55</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
-    <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:#2196F3;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
+    <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
     <button id="authBtn" onclick="showAuthModal()">Sign In</button>
 </div>
 
@@ -2203,24 +2207,24 @@ function switchTab(tab) {
    PALETTE
    ═══════════════════════════════════════ */
 var PALETTE = [
-    '#e94560','#0f3460','#f5a623','#1abc9c','#8e44ad',
-    '#3498db','#e67e22','#2ecc71','#e74c3c','#1a1a2e',
-    '#00b894','#6c5ce7','#fd79a8','#00cec9','#d35400',
-    '#636e72','#a29bfe','#ffeaa7','#fab1a0','#55efc4',
-    '#74b9ff','#b2bec3','#dfe6e9','#ff7675'
+    '#1e40af','#0ea5e9','#0f2744','#0d9488','#4338ca',
+    '#2563eb','#0891b2','#059669','#475569','#7c3aed',
+    '#0369a1','#14b8a6','#6366f1','#38bdf8','#334155',
+    '#64748b','#818cf8','#22d3ee','#94a3b8','#5eead4',
+    '#93c5fd','#cbd5e1','#a5b4fc','#7dd3fc'
 ];
 
 var FINANCE_COLORS = {
-    'Money Received': '#28a745',
-    'Driver Pay': '#e94560',
-    'Gas': '#e67e22',
-    'Tolls': '#8e44ad',
-    'Supplies': '#3498db',
-    'Miscellaneous': '#636e72',
-    'Insurance': '#2c3e50',
-    'Truck Repair/Maintenance': '#d35400',
-    'Commissions': '#9b59b6',
-    'Uncategorized': '#95a5a6'
+    'Money Received': '#059669',
+    'Driver Pay': '#1e40af',
+    'Gas': '#0ea5e9',
+    'Tolls': '#4338ca',
+    'Supplies': '#0d9488',
+    'Miscellaneous': '#64748b',
+    'Insurance': '#0f2744',
+    'Truck Repair/Maintenance': '#0369a1',
+    'Commissions': '#7c3aed',
+    'Uncategorized': '#94a3b8'
 };
 
 /* ═══════════════════════════════════════
@@ -2995,7 +2999,7 @@ function editEntry(id) {
     document.getElementById('editJobInvoices').value = '';
     if (entry.invoices && entry.invoices.length > 0) {
         invoicePreview.innerHTML = entry.invoices.map(function(src, idx) {
-            return '<div class="invoice-thumb" style="display:inline-block;position:relative;margin:4px;"><img src="' + src + '" style="max-width:80px;max-height:80px;border-radius:6px;"><button type="button" onclick="removeEditInvoice(' + id + ',' + idx + ')" style="position:absolute;top:-6px;right:-6px;background:#e74c3c;color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;line-height:1;">&times;</button></div>';
+            return '<div class="invoice-thumb" style="display:inline-block;position:relative;margin:4px;"><img src="' + src + '" style="max-width:80px;max-height:80px;border-radius:6px;"><button type="button" onclick="removeEditInvoice(' + id + ',' + idx + ')" style="position:absolute;top:-6px;right:-6px;background:var(--danger);color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;line-height:1;">&times;</button></div>';
         }).join('');
     } else {
         invoicePreview.innerHTML = '<span style="color:#999;font-size:13px;">No invoices attached</span>';
@@ -3266,10 +3270,10 @@ function renderFinanceBreakdown() {
         var total, cls;
         if (type === 'Job Revenue') {
             total = periodJobRevenue;
-            cls = 'fi-green';
+            cls = total > 0 ? 'fi-green' : 'fi-zero';
         } else {
             total = byType[type] || 0;
-            cls = 'fi-red';
+            cls = total > 0 ? 'fi-red' : 'fi-zero';
         }
         html += '<div class="finance-item"><span class="fi-label">' + type + '</span><span class="fi-value ' + cls + '">$' + total.toFixed(2) + '</span></div>';
     });
@@ -3305,13 +3309,13 @@ function drawFinanceChart() {
 
     var barData = [];
     if (periodJobRevenue > 0) {
-        barData.push({ label: 'Job Revenue', value: periodJobRevenue, color: '#28a745' });
+        barData.push({ label: 'Job Revenue', value: periodJobRevenue, color: '#059669' });
     }
     var expenseTypes = financeTypes.filter(function(t) { return t !== 'Money Received'; });
     expenseTypes.forEach(function(type) {
         var total = byType[type] || 0;
         if (total > 0) {
-            barData.push({ label: type, value: total, color: '#e94560' });
+            barData.push({ label: type, value: total, color: '#1e40af' });
         }
     });
 
@@ -3388,7 +3392,7 @@ function drawFinanceChart() {
         // Bar with gradient
         var grad = fctx.createLinearGradient(pad.left, 0, pad.left + Math.max(barLen, 2), 0);
         grad.addColorStop(0, item.color);
-        grad.addColorStop(1, item.color === '#28a745' ? '#20c997' : '#ff6b81');
+        grad.addColorStop(1, item.color === '#059669' ? '#34d399' : '#60a5fa');
         fctx.fillStyle = grad;
         fctx.beginPath();
         roundRect(fctx, pad.left, y, Math.max(barLen, 2), barH, 5);
@@ -3517,7 +3521,7 @@ function renderFinanceLog() {
     var pageItems = combined.slice(start, start + finPageSize);
 
     body.innerHTML = pageItems.map(function(e) {
-        var srcLabel = e.bankSource === 'Credit Card' ? '<span style="font-size:10px;background:#9b59b6;color:#fff;padding:1px 6px;border-radius:4px;">CC</span>' : (e.bankSource === 'Checking' ? '<span style="font-size:10px;background:#3498db;color:#fff;padding:1px 6px;border-radius:4px;">Chk</span>' : (e.source === 'job' ? '<span style="font-size:10px;color:#999;">Jobs</span>' : '<span style="font-size:10px;color:#999;">Manual</span>'));
+        var srcLabel = e.bankSource === 'Credit Card' ? '<span style="font-size:10px;background:#4338ca;color:#fff;padding:1px 6px;border-radius:4px;">CC</span>' : (e.bankSource === 'Checking' ? '<span style="font-size:10px;background:var(--accent);color:#fff;padding:1px 6px;border-radius:4px;">Chk</span>' : (e.source === 'job' ? '<span style="font-size:10px;color:#999;">Jobs</span>' : '<span style="font-size:10px;color:#999;">Manual</span>'));
         if (e.source === 'job') {
             return '<tr><td></td><td>' + e.date + '</td><td>' + esc(e.type) + '</td><td class="amount-pos">+$' + e.amount.toFixed(2) + '</td><td>' + esc(e.note || '\u2014') + '</td><td>' + srcLabel + '</td><td class="action-cell"><span style="font-size:11px;color:#999;">From Jobs</span></td></tr>';
         }
@@ -4115,7 +4119,7 @@ function showBankPreview() {
         var rowStyle = row.needsSelect ? ' style="background:#fff8e1;border-left:3px solid #f9a825;"' : (isDupe ? ' style="background:#fff8e1;border-left:3px solid #f9a825;"' : '');
         var selectOpts = bankTypeOptions(row.type);
         var onChangeHandler = 'bankRowTypeChanged(' + idx + ', this)';
-        var dupeTag = isDupe ? '<span style="font-size:9px;background:#f9a825;color:#fff;padding:1px 5px;border-radius:4px;margin-left:4px;font-weight:600;">DUPLICATE?</span>' : '';
+        var dupeTag = isDupe ? '<span style="font-size:9px;background:var(--warning);color:#fff;padding:1px 5px;border-radius:4px;margin-left:4px;font-weight:600;">DUPLICATE?</span>' : '';
         if (isDupe) row.include = false;
         html += '<tr id="bankRow' + idx + '"' + rowStyle + (row.include ? '' : ' class="skip-row"') + '>' +
             '<td><input type="checkbox" class="preview-check"' + (row.include ? ' checked' : '') + ' onchange="toggleBankRow(' + idx + ', this)"></td>' +
@@ -4254,7 +4258,7 @@ function esc(s) { var d = document.createElement('div'); d.textContent = s; retu
 function today() { return new Date().toISOString().slice(0, 10); }
 function toast(msg, isError) {
     var t = document.getElementById('toast'); t.textContent = msg;
-    t.style.background = isError ? '#c0392b' : '#333';
+    t.style.background = isError ? '#dc2626' : '#0f2744';
     t.classList.add('show'); clearTimeout(t._tm);
     t._tm = setTimeout(function() { t.classList.remove('show'); }, isError ? 6000 : 2500);
 }
@@ -4864,7 +4868,7 @@ function openContactPopover(type, index, evt) {
             '</div>' +
         '</div>' +
         '<div style="margin-top:10px;"><div style="font-size:11px;font-weight:600;color:var(--text-light);text-transform:uppercase;margin-bottom:4px;">Days Not Available</div>' + dayChecks + '</div>' +
-        '<div class="contact-actions"><button style="background:var(--accent);color:#fff;" onclick="saveContactPopover(\'' + type + '\',' + index + ')">Save</button><button style="background:#f0f0f0;color:#333;" onclick="closeContactPopover()">Cancel</button></div>';
+        '<div class="contact-actions"><button style="background:var(--accent);color:#fff;" onclick="saveContactPopover(\'' + type + '\',' + index + ')">Save</button><button style="background:#e2e8f0;color:#334155;" onclick="closeContactPopover()">Cancel</button></div>';
     document.body.appendChild(pop);
     renderPayHistory(payInfo.payments, name);
     requestAnimationFrame(function() {
