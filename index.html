@@ -21,7 +21,9 @@
             --text: #14171a;
             --text-light: #6b7280;
             --border: #e6e8eb;
-            --surface: #f9fafb;
+            --surface: #f3f8f6;
+            --tint: rgba(15,157,118,0.055);
+            --tint-border: rgba(15,157,118,0.16);
             --success: #0f9d76;
             --danger: #c0392b;
             --shadow: 0 1px 2px rgba(16,24,40,0.04);
@@ -108,11 +110,11 @@
         @media (max-width: 900px) { .container { grid-template-columns: 1fr; } }
 
         .card {
-            background: var(--card);
+            background: var(--tint);
             border-radius: var(--radius);
             box-shadow: var(--shadow);
             padding: 24px;
-            border: 1px solid var(--border);
+            border: 1px solid var(--tint-border);
             transition: box-shadow 0.2s ease;
         }
         .card:hover {
@@ -157,9 +159,9 @@
         .summary-strip { display: flex; gap: 12px; flex-wrap: wrap; }
         .summary-card {
             flex: 1; min-width: 140px;
-            background: #fff;
+            background: var(--tint);
             color: var(--text); border-radius: 12px; padding: 18px 16px; text-align: center;
-            border: 1px solid var(--border);
+            border: 1px solid var(--tint-border);
             box-shadow: var(--shadow);
             transition: box-shadow 0.15s ease;
         }
@@ -766,7 +768,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v51</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v52</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:#2196F3;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -918,7 +920,7 @@
         <h2><span class="icon">&#128210;</span> Entry Log</h2>
         <div class="search-bar-wrap">
             <span class="search-icon">&#128269;</span>
-            <input type="search" id="entrySearchBar" placeholder="Search entries by name, category, phone, revenue, note, date..." oninput="entryPage=1;renderLog()" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" name="entry-search-nofill" data-form-type="other" data-lpignore="true" role="searchbox">
+            <input type="search" id="entrySearchBar" placeholder="Search entries by name, category, phone, revenue, note, date..." oninput="entryPage=1;renderLog()" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" name="entry-search-nofill" data-form-type="other" data-lpignore="true" role="searchbox">
         </div>
         <div class="log-controls">
             <select id="filterCategory" onchange="entryPage=1;renderLog()">
@@ -1064,7 +1066,7 @@
         <h2><span class="icon">&#128210;</span> Finance Log</h2>
         <div class="search-bar-wrap">
             <span class="search-icon">&#128269;</span>
-            <input type="search" id="financeSearchBar" placeholder="Search by date, type, amount, note..." oninput="finPage=1;renderFinanceLog()" autocomplete="new-password" name="finance-search-nofill" data-form-type="other" data-lpignore="true" role="searchbox">
+            <input type="search" id="financeSearchBar" placeholder="Search by date, type, amount, note..." oninput="finPage=1;renderFinanceLog()" autocomplete="off" name="finance-search-nofill" data-form-type="other" data-lpignore="true" role="searchbox">
         </div>
         <div class="log-controls">
             <select id="filterFinType" onchange="finPage=1;renderFinanceLog()"></select>
@@ -1319,7 +1321,7 @@
                 <option value="Completed">Completed</option>
                 <option value="Lost">Lost</option>
             </select>
-            <input type="search" id="leadSearchBar" placeholder="Search leads..." oninput="renderLeads()" autocomplete="new-password" name="lead-search-nofill" data-form-type="other" data-lpignore="true" data-1p-ignore="true" role="searchbox">
+            <input type="search" id="leadSearchBar" placeholder="Search leads..." oninput="renderLeads()" autocomplete="off" name="lead-search-nofill" data-form-type="other" data-lpignore="true" data-1p-ignore="true" role="searchbox">
             <button class="btn btn-outline btn-sm" onclick="document.getElementById('filterLeadStatus').value='all';document.getElementById('leadSearchBar').value='';renderLeads();">Clear</button>
         </div>
         <div style="overflow-x:auto;">
@@ -1344,7 +1346,7 @@
         <div class="search-bar-wrap">
             <span class="search-icon">&#128269;</span>
             <input type="search" id="contactSearchBar" placeholder="Search name, phone, email, address, service or notes..."
-                   oninput="contactPage=1;renderContacts()" autocomplete="new-password" name="contact-search-nofill"
+                   oninput="contactPage=1;renderContacts()" autocomplete="off" name="contact-search-nofill"
                    data-form-type="other" data-lpignore="true" data-1p-ignore="true" role="searchbox">
         </div>
         <div class="log-controls">
@@ -5929,11 +5931,31 @@ function hardenSearchInput(id) {
     el.setAttribute('data-bwignore', 'true');
     el.setAttribute('readonly', 'readonly');
     el.name = id + '-' + Math.random().toString(36).slice(2, 10);
-    function unlock() { el.removeAttribute('readonly'); }
-    ['mousedown', 'touchstart', 'focus', 'keydown'].forEach(function(ev) {
-        el.addEventListener(ev, unlock);
+    /* Chrome decides whether to open the saved-logins dropdown at focus time,
+       so the field has to still be readonly then and only become editable
+       just after. */
+    el.addEventListener('focus', function() {
+        setTimeout(function() { el.removeAttribute('readonly'); }, 80);
+    });
+    el.addEventListener('blur', function() {
+        el.setAttribute('readonly', 'readonly');
     });
 }
+
+/* Password managers fill the first credential-looking fields they find, so
+   give them throwaway ones that nobody can see or tab into. */
+function addAutofillDecoys() {
+    if (document.getElementById('autofillDecoys')) return;
+    var wrap = document.createElement('div');
+    wrap.id = 'autofillDecoys';
+    wrap.setAttribute('aria-hidden', 'true');
+    wrap.style.cssText = 'position:absolute;left:-9999px;top:0;width:1px;height:1px;overflow:hidden;';
+    wrap.innerHTML =
+        '<input type="text" name="username" tabindex="-1" autocomplete="username">' +
+        '<input type="password" name="password" tabindex="-1" autocomplete="current-password">';
+    document.body.insertBefore(wrap, document.body.firstChild);
+}
+addAutofillDecoys();
 ['entrySearchBar', 'financeSearchBar', 'leadSearchBar', 'contactSearchBar'].forEach(hardenSearchInput);
 
 /* ═══════════════════════════════════════
