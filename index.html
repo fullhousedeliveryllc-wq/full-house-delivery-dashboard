@@ -21,9 +21,11 @@
             --text: #14171a;
             --text-light: #6b7280;
             --border: #e6e8eb;
-            --surface: #f4f7fc;
-            --tint: rgba(37,99,235,0.05);
-            --tint-border: rgba(37,99,235,0.15);
+            --surface: #eef3fc;
+            --tint: rgba(37,99,235,0.085);
+            --tint-border: rgba(37,99,235,0.2);
+            --glass: linear-gradient(160deg, rgba(255,255,255,0.72) 0%, rgba(255,255,255,0.28) 55%, rgba(255,255,255,0.12) 100%);
+            --glass-inset: inset 0 1px 0 rgba(255,255,255,0.65);
             --success: #0f9d76;
             --danger: #c0392b;
             --shadow: 0 1px 2px rgba(16,24,40,0.04);
@@ -110,15 +112,17 @@
         @media (max-width: 900px) { .container { grid-template-columns: 1fr; } }
 
         .card {
-            background: var(--tint);
+            background: var(--glass), var(--tint);
+            -webkit-backdrop-filter: blur(16px) saturate(150%);
+            backdrop-filter: blur(16px) saturate(150%);
             border-radius: var(--radius);
-            box-shadow: var(--shadow);
+            box-shadow: var(--shadow), var(--glass-inset);
             padding: 24px;
             border: 1px solid var(--tint-border);
             transition: box-shadow 0.2s ease;
         }
         .card:hover {
-            box-shadow: 0 1px 2px rgba(16,24,40,0.05), 0 6px 20px rgba(16,24,40,0.05);
+            box-shadow: 0 1px 2px rgba(16,24,40,0.05), 0 6px 20px rgba(37,99,235,0.08), var(--glass-inset);
         }
         .card h2 {
             font-size: 15px;
@@ -159,13 +163,15 @@
         .summary-strip { display: flex; gap: 12px; flex-wrap: wrap; }
         .summary-card {
             flex: 1; min-width: 140px;
-            background: var(--tint);
+            background: var(--glass), var(--tint);
+            -webkit-backdrop-filter: blur(16px) saturate(150%);
+            backdrop-filter: blur(16px) saturate(150%);
             color: var(--text); border-radius: 12px; padding: 18px 16px; text-align: center;
             border: 1px solid var(--tint-border);
-            box-shadow: var(--shadow);
+            box-shadow: var(--shadow), var(--glass-inset);
             transition: box-shadow 0.15s ease;
         }
-        .summary-card:hover { box-shadow: 0 2px 10px rgba(16,24,40,0.07); }
+        .summary-card:hover { box-shadow: 0 2px 10px rgba(37,99,235,0.12), var(--glass-inset); }
         .summary-card .num { font-size: 28px; font-weight: 650; letter-spacing: -0.02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; line-height: 1; display: block; }
         .summary-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-light); margin-top: 6px; font-weight: 600; line-height: 1.2; display: block; }
         .summary-card.green { border-left: 3px solid var(--success); }
@@ -183,7 +189,7 @@
         .form-group.highlight-field input:focus,
         .form-group.highlight-field select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(178,51,39,0.1); }
         .currency-input-wrap { position: relative; }
-        .currency-input-wrap .currency-symbol { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-size: 15px; font-weight: 700; color: var(--accent); pointer-events: none; }
+        .currency-input-wrap .currency-symbol { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-size: 15px; font-weight: 700; color: var(--text-light); pointer-events: none; }
         .currency-input-wrap input { padding-left: 28px; }
         label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
         input, select {
@@ -768,7 +774,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v53</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v54</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:#2196F3;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -836,7 +842,7 @@
                 <label for="entryAmount">Number of Jobs</label>
                 <input type="number" id="entryAmount" min="1" value="1" required>
             </div>
-            <div class="form-group highlight-field">
+            <div class="form-group">
                 <label for="entryRevenue">Revenue ($)</label>
                 <div class="currency-input-wrap">
                     <span class="currency-symbol">$</span>
@@ -845,15 +851,15 @@
             </div>
             <div class="form-group">
                 <label for="entryCustomer">Customer Name</label>
-                <input type="text" id="entryCustomer" placeholder="e.g. 'John Smith'">
+                <input type="text" id="entryCustomer" placeholder="e.g. 'John Smith'" required>
             </div>
             <div class="form-group">
                 <label for="entryPhone">Phone Number</label>
-                <input type="tel" id="entryPhone" placeholder="e.g. '(555) 123-4567'">
+                <input type="tel" id="entryPhone" placeholder="e.g. '(555) 123-4567'" required>
             </div>
             <div class="form-group">
                 <label for="entryEmail">Email</label>
-                <input type="email" id="entryEmail" placeholder="e.g. 'john@example.com'">
+                <input type="email" id="entryEmail" placeholder="e.g. 'john@example.com'" required>
             </div>
             <div class="form-group conditional-field" id="furnitureStoreField">
                 <label for="entryStoreName">Furniture Store Name</label>
@@ -868,13 +874,13 @@
                     <option value="Miscellaneous">Miscellaneous</option>
                 </select>
             </div>
-            <div class="form-group highlight-field">
+            <div class="form-group">
                 <label for="entryNote">Note</label>
                 <input type="text" id="entryNote" placeholder="e.g. 'Big sofa delivery'" required>
             </div>
             <div class="form-group">
                 <label for="entryStatus">Job Status</label>
-                <select id="entryStatus">
+                <select id="entryStatus" required>
                     <option value="Pending">Pending</option>
                     <option value="Confirmed">Confirmed</option>
                     <option value="In Progress">In Progress</option>
@@ -1469,7 +1475,7 @@
             <label for="editJobAmount">Number of Jobs</label>
             <input type="number" id="editJobAmount" min="1">
         </div>
-        <div class="form-group highlight-field">
+        <div class="form-group">
             <label for="editJobRevenue">Revenue ($)</label>
             <div class="currency-input-wrap">
                 <span class="currency-symbol">$</span>
@@ -2649,6 +2655,10 @@ function updateConditionalFields() {
     document.getElementById('referredByField').classList.toggle('visible', cat === 'Online Customers');
     if (cat !== 'Furniture Store Jobs') document.getElementById('entryStoreName').value = '';
     if (cat !== 'Online Customers') document.getElementById('entryReferredBy').value = '';
+    /* A hidden required field blocks submission with an unfocusable-element
+       error, so these are only required while their category is selected. */
+    document.getElementById('entryStoreName').required = cat === 'Furniture Store Jobs';
+    document.getElementById('entryReferredBy').required = cat === 'Online Customers';
 }
 document.getElementById('entryCategory').addEventListener('change', updateConditionalFields);
 
@@ -2672,7 +2682,18 @@ document.getElementById('entryForm').addEventListener('submit', function(e) {
     var revenueVal = parseFloat(document.getElementById('entryRevenue').value);
     if (isNaN(revenueVal) || revenueVal < 0) { toast('Please enter a valid revenue amount.'); return; }
     var noteVal = document.getElementById('entryNote').value.trim();
-    if (!noteVal) { toast('Note is required.'); return; }
+    /* required alone accepts whitespace-only input */
+    var mustFill = [
+        ['entryDate', 'Date'], ['entryAmount', 'Number of Jobs'], ['entryCustomer', 'Customer Name'],
+        ['entryPhone', 'Phone Number'], ['entryEmail', 'Email'], ['entryNote', 'Note'],
+        ['entryStatus', 'Job Status']
+    ];
+    if (cat === 'Furniture Store Jobs') mustFill.push(['entryStoreName', 'Furniture Store Name']);
+    if (cat === 'Online Customers') mustFill.push(['entryReferredBy', 'Referred By']);
+    for (var i = 0; i < mustFill.length; i++) {
+        var fld = document.getElementById(mustFill[i][0]);
+        if (!fld.value.trim()) { toast(mustFill[i][1] + ' is required.'); fld.focus(); return; }
+    }
     var entry = {
         id: Date.now(), date: document.getElementById('entryDate').value, category: cat,
         amount: parseInt(document.getElementById('entryAmount').value, 10),
