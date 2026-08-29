@@ -696,6 +696,29 @@
         .job-status.in-progress { background: #f3e5f5; color: #7b1fa2; }
         .job-status.completed { background: #e8f5e9; color: #2e7d32; }
 
+        /* Job status dropdown in the entry log — colour-coded so the current
+           selection is readable at a glance */
+        .job-status-select {
+            font-size: 12px; font-weight: 700; padding: 5px 26px 5px 10px;
+            border-radius: 999px; border: 1.5px solid transparent; cursor: pointer;
+            min-width: 118px; appearance: none; -webkit-appearance: none;
+            background-repeat: no-repeat; background-position: right 8px center;
+            background-size: 9px 6px;
+            background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='6'%3E%3Cpath fill='%23555' d='M0 0h9L4.5 6z'/%3E%3C/svg%3E");
+        }
+        .job-status-select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+        .job-status-select option { color: #222; background: #fff; font-weight: 600; }
+        .job-status-select.pending { background-color: #fff3e0; color: #e65100; border-color: #ffcc80; }
+        .job-status-select.confirmed { background-color: #e3f2fd; color: #1565c0; border-color: #90caf9; }
+        .job-status-select.in-progress { background-color: #f3e5f5; color: #7b1fa2; border-color: #ce93d8; }
+        .job-status-select.completed { background-color: #e8f5e9; color: #2e7d32; border-color: #a5d6a7; }
+
+        /* Contact book type badges */
+        .contact-type { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; padding: 2px 6px; border-radius: 6px; display: inline-block; }
+        .contact-type.customer { background: #e8f5e9; color: #2e7d32; }
+        .contact-type.prospect { background: #e3f2fd; color: #1565c0; }
+        .contact-type.repeat { background: #28a745; color: #fff; }
+
         /* Money snapshot */
         .money-card { background: #fff; border-top: 3px solid var(--success); }
         .money-header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
@@ -744,7 +767,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v49</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v50</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:#2196F3;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -896,7 +919,7 @@
         <h2><span class="icon">&#128210;</span> Entry Log</h2>
         <div class="search-bar-wrap">
             <span class="search-icon">&#128269;</span>
-            <input type="search" id="entrySearchBar" placeholder="Search entries by name, category, phone, revenue, note, date..." oninput="entryPage=1;renderLog()" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" name="entry-search-nofill" data-form-type="other" data-lpignore="true" role="searchbox" onfocus="this.removeAttribute('readonly')" readonly>
+            <input type="search" id="entrySearchBar" placeholder="Search entries by name, category, phone, revenue, note, date..." oninput="entryPage=1;renderLog()" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" name="entry-search-nofill" data-form-type="other" data-lpignore="true" role="searchbox">
         </div>
         <div class="log-controls">
             <select id="filterCategory" onchange="entryPage=1;renderLog()">
@@ -947,10 +970,13 @@
     <div class="card full-width">
         <h2><span class="icon">&#128200;</span> Financial Overview</h2>
         <div class="period-selector" id="periodSelector">
-            <button class="period-btn active" onclick="setFinancePeriod('weekly')">Weekly</button>
-            <button class="period-btn" onclick="setFinancePeriod('monthly')">Monthly</button>
-            <button class="period-btn" onclick="setFinancePeriod('quarterly')">Quarterly</button>
+            <button class="period-btn active" data-period="weekly" onclick="setFinancePeriod('weekly')">Weekly</button>
+            <button class="period-btn" data-period="monthly" onclick="setFinancePeriod('monthly')">Monthly</button>
+            <button class="period-btn" data-period="quarterly" onclick="setFinancePeriod('quarterly')">Quarterly</button>
+            <button class="period-btn" data-period="yearly" onclick="setFinancePeriod('yearly')">Yearly</button>
+            <button class="period-btn" data-period="all" onclick="setFinancePeriod('all')">All Time</button>
         </div>
+        <div id="financeRangeLabel" style="font-size:12px;color:var(--text-light);margin:-6px 0 10px;"></div>
         <div class="bar-chart-wrapper">
             <canvas id="financeBarChart" width="600" height="320"></canvas>
             <div class="no-data-msg" id="noFinanceMsg">
@@ -1314,7 +1340,7 @@
     <div class="card full-width" style="border-left:3px solid var(--primary);">
         <h2><span class="icon">&#128100;</span> Contact Book</h2>
         <p style="font-size:13px;color:#666;margin:0 0 12px;">
-            Every customer from a job, lead or quote request is saved here automatically and stays until you delete it.
+            Every customer from a job, lead or quote request is saved here automatically — with their phone, email, services and what they spent — and stays until you delete it. Duplicates are merged on the phone or email they share.
         </p>
         <div class="search-bar-wrap">
             <span class="search-icon">&#128269;</span>
@@ -1326,15 +1352,16 @@
             <select id="contactFilter" onchange="contactPage=1;renderContacts()">
                 <option value="all">All contacts</option>
                 <option value="customers">Customers (booked a job)</option>
-                <option value="leads">Leads only</option>
+                <option value="leads">Prospects (no job yet)</option>
                 <option value="repeat">Repeat customers (2+ jobs)</option>
                 <option value="stale">No activity in 60+ days</option>
+                <option value="nophone">Missing phone or email</option>
             </select>
             <select id="contactSort" onchange="renderContacts()">
                 <option value="recent">Sort: Last activity</option>
                 <option value="name">Sort: Name (A–Z)</option>
                 <option value="jobs">Sort: Most jobs</option>
-                <option value="revenue">Sort: Most revenue</option>
+                <option value="revenue">Sort: Most spent</option>
             </select>
             <button class="btn btn-outline btn-sm" onclick="openContactForm()">+ Add Contact</button>
             <button class="btn btn-outline btn-sm" onclick="exportContactsCSV()">Export CSV</button>
@@ -1345,8 +1372,8 @@
             <table class="finance-table">
                 <thead>
                     <tr>
-                        <th>Name</th><th>Phone</th><th>Email</th>
-                        <th>Jobs</th><th>Revenue</th><th>Last activity</th><th>Source</th><th>Actions</th>
+                        <th>Name</th><th>Type</th><th>Phone</th><th>Email</th><th>Service</th>
+                        <th>Jobs</th><th>Total spent</th><th>Last activity</th><th>Actions</th>
                     </tr>
                 </thead>
                 <tbody id="contactsBody"></tbody>
@@ -2805,7 +2832,7 @@ function renderLog() {
         var docsCell = invoiceCount > 0 ? '<button class="invoice-btn" onclick="viewInvoices(' + e.id + ')" title="View ' + invoiceCount + ' invoice(s)">&#128206; ' + invoiceCount + '</button>' : '\u2014';
         var statusVal = e.status || 'Completed';
         var statusClass = statusVal.toLowerCase().replace(/\s+/g, '-');
-        var statusCell = '<select class="job-status-select" onchange="updateJobStatus(' + e.id + ',this.value)" style="font-size:10px;padding:2px 4px;border-radius:6px;border:1px solid #ddd;">' + ['Pending','Confirmed','In Progress','Completed'].map(function(s) { return '<option value="' + s + '"' + (statusVal === s ? ' selected' : '') + '>' + s + '</option>'; }).join('') + '</select>';
+        var statusCell = '<select class="job-status-select ' + statusClass + '" onchange="updateJobStatus(' + e.id + ',this.value,this)">' + ['Pending','Confirmed','In Progress','Completed'].map(function(s) { return '<option value="' + s + '"' + (statusVal === s ? ' selected' : '') + '>' + s + '</option>'; }).join('') + '</select>';
         return '<tr><td><input type="checkbox" class="entry-select-cb" value="' + e.id + '" onchange="updateEntryBulkBtn()"></td><td>' + e.date + '</td><td>' + esc(e.category) + '</td><td>' + esc(e.customer || '\u2014') + '</td><td>' + esc(e.phone || '\u2014') + '</td><td>' + esc(e.email || '\u2014') + '</td><td>' + esc(details || '\u2014') + '</td><td>' + e.amount + '</td><td>' + rev + '</td><td>' + esc(e.note || '\u2014') + '</td><td>' + statusCell + '</td><td>' + docsCell + '</td><td class="action-cell"><button class="btn-edit" onclick="editEntry(' + e.id + ')" title="Edit">&#9998;</button><button class="btn btn-danger" onclick="deleteEntry(' + e.id + ')" title="Delete">&times;</button></td></tr>';
     }).join('');
 
@@ -2917,9 +2944,12 @@ function closeBulkDeleteWarning() {
     if (o) o.remove();
 }
 
-function updateJobStatus(id, status) {
+function updateJobStatus(id, status, selectEl) {
     var entry = entries.find(function(e) { return String(e.id) === String(id); });
     if (entry) { entry.status = status; saveLocal(); if (supaClient && currentUser) flushSync(); }
+    if (selectEl) {
+        selectEl.className = 'job-status-select ' + status.toLowerCase().replace(/\s+/g, '-');
+    }
 }
 
 function editEntry(id) {
@@ -3073,7 +3103,7 @@ document.getElementById('financeForm').addEventListener('submit', function(e) {
 function setFinancePeriod(p) {
     currentPeriod = p;
     document.querySelectorAll('.period-btn').forEach(function(b) {
-        b.classList.toggle('active', b.textContent.toLowerCase() === p);
+        b.classList.toggle('active', b.dataset.period === p);
     });
     renderFinanceAll();
 }
@@ -3097,7 +3127,14 @@ function getPeriodKey(dateStr, period) {
 }
 
 function getPeriodLabel() {
+    if (currentPeriod === 'all') return 'All Time';
     return currentPeriod.charAt(0).toUpperCase() + currentPeriod.slice(1);
+}
+
+function getPeriodRangeLabel() {
+    var range = getCurrentPeriodRange();
+    if (!range) return 'All time \u2014 every job and expense on record';
+    return range.start + ' \u2192 ' + range.end;
 }
 
 function getFilteredFinance() {
@@ -3174,6 +3211,7 @@ function renderFinanceSummary() {
 function getCurrentPeriodRange() {
     var now = new Date();
     var todayStr = localDateStr(now);
+    if (currentPeriod === 'all') return null;
     if (currentPeriod === 'weekly') return weekRange();
     if (currentPeriod === 'monthly') return monthRange(0);
     if (currentPeriod === 'quarterly') {
@@ -3183,11 +3221,18 @@ function getCurrentPeriodRange() {
             end: localDateStr(new Date(now.getFullYear(), q * 3 + 3, 0))
         };
     }
+    if (currentPeriod === 'yearly') {
+        return {
+            start: localDateStr(new Date(now.getFullYear(), 0, 1)),
+            end: localDateStr(new Date(now.getFullYear(), 11, 31))
+        };
+    }
     return { start: todayStr, end: todayStr };
 }
 
 function renderFinanceBreakdown() {
     document.getElementById('periodLabel').textContent = getPeriodLabel();
+    document.getElementById('financeRangeLabel').textContent = getPeriodRangeLabel();
     var range = getCurrentPeriodRange();
     var byType = expensesByTypeIn(range);
     var periodJobRevenue = jobRevenueIn(range);
@@ -3222,9 +3267,19 @@ function drawFinanceChart() {
 
     var hasData = all.length > 0 || periodJobRevenue > 0;
 
-    document.getElementById('noFinanceMsg').style.display = hasData ? 'none' : 'block';
+    var msgEl = document.getElementById('noFinanceMsg');
+    msgEl.style.display = hasData ? 'none' : 'block';
     fc.style.display = hasData ? 'block' : 'none';
-    if (!hasData) return;
+    if (!hasData) {
+        // Distinguish "nothing logged yet" from "nothing in this period" —
+        // otherwise an empty chart looks broken while the data sits a month back.
+        var haveAnything = financeEntries.length > 0 || entries.length > 0;
+        msgEl.innerHTML = haveAnything
+            ? '<span class="big-icon">&#128197;</span>No activity between ' + getPeriodRangeLabel() +
+              '.<br><button class="btn btn-outline btn-sm" style="margin-top:8px" onclick="setFinancePeriod(\'all\')">Show all time</button>'
+            : '<span class="big-icon">&#128176;</span>Log your first expense below!';
+        return;
+    }
 
     var barData = [];
     if (periodJobRevenue > 0) {
@@ -3240,7 +3295,8 @@ function drawFinanceChart() {
 
     if (barData.length === 0) {
         fc.style.display = 'none';
-        document.getElementById('noFinanceMsg').style.display = 'block';
+        msgEl.innerHTML = '<span class="big-icon">&#128197;</span>No revenue or expenses between ' + getPeriodRangeLabel() + '.';
+        msgEl.style.display = 'block';
         return;
     }
 
@@ -3259,7 +3315,11 @@ function drawFinanceChart() {
     fc.style.height = canvasH + 'px';
 
     var dpr = window.devicePixelRatio || 1;
-    var w = fc.clientWidth || fc.parentElement.clientWidth || 600;
+    var w = fc.clientWidth || fc.parentElement.clientWidth || 0;
+    // While the tab is hidden the canvas measures 0 wide; drawing then would
+    // leave a blank chart behind, so wait for it to be laid out.
+    if (w < 60) { financeChartPending = true; return; }
+    financeChartPending = false;
     var h = canvasH;
     fc.width = w * dpr; fc.height = h * dpr;
     fctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -3318,6 +3378,20 @@ function drawFinanceChart() {
         fctx.textAlign = 'left'; fctx.textBaseline = 'middle';
         fctx.fillText(fmtDollar(item.value), pad.left + barLen + 8, y + barH / 2);
     });
+}
+
+var financeChartPending = false;
+
+// The canvas is sized from its rendered width, so it has to be redrawn whenever
+// that width changes (tab shown, window resized, sidebar toggled).
+if (typeof ResizeObserver === 'function') {
+    new ResizeObserver(function() {
+        var fc = document.getElementById('financeBarChart');
+        if (!fc) return;
+        if (financeChartPending || fc.width / (window.devicePixelRatio || 1) !== fc.clientWidth) {
+            if (fc.clientWidth > 60) drawFinanceChart();
+        }
+    }).observe(document.querySelector('.bar-chart-wrapper'));
 }
 
 function ellipsize(ctx, text, maxWidth) {
@@ -4541,7 +4615,7 @@ if (teamDriversRaw && Array.isArray(teamDriversRaw) && teamDriversRaw.length > 0
         return { name: name, status: 'active', inactiveDate: null, vacationStart: null, vacationEnd: null, phone: '', email: '', unavailDays: [] };
     });
 }
-var teamOwners = ['Jorge Lopez', 'Angel Orbe', 'Emanuel Salinas', 'David Garcia', 'Josh Verde'];
+var teamOwners = JSON.parse(localStorage.getItem('fhd_teamOwners')) || ['Jorge Lopez', 'Angel Orbe', 'Emanuel Salinas', 'David Garcia', 'Josh Verde'];
 var ownerContacts = JSON.parse(localStorage.getItem('fhd_ownerContacts')) || {};
 var ownerUnavailDays = JSON.parse(localStorage.getItem('fhd_ownerUnavailDays')) || {};
 var scheduleData = JSON.parse(localStorage.getItem('fhd_schedule')) || {};
@@ -4557,6 +4631,7 @@ function saveTeam() {
     localStorage.setItem('fhd_auditLog', JSON.stringify(auditLog));
     localStorage.setItem('fhd_ownerContacts', JSON.stringify(ownerContacts));
     localStorage.setItem('fhd_ownerUnavailDays', JSON.stringify(ownerUnavailDays));
+    localStorage.setItem('fhd_teamOwners', JSON.stringify(teamOwners));
     // Auto-remove inactive drivers past 7 days
     var now = Date.now();
     teamDrivers = teamDrivers.filter(function(d) {
@@ -4640,13 +4715,13 @@ function renderTeamRoster() {
         }
         actions += ' <button class="btn btn-danger btn-sm" onclick="removeEmployee(' + i + ')" style="padding:2px 8px;font-size:11px;">&times;</button>';
         actions += '</span>';
-        return '<li><span class="roster-name" onclick="openContactPopover(\'driver\',' + i + ', event)">' + esc(drv.name) + '</span>' + actions + '</li>';
+        return '<li><span class="roster-name" title="Click to edit name, contact info and pay" onclick="openContactPopover(\'driver\',' + i + ', event)">' + esc(drv.name) + ' &#9998;</span>' + actions + '</li>';
     }).join('');
     document.getElementById('driverCount').textContent = teamDrivers.filter(function(d) { return d.status === 'active'; }).length;
 
     var ol = document.getElementById('ownerList');
     ol.innerHTML = teamOwners.map(function(name, i) {
-        return '<li><span class="roster-name" onclick="openContactPopover(\'owner\',' + i + ', event)">' + esc(name) + '</span><span class="roster-badge badge-owner">Owner</span></li>';
+        return '<li><span class="roster-name" title="Click to edit name, contact info and pay" onclick="openContactPopover(\'owner\',' + i + ', event)">' + esc(name) + ' &#9998;</span><span class="roster-badge badge-owner">Owner</span></li>';
     }).join('');
 }
 
@@ -4754,6 +4829,7 @@ function openContactPopover(type, index, evt) {
     }
     var escapedName = esc(name).replace(/'/g, "\\'");
     pop.innerHTML = '<h4>' + esc(name) + '</h4>' +
+        '<div class="contact-field"><label>Name</label><input type="text" id="cpName" value="' + esc(name) + '" placeholder="Full name"></div>' +
         '<div class="contact-field"><label>Phone</label><input type="tel" id="cpPhone" value="' + esc(phone) + '" placeholder="(555) 123-4567"></div>' +
         '<div class="contact-field"><label>Email</label><input type="email" id="cpEmail" value="' + esc(email) + '" placeholder="name@email.com"></div>' +
         '<div style="margin-top:12px;padding:10px;background:#f8f9fa;border-radius:8px;border:1px solid #e9ecef;">' +
@@ -4782,9 +4858,17 @@ function openContactPopover(type, index, evt) {
 function saveContactPopover(type, index) {
     var phone = document.getElementById('cpPhone').value.trim();
     var email = document.getElementById('cpEmail').value.trim();
+    var newName = document.getElementById('cpName').value.trim();
+    var oldName = type === 'driver' ? teamDrivers[index].name : teamOwners[index];
+    if (!newName) { toast('Name cannot be empty.', true); return; }
+    if (newName !== oldName && teamMemberExists(newName)) {
+        toast('Someone on the team is already called "' + newName + '".', true);
+        return;
+    }
     var cbs = document.querySelectorAll('.unavail-day-cb');
     var unavailDays = [];
     cbs.forEach(function(cb) { if (cb.checked) unavailDays.push(parseInt(cb.value)); });
+    if (newName !== oldName) renameTeamMember(type, index, oldName, newName);
     if (type === 'driver') {
         teamDrivers[index].phone = phone;
         teamDrivers[index].email = email;
@@ -4795,7 +4879,52 @@ function saveContactPopover(type, index) {
         ownerUnavailDays[name] = unavailDays;
     }
     saveTeam(); closeContactPopover(); renderTeamAll();
-    toast('Contact info saved!');
+    toast(newName !== oldName ? 'Renamed to ' + newName + '.' : 'Contact info saved!');
+}
+
+function teamMemberExists(name) {
+    var lower = name.toLowerCase();
+    return teamDrivers.some(function(d) { return d.name.toLowerCase() === lower; }) ||
+        teamOwners.some(function(o) { return o.toLowerCase() === lower; });
+}
+
+/* People are referenced by name all over the schedule, so a rename has to
+   carry the roster entry, availability, pay history and every shift with it. */
+function renameTeamMember(type, index, oldName, newName) {
+    if (type === 'driver') {
+        teamDrivers[index].name = newName;
+    } else {
+        teamOwners[index] = newName;
+        if (ownerContacts[oldName]) { ownerContacts[newName] = ownerContacts[oldName]; delete ownerContacts[oldName]; }
+        if (ownerUnavailDays[oldName]) { ownerUnavailDays[newName] = ownerUnavailDays[oldName]; delete ownerUnavailDays[oldName]; }
+    }
+
+    Object.keys(scheduleData).forEach(function(dateKey) {
+        var day = scheduleData[dateKey];
+        ['crew1', 'crew2', 'drivers'].forEach(function(field) {
+            if (Array.isArray(day[field])) {
+                day[field] = day[field].map(function(n) { return n === oldName ? newName : n; });
+            }
+        });
+        if (day.dispatcher === oldName) day.dispatcher = newName;
+    });
+
+    Object.keys(availData).forEach(function(key) {
+        var sep = key.indexOf('::');
+        if (sep !== -1 && key.slice(0, sep) === oldName) {
+            availData[newName + key.slice(sep)] = availData[key];
+            delete availData[key];
+        }
+    });
+
+    var manual = JSON.parse(localStorage.getItem('fhd_manualPay')) || {};
+    if (manual[oldName]) {
+        manual[newName] = (manual[newName] || []).concat(manual[oldName]);
+        delete manual[oldName];
+        localStorage.setItem('fhd_manualPay', JSON.stringify(manual));
+    }
+
+    addAudit(oldName + ' renamed to ' + newName, 'SYS');
 }
 
 function closeContactPopover() {
@@ -5433,9 +5562,40 @@ function syncContacts() {
         upsertContact({ name: e.customer, phone: e.phone, email: e.email }, 'Job');
     });
     leads.forEach(function(l) {
-        upsertContact({ name: l.name, phone: l.phone, email: l.email, notes: l.notes }, 'Lead');
+        upsertContact({ name: l.name, phone: l.phone, email: l.email, notes: l.notes, address: l.address }, 'Lead');
     });
+    mergeDuplicateContacts();
     if (JSON.stringify(contacts) !== before) saveContacts();
+}
+
+/* Two records for one person appear when a contact is first saved with only a
+   name and later gains a phone or email that already belongs to another row.
+   Merging keeps the oldest record and never drops a filled-in field. */
+function mergeDuplicateContacts() {
+    var byKey = {};
+    var merged = [];
+    contacts.forEach(function(c) {
+        var keys = contactKeys(c).filter(function(k) { return k.charAt(0) !== 'n'; });
+        if (!keys.length) keys = contactKeys(c);
+        var target = null;
+        for (var i = 0; i < keys.length && !target; i++) target = byKey[keys[i]];
+        if (!target) {
+            merged.push(c);
+            keys.forEach(function(k) { byKey[k] = c; });
+            return;
+        }
+        if (!target.name && c.name) target.name = c.name;
+        if (!target.phone && c.phone) target.phone = c.phone;
+        if (!target.email && c.email) target.email = c.email;
+        if (!target.address && c.address) target.address = c.address;
+        if (c.notes && (target.notes || '').indexOf(c.notes) === -1) {
+            target.notes = target.notes ? target.notes + '\n' + c.notes : c.notes;
+        }
+        if (c.created && (!target.created || c.created < target.created)) target.created = c.created;
+        target.updated = new Date().toISOString();
+        contactKeys(target).forEach(function(k) { byKey[k] = target; });
+    });
+    contacts = merged;
 }
 
 function contactActivity(c) {
@@ -5450,14 +5610,22 @@ function contactActivity(c) {
     var jobs = entries.filter(function(e) { return matches(e.customer, e.phone, e.email); });
     var myLeads = leads.filter(function(l) { return matches(l.name, l.phone, l.email); });
     var revenue = jobs.reduce(function(s, e) { return s + (e.revenue || 0); }, 0);
+    var pipeline = myLeads.reduce(function(s, l) { return s + (l.budget || 0); }, 0);
     var dates = jobs.map(function(e) { return e.date; }).concat(myLeads.map(function(l) { return l.date; }));
     dates.sort();
+    var serviceList = jobs.map(function(e) { return e.category; })
+        .concat(myLeads.map(function(l) { return l.service; }))
+        .filter(function(s, i, arr) { return s && arr.indexOf(s) === i; });
     return {
         jobs: jobs.length,
         jobCount: jobs.reduce(function(s, e) { return s + (e.amount || 1); }, 0),
         revenue: revenue,
+        pipeline: pipeline,
         last: dates.length ? dates[dates.length - 1] : (c.created || '').slice(0, 10),
-        services: myLeads.map(function(l) { return l.service; }).join(' '),
+        serviceList: serviceList,
+        services: serviceList.join(' '),
+        jobRecords: jobs,
+        leadRecords: myLeads,
         status: myLeads.length ? myLeads[myLeads.length - 1].status : ''
     };
 }
@@ -5491,6 +5659,7 @@ function renderContacts() {
         if (filter === 'leads' && r.act.jobs > 0) return false;
         if (filter === 'repeat' && r.act.jobs < 2) return false;
         if (filter === 'stale' && r.act.last >= staleCutoff) return false;
+        if (filter === 'nophone' && r.c.phone && r.c.email) return false;
         return contactMatchesSearch(r.c, r.act, search);
     });
 
@@ -5506,7 +5675,7 @@ function renderContacts() {
     var pageRows = rows.slice((contactPage - 1) * CONTACT_PAGE_SIZE, contactPage * CONTACT_PAGE_SIZE);
 
     if (!rows.length) {
-        body.innerHTML = '<tr><td colspan="8" class="empty-log">' +
+        body.innerHTML = '<tr><td colspan="9" class="empty-log">' +
             (contacts.length ? 'No contacts match this search.' : 'No contacts yet — they appear here as soon as you log a job or a lead.') +
             '</td></tr>';
     } else {
@@ -5514,16 +5683,26 @@ function renderContacts() {
             var c = r.c, act = r.act;
             var tel = c.phone ? '<a href="tel:' + esc(c.phone.replace(/[^\d+]/g, '')) + '">' + esc(c.phone) + '</a>' : '—';
             var mail = c.email ? '<a href="mailto:' + esc(c.email) + '">' + esc(c.email) + '</a>' : '—';
-            var badge = act.jobs >= 2 ? ' <span style="font-size:9px;background:#28a745;color:#fff;padding:1px 5px;border-radius:4px;">REPEAT</span>' : '';
+            var badge = act.jobs >= 2 ? ' <span class="contact-type repeat">Repeat</span>' : '';
+            var typeCell = act.jobs > 0
+                ? '<span class="contact-type customer">Customer</span>'
+                : '<span class="contact-type prospect">Prospect</span>' +
+                  (act.status ? '<br><span style="font-size:10px;color:#888;">' + esc(act.status) + '</span>' : '');
+            var services = act.serviceList.length ? esc(act.serviceList.slice(0, 2).join(', ')) +
+                (act.serviceList.length > 2 ? ' +' + (act.serviceList.length - 2) : '') : '—';
+            var spent = act.revenue > 0
+                ? '$' + act.revenue.toFixed(2)
+                : (act.pipeline > 0 ? '<span style="color:#888;">est. $' + act.pipeline.toFixed(2) + '</span>' : '—');
             return '<tr>' +
                 '<td><strong>' + esc(c.name) + '</strong>' + badge +
                     (c.address ? '<br><span style="font-size:10px;color:#888;">' + esc(c.address) + '</span>' : '') + '</td>' +
+                '<td>' + typeCell + '</td>' +
                 '<td>' + tel + '</td>' +
                 '<td>' + mail + '</td>' +
+                '<td style="font-size:12px;">' + services + '</td>' +
                 '<td>' + act.jobs + '</td>' +
-                '<td>' + (act.revenue > 0 ? '$' + act.revenue.toFixed(2) : '—') + '</td>' +
+                '<td>' + spent + '</td>' +
                 '<td>' + esc(act.last || '—') + '</td>' +
-                '<td><span style="font-size:11px;color:#888;">' + esc(c.source) + '</span></td>' +
                 '<td class="action-cell">' +
                     '<button class="btn-edit" onclick="openContactForm(' + c.id + ')" title="View / edit">&#9998;</button>' +
                     '<button class="btn btn-danger" onclick="deleteContact(' + c.id + ')" title="Delete">&times;</button>' +
@@ -5534,7 +5713,8 @@ function renderContacts() {
     document.getElementById('contactsPagination').innerHTML = buildPagination(contactPage, totalPages, rows.length, 'setContactPage');
     var customers = contacts.filter(function(c) { return contactActivity(c).jobs > 0; }).length;
     document.getElementById('contactStats').innerHTML =
-        '<strong>' + contacts.length + '</strong> saved contacts &nbsp;|&nbsp; ' + customers + ' have booked a job &nbsp;|&nbsp; ' +
+        '<strong>' + contacts.length + '</strong> saved contacts &nbsp;|&nbsp; ' +
+        customers + ' customers &nbsp;|&nbsp; ' + (contacts.length - customers) + ' prospects &nbsp;|&nbsp; ' +
         'showing ' + rows.length;
 }
 
@@ -5552,8 +5732,24 @@ function openContactForm(id) {
     var hist = document.getElementById('contactHistory');
     if (c) {
         var act = contactActivity(c);
-        hist.innerHTML = '<strong>History:</strong> ' + act.jobs + ' job(s), $' + act.revenue.toFixed(2) +
-            ' revenue, last activity ' + esc(act.last || '—') + (act.status ? ', lead status ' + esc(act.status) : '');
+        var summary = '<strong>' + (act.jobs > 0 ? 'Customer' : 'Prospect') + '</strong> — ' +
+            act.jobs + ' job(s), $' + act.revenue.toFixed(2) + ' spent, last activity ' + esc(act.last || '—') +
+            (act.status ? ', lead status ' + esc(act.status) : '');
+        var lines = act.jobRecords.slice().sort(function(a, b) { return (b.date || '').localeCompare(a.date || ''); })
+            .map(function(j) {
+                return '<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:2px 0;border-bottom:1px solid #f0f0f0;">' +
+                    '<span>' + esc(j.date) + ' · ' + esc(j.category || 'Job') + '</span>' +
+                    '<span style="font-weight:600;">$' + (j.revenue || 0).toFixed(2) + '</span></div>';
+            })
+            .concat(act.leadRecords.slice().sort(function(a, b) { return (b.date || '').localeCompare(a.date || ''); })
+                .map(function(l) {
+                    return '<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:2px 0;border-bottom:1px solid #f0f0f0;color:#666;">' +
+                        '<span>' + esc(l.date) + ' · ' + esc(l.service || 'Lead') + ' (' + esc(l.status) + ')</span>' +
+                        '<span>' + (l.budget > 0 ? 'est. $' + l.budget.toFixed(2) : '—') + '</span></div>';
+                }));
+        hist.innerHTML = summary + (lines.length
+            ? '<div style="margin-top:8px;max-height:180px;overflow-y:auto;">' + lines.join('') + '</div>'
+            : '');
     } else {
         hist.innerHTML = '';
     }
@@ -5605,10 +5801,14 @@ function deleteContact(id) {
 
 function exportContactsCSV() {
     syncContacts();
-    var rows = [['Name', 'Phone', 'Email', 'Address', 'Jobs', 'Revenue', 'Last activity', 'Source', 'Notes']];
+    var rows = [['Name', 'Type', 'Phone', 'Email', 'Address', 'Services', 'Jobs', 'Total spent', 'Estimated budget', 'Last activity', 'Lead status', 'Source', 'Notes']];
     contacts.forEach(function(c) {
         var act = contactActivity(c);
-        rows.push([c.name, c.phone, c.email || '', c.address || '', act.jobs, act.revenue.toFixed(2), act.last || '', c.source, (c.notes || '').replace(/\n/g, ' ')]);
+        rows.push([
+            c.name, act.jobs > 0 ? 'Customer' : 'Prospect', c.phone, c.email || '', c.address || '',
+            act.serviceList.join('; '), act.jobs, act.revenue.toFixed(2), act.pipeline.toFixed(2),
+            act.last || '', act.status || '', c.source, (c.notes || '').replace(/\n/g, ' ')
+        ]);
     });
     var csv = rows.map(function(r) {
         return r.map(function(v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(',');
@@ -5706,6 +5906,32 @@ function escapeHTML(str) {
     d.textContent = str;
     return d.innerHTML;
 }
+
+/* ═══════════════════════════════════════
+   SEARCH FIELD HARDENING
+   Browsers and password managers offer saved logins on any text field they
+   recognise. A randomised field name plus readonly-until-interaction keeps
+   that dropdown off the search bars.
+   ═══════════════════════════════════════ */
+function hardenSearchInput(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.setAttribute('autocomplete', 'off');
+    el.setAttribute('autocorrect', 'off');
+    el.setAttribute('autocapitalize', 'off');
+    el.setAttribute('spellcheck', 'false');
+    el.setAttribute('data-form-type', 'other');
+    el.setAttribute('data-lpignore', 'true');
+    el.setAttribute('data-1p-ignore', 'true');
+    el.setAttribute('data-bwignore', 'true');
+    el.setAttribute('readonly', 'readonly');
+    el.name = id + '-' + Math.random().toString(36).slice(2, 10);
+    function unlock() { el.removeAttribute('readonly'); }
+    ['mousedown', 'touchstart', 'focus', 'keydown'].forEach(function(ev) {
+        el.addEventListener(ev, unlock);
+    });
+}
+['entrySearchBar', 'financeSearchBar', 'leadSearchBar', 'contactSearchBar'].forEach(hardenSearchInput);
 
 /* ═══════════════════════════════════════
    INIT
