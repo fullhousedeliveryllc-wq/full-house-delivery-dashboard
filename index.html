@@ -247,6 +247,8 @@
         /* Log Table */
         .log-controls { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
         .log-controls select, .log-controls input { width: auto; min-width: 140px; }
+        .range-label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-light); font-weight: 600; }
+        .range-label input { min-width: 130px; }
         table { width: 100%; border-collapse: collapse; font-size: 13px; }
         th { background: var(--surface); color: var(--text-light); padding: 11px 14px; text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid var(--border); }
         th:first-child { border-radius: 10px 0 0 0; }
@@ -993,6 +995,8 @@
                 <option value="all">All Categories</option>
             </select>
             <input type="month" id="filterMonth" onchange="entryPage=1;renderLog()">
+            <label class="range-label">From <input type="date" id="filterFrom" onchange="entryPage=1;renderLog()"></label>
+            <label class="range-label">To <input type="date" id="filterTo" onchange="entryPage=1;renderLog()"></label>
             <button class="btn btn-outline btn-sm" onclick="clearFilters()">Clear Filters</button>
         </div>
         <div class="table-scroll">
@@ -1137,6 +1141,8 @@
         <div class="log-controls">
             <select id="filterFinType" onchange="finPage=1;renderFinanceLog()"></select>
             <input type="month" id="filterFinMonth" onchange="finPage=1;renderFinanceLog()">
+            <label class="range-label">From <input type="date" id="filterFinFrom" onchange="finPage=1;renderFinanceLog()"></label>
+            <label class="range-label">To <input type="date" id="filterFinTo" onchange="finPage=1;renderFinanceLog()"></label>
             <button class="btn btn-outline btn-sm" onclick="clearFinanceFilters()">Clear Filters</button>
         </div>
         <div style="overflow-x:auto;">
@@ -2253,6 +2259,9 @@ window.syncDebug = async function() {
 };
 
 function saveLocal() {
+    /* Last line of defence: whatever path added a job, an identical one never
+       reaches storage or the cloud. */
+    entries = dedupeJobs(entries);
     localStorage.setItem('fhd_categories', JSON.stringify(categories));
     localStorage.setItem('fhd_entries', JSON.stringify(entries));
     localStorage.setItem('fhd_finance', JSON.stringify(financeEntries));
@@ -2830,6 +2839,43 @@ function moveFinType(i, dir) {
 /* ═══════════════════════════════════════
    DUPLICATE DETECTION
    ═══════════════════════════════════════ */
+/* Identity of a job for "never store the same job twice" purposes. Two entries
+   with the same key are the same job however they got in — form, schedule
+   import, JSON restore or cloud merge. */
+function exactJobKey(e) {
+    return [
+        e.date || '',
+        (e.category || '').toLowerCase(),
+        (e.customer || '').trim().toLowerCase(),
+        (e.phone || '').replace(/\D/g, ''),
+        (e.email || '').trim().toLowerCase(),
+        e.amount || 0,
+        e.revenue || 0,
+        (e.note || '').replace(/\s+/g, ' ').trim().toLowerCase()
+    ].join('|');
+}
+
+function exactJobKeySet(list) {
+    var set = {};
+    (list || entries).forEach(function(e) { set[exactJobKey(e)] = true; });
+    return set;
+}
+
+function dedupeJobs(list) {
+    var seen = {};
+    return list.filter(function(e) {
+        var k = exactJobKey(e);
+        if (seen[k]) return false;
+        seen[k] = true;
+        return true;
+    });
+}
+
+function isExactDuplicateEntry(entry) {
+    var k = exactJobKey(entry);
+    return entries.some(function(e) { return exactJobKey(e) === k; });
+}
+
 function findDuplicateEntry(newEntry) {
     var dupes = [];
     entries.forEach(function(e) {
@@ -2970,6 +3016,10 @@ document.getElementById('entryForm').addEventListener('submit', function(e) {
         invoices: pendingInvoices.slice(),
         status: document.getElementById('entryStatus').value
     };
+    if (isExactDuplicateEntry(entry)) {
+        toast('That exact entry is already in the log — nothing was added.', true);
+        return;
+    }
     var dupes = findDuplicateEntry(entry);
     if (dupes.length > 0) {
         showDupeWarning(dupes, function() { commitJobEntry(entry); }, 'job');
@@ -3066,6 +3116,19 @@ function buildPagination(current, total, itemCount, callbackName) {
     return html;
 }
 
+/* Inclusive day-precision date window; ISO dates compare correctly as strings.
+   Either end can be left empty for an open-ended range. */
+function filterByDateRange(list, fromId, toId) {
+    var fromEl = document.getElementById(fromId), toEl = document.getElementById(toId);
+    var from = fromEl ? fromEl.value : '', to = toEl ? toEl.value : '';
+    if (from && to && from > to) { var swap = from; from = to; to = swap; }
+    if (!from && !to) return list;
+    return list.filter(function(e) {
+        var d = e.date || '';
+        return (!from || d >= from) && (!to || d <= to);
+    });
+}
+
 function setEntryPage(p) { entryPage = p; renderLog(); }
 
 function renderLog() {
@@ -3075,6 +3138,7 @@ function renderLog() {
     var filtered = entries.slice();
     if (catFilter !== 'all') filtered = filtered.filter(function(e) { return e.category === catFilter; });
     if (monthFilter) filtered = filtered.filter(function(e) { return e.date.startsWith(monthFilter); });
+    filtered = filterByDateRange(filtered, 'filterFrom', 'filterTo');
     if (searchTerm) {
         filtered = filtered.filter(function(e) {
             var searchable = [
@@ -3352,7 +3416,10 @@ function closeEditJobModal() {
 function clearFilters() {
     document.getElementById('filterCategory').value = 'all';
     document.getElementById('filterMonth').value = '';
+    document.getElementById('filterFrom').value = '';
+    document.getElementById('filterTo').value = '';
     document.getElementById('entrySearchBar').value = '';
+    entryPage = 1;
     renderLog();
 }
 
@@ -3752,6 +3819,7 @@ function renderFinanceLog() {
         combined = combined.filter(function(e) { return e.type === typeFilter; });
     }
     if (monthFilter) combined = combined.filter(function(e) { return e.date.startsWith(monthFilter); });
+    combined = filterByDateRange(combined, 'filterFinFrom', 'filterFinTo');
     if (searchTerm) {
         combined = combined.filter(function(e) {
             var searchable = [e.date || '', e.type || '', '$' + (e.amount || 0).toFixed(2), e.note || ''].join(' ').toLowerCase();
@@ -3852,7 +3920,10 @@ function closeEditFinanceModal() {
 function clearFinanceFilters() {
     document.getElementById('filterFinType').value = 'all';
     document.getElementById('filterFinMonth').value = '';
+    document.getElementById('filterFinFrom').value = '';
+    document.getElementById('filterFinTo').value = '';
     document.getElementById('financeSearchBar').value = '';
+    finPage = 1;
     renderFinanceLog();
 }
 
@@ -3891,7 +3962,7 @@ function importData(event) {
         try {
             var obj = JSON.parse(reader.result);
             if (Array.isArray(obj.categories)) categories = obj.categories;
-            if (Array.isArray(obj.entries)) entries = obj.entries;
+            if (Array.isArray(obj.entries)) entries = dedupeJobs(obj.entries);
             if (Array.isArray(obj.financeEntries)) financeEntries = obj.financeEntries;
             if (Array.isArray(obj.chimeEntries)) chimeEntries = obj.chimeEntries;
             save(); renderAll(); renderFinanceAll(); renderChimeAll();
@@ -6803,8 +6874,10 @@ function confirmScheduleImport() {
     newCats.forEach(function(c) { categories.push(c); });
 
     var base = Date.now();
+    var seen = exactJobKeySet();
+    var added = 0, skipped = 0;
     picked.forEach(function(r, i) {
-        entries.push({
+        var row = {
             id: base + i,
             date: r.date,
             category: r.category,
@@ -6819,13 +6892,21 @@ function confirmScheduleImport() {
             invoices: [],
             status: status,
             hourlyRate: r.hourly ? r.revenue : undefined
-        });
+        };
+        /* Catches both rows already in the log and the same block appearing
+           twice in the workbook. */
+        var k = exactJobKey(row);
+        if (seen[k]) { skipped++; return; }
+        seen[k] = true;
+        entries.push(row);
+        added++;
     });
     save();
     renderAll();
     renderFinanceAll();
     closeSchedPreview();
-    toast('Imported ' + picked.length + ' job' + (picked.length === 1 ? '' : 's') +
+    toast('Imported ' + added + ' job' + (added === 1 ? '' : 's') +
+        (skipped ? ' · skipped ' + skipped + ' duplicate' + (skipped === 1 ? '' : 's') : '') +
         (newCats.length ? ' · added ' + newCats.length + ' new categor' + (newCats.length === 1 ? 'y' : 'ies') : ''));
 }
 
