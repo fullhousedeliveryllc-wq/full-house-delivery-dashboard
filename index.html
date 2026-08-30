@@ -815,7 +815,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v56</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v59</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -1989,14 +1989,41 @@ function mapCloudFinance(e) {
     return { id: e.id, date: e.date, type: e.type, amount: parseFloat(e.amount), note: e.note || '' };
 }
 
+/* PostgREST caps a response at 1000 rows, so a plain select silently truncates
+   once a table grows past that. Page through with range() until a short page
+   comes back. */
+var SUPA_PAGE = 1000;
+
+async function selectAllRows(table, orderColumn) {
+    var rows = [];
+    for (var from = 0; ; from += SUPA_PAGE) {
+        var q = supaClient.from(table).select('*').eq('user_id', currentUser.id);
+        if (orderColumn) q = q.order(orderColumn);
+        var res = await q.range(from, from + SUPA_PAGE - 1);
+        if (res.error) return { data: null, error: res.error };
+        var page = res.data || [];
+        rows = rows.concat(page);
+        if (page.length < SUPA_PAGE) return { data: rows, error: null };
+    }
+}
+
+/* Insert in chunks so a large import does not exceed the request body limit. */
+async function insertRows(table, rows) {
+    for (var i = 0; i < rows.length; i += 500) {
+        var res = await supaClient.from(table).insert(rows.slice(i, i + 500));
+        if (res.error) return res;
+    }
+    return { error: null };
+}
+
 /* Pull rows other devices added since our last load into the local state, so the
    upload below (which replaces every row) does not delete them. */
 async function mergeRemoteAdditions() {
-    var jobResult = await supaClient.from('job_entries').select('*').eq('user_id', currentUser.id);
+    var jobResult = await selectAllRows('job_entries');
     if (jobResult.error) throw jobResult.error;
-    var finResult = await supaClient.from('finance_entries').select('*').eq('user_id', currentUser.id);
+    var finResult = await selectAllRows('finance_entries');
     if (finResult.error) throw finResult.error;
-    var catResult = await supaClient.from('categories').select('*').eq('user_id', currentUser.id).order('sort_order');
+    var catResult = await selectAllRows('categories', 'sort_order');
     if (catResult.error) throw catResult.error;
 
     var added = 0;
@@ -2035,7 +2062,7 @@ async function loadFromSupabase() {
 
         var hasDirty = localStorage.getItem('fhd_dirty') === '1';
 
-        var catResult = await supaClient.from('categories').select('*').eq('user_id', currentUser.id).order('sort_order');
+        var catResult = await selectAllRows('categories', 'sort_order');
         if (catResult.error) {
             console.error('Load categories error:', catResult.error);
             toast('Sync error: could not load categories. ' + (catResult.error.message || ''), true);
@@ -2043,7 +2070,7 @@ async function loadFromSupabase() {
             return;
         }
 
-        var jobResult = await supaClient.from('job_entries').select('*').eq('user_id', currentUser.id).order('created_at');
+        var jobResult = await selectAllRows('job_entries', 'created_at');
         if (jobResult.error) {
             console.error('Load job entries error:', jobResult.error);
             toast('Sync error: could not load job entries. ' + (jobResult.error.message || ''), true);
@@ -2051,7 +2078,7 @@ async function loadFromSupabase() {
             return;
         }
 
-        var finResult = await supaClient.from('finance_entries').select('*').eq('user_id', currentUser.id).order('created_at');
+        var finResult = await selectAllRows('finance_entries', 'created_at');
         if (finResult.error) {
             console.error('Load finance entries error:', finResult.error);
             toast('Sync error: could not load finance entries. ' + (finResult.error.message || ''), true);
@@ -2131,7 +2158,7 @@ async function syncToSupabase() {
             var catRows = categories.map(function(name, i) {
                 return { user_id: currentUser.id, name: name, sort_order: i };
             });
-            var r2 = await supaClient.from('categories').insert(catRows);
+            var r2 = await insertRows('categories', catRows);
             if (r2.error) throw r2.error;
         }
 
@@ -2147,11 +2174,12 @@ async function syncToSupabase() {
                 if (typeof e.revenue === 'number') row.revenue = e.revenue;
                 return row;
             });
-            var r4 = await supaClient.from('job_entries').insert(jobRows);
+            var r4 = await insertRows('job_entries', jobRows);
             if (r4.error) {
                 if (r4.error.message && r4.error.message.indexOf('revenue') !== -1) {
                     var fallbackRows = jobRows.map(function(r) { var c = Object.assign({}, r); delete c.revenue; return c; });
-                    var r4b = await supaClient.from('job_entries').insert(fallbackRows);
+                    await supaClient.from('job_entries').delete().eq('user_id', currentUser.id);
+                    var r4b = await insertRows('job_entries', fallbackRows);
                     if (r4b.error) throw r4b.error;
                 } else {
                     throw r4.error;
@@ -2168,7 +2196,7 @@ async function syncToSupabase() {
                     amount: e.amount, note: e.note || null
                 };
             });
-            var r6 = await supaClient.from('finance_entries').insert(finRows);
+            var r6 = await insertRows('finance_entries', finRows);
             if (r6.error) throw r6.error;
         }
         setCloudSnapshot(entries, financeEntries, categories);
@@ -2213,8 +2241,8 @@ window.syncDebug = async function() {
     console.log('[SYNC DEBUG] Dirty flag:', localStorage.getItem('fhd_dirty'));
     console.log('[SYNC DEBUG] Last sync:', _lastSyncTime ? new Date(_lastSyncTime).toISOString() : 'never');
 
-    var j = await supaClient.from('job_entries').select('*').eq('user_id', currentUser.id);
-    var f = await supaClient.from('finance_entries').select('*').eq('user_id', currentUser.id);
+    var j = await selectAllRows('job_entries');
+    var f = await selectAllRows('finance_entries');
     console.log('[SYNC DEBUG] Cloud jobs:', j.data ? j.data.length : 'error: ' + JSON.stringify(j.error));
     console.log('[SYNC DEBUG] Cloud finance:', f.data ? f.data.length : 'error: ' + JSON.stringify(f.error));
 
@@ -6231,7 +6259,8 @@ var SCHED_COLOR_SUGGESTIONS = {
     cyan: 'Miami Gardens Pickup',
     red: 'Floor Models',
     green: 'Junk Removal',
-    orange: 'Tamarac Pickup'
+    orange: 'Tamarac Pickup',
+    yellow: 'Tamarac Pickup'
 };
 var SCHED_MOVE_CATEGORY = 'Moves';
 
@@ -6294,10 +6323,9 @@ function schedSerialToDate(serial) {
     return d.toISOString().slice(0, 10);
 }
 
-/* Header cells hold a month and a day; the year in the file is unreliable
-   (weeks were copied forward without fixing it), so only month/day are kept
-   here and the year is worked out backwards from the last week — see
-   schedYearMap(). */
+/* A header cell is either a real date serial (year included) or plain month/day
+   text; in the latter case the year is worked out backwards from the last week —
+   see schedYearMap(). */
 function schedParseHeaderDate(cell) {
     if (cell.num !== null && cell.isDate && cell.num > 20000 && cell.num < 80000) {
         var iso = schedSerialToDate(cell.num);
@@ -6320,7 +6348,9 @@ function schedIsNoise(text) {
     if (/^(sunday|monday|tuesday|wednesday|thursday|friday|saturday)$/i.test(t)) return true;
     if (/^(profit|goal|total|expenses?|to ?do|color key|notes?|week of)\b/i.test(t)) return true;
     if (/^(light |dark )?(blue|red|green|yellow|orange|purple|pink)\s*[-\u2013]/i.test(t)) return true;
-    if (/^no deliveries/i.test(t)) return true;
+    if (/no deliveries/i.test(t)) return true;
+    if (/\bday blocked\b/i.test(t)) return true;
+    if (/^(closed|holiday|vacation|blocked off|out of (town|office))\b/i.test(t)) return true;
     if (/^[A-Za-z]+\s+off$/i.test(t)) return true;
     return false;
 }
@@ -6742,8 +6772,16 @@ function schedUpdateStats() {
     var dupes = visible.filter(function(r) { return r.duplicate; }).length;
     var outOfRange = schedRows.filter(function(r) { return !r.skip && !r.inRange; }).length;
     var skipped = schedRows.filter(function(r) { return r.skip; }).length;
+    var byYear = {};
+    visible.forEach(function(r) {
+        if (!r.selected || !r.date) return;
+        var y = r.date.slice(0, 4);
+        byYear[y] = (byYear[y] || 0) + 1;
+    });
+    var years = Object.keys(byYear).sort().map(function(y) { return y + ': ' + byYear[y]; }).join(', ');
     document.getElementById('schedPreviewStats').textContent =
         sel + ' of ' + visible.length + ' blocks selected' +
+        (years ? ' (' + years + ')' : '') +
         (dupes ? ' · ' + dupes + ' already imported' : '') +
         (outOfRange ? ' · ' + outOfRange + ' outside the date range' : '') +
         (skipped ? ' · ' + skipped + ' skipped by color' : '');
