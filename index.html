@@ -2727,12 +2727,13 @@ function drawPie(progress) {
     canvas.height = h * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     var cx = w / 2, cy = h / 2;
-    var radius = Math.min(cx, cy) - 55;
+    var radius = Math.min(cx, cy) - 60;
     var totals = pieData().values;
     var grand = totals.reduce(function(a, b) { return a + b; }, 0);
     ctx.clearRect(0, 0, w, h);
     if (!grand) return;
     slices = [];
+    var outsideLabels = [];
     var startAngle = -Math.PI / 2;
     var sweepTotal = 2 * Math.PI * Math.min(progress, 1);
     totals.forEach(function(val, i) {
@@ -2750,21 +2751,15 @@ function drawPie(progress) {
             var mid = startAngle + sliceAngle / 2;
             var sliceTooSmall = sliceAngle < 0.35;
             if (sliceTooSmall) {
-                var innerX = cx + Math.cos(mid) * radius;
-                var innerY = cy + Math.sin(mid) * radius;
-                var outerX = cx + Math.cos(mid) * (radius + 22);
-                var outerY = cy + Math.sin(mid) * (radius + 22);
-                var labelX = cx + Math.cos(mid) * (radius + 34);
-                var labelY = cy + Math.sin(mid) * (radius + 34);
-                ctx.save();
-                ctx.strokeStyle = '#888'; ctx.lineWidth = 1;
-                ctx.beginPath(); ctx.moveTo(innerX, innerY); ctx.lineTo(outerX, outerY); ctx.stroke();
-                ctx.fillStyle = '#333';
-                ctx.font = 'bold 11px -apple-system, system-ui, sans-serif';
-                ctx.textAlign = Math.cos(mid) >= 0 ? 'left' : 'right';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(pct + '%', labelX, labelY);
-                ctx.restore();
+                // Too narrow to hold text: queue an outside label. Neighbouring
+                // slivers point at nearly the same spot, so their positions are
+                // spread apart together once every slice is known.
+                outsideLabels.push({
+                    text: pct + '%',
+                    mid: mid,
+                    right: Math.cos(mid) >= 0,
+                    y: cy + Math.sin(mid) * (radius + 26)
+                });
             } else {
                 var labelR = radius * 0.65;
                 ctx.save(); ctx.fillStyle = '#fff';
@@ -2776,6 +2771,46 @@ function drawPie(progress) {
             }
         }
         startAngle = endAngle;
+    });
+
+    if (outsideLabels.length) drawOutsideLabels(outsideLabels, cx, cy, radius, h);
+}
+
+// Places the thin-slice percentages outside the pie, pushing them apart
+// vertically so two neighbouring slivers never print on top of each other.
+function drawOutsideLabels(labels, cx, cy, radius, h) {
+    var GAP = 14;
+    ['right', 'left'].forEach(function(side) {
+        var group = labels.filter(function(l) { return side === 'right' ? l.right : !l.right; });
+        if (!group.length) return;
+        group.sort(function(a, b) { return a.y - b.y; });
+
+        // Push down through the stack, then back up so nothing lands off-canvas.
+        group.forEach(function(l, i) {
+            if (i > 0 && l.y - group[i - 1].y < GAP) l.y = group[i - 1].y + GAP;
+        });
+        for (var i = group.length - 1; i >= 0; i--) {
+            var ceiling = i === group.length - 1 ? h - 8 : group[i + 1].y - GAP;
+            group[i].y = Math.max(8, Math.min(group[i].y, ceiling));
+        }
+
+        var dir = side === 'right' ? 1 : -1;
+        group.forEach(function(l) {
+            var endX = cx + dir * (radius + 22);
+            ctx.save();
+            ctx.strokeStyle = '#9aa3ad'; ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(cx + Math.cos(l.mid) * radius, cy + Math.sin(l.mid) * radius);
+            ctx.lineTo(cx + Math.cos(l.mid) * (radius + 16), cy + Math.sin(l.mid) * (radius + 16));
+            ctx.lineTo(endX, l.y);
+            ctx.stroke();
+            ctx.fillStyle = '#333';
+            ctx.font = 'bold 11px -apple-system, system-ui, sans-serif';
+            ctx.textAlign = side === 'right' ? 'left' : 'right';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(l.text, endX + dir * 4, l.y);
+            ctx.restore();
+        });
     });
 }
 
