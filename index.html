@@ -179,6 +179,8 @@
         .summary-card:hover { box-shadow: 0 2px 10px rgba(37,99,235,0.12), var(--glass-inset); }
         .summary-card .num { font-size: 28px; font-weight: 650; letter-spacing: -0.02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; line-height: 1; display: block; }
         .summary-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-light); margin-top: 6px; font-weight: 600; line-height: 1.2; display: block; }
+        .type-group-title { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-light); margin: 4px 0 8px; font-weight: 700; }
+        .summary-card .label .card-sub { text-transform: none; letter-spacing: 0; font-weight: 500; opacity: 0.85; }
         .summary-card.green { border-left: 3px solid var(--success); }
         .summary-card.green .num { color: var(--success); }
         .summary-card.red { border-left: 3px solid var(--danger); }
@@ -278,6 +280,7 @@
         #financeBarChart { width: 100%; height: 320px; display: block; }
 
         /* Period selector */
+        .pie-mode-toggle { display: flex; gap: 6px; margin: -6px 0 14px; flex-wrap: wrap; }
         .period-selector { display: flex; gap: 6px; margin-bottom: 20px; flex-wrap: wrap; }
         .period-btn {
             padding: 7px 15px; border: 1px solid var(--border); border-radius: 8px;
@@ -845,7 +848,11 @@
 <div class="container">
     <!-- Pie Chart -->
     <div class="card">
-        <h2><span class="icon">&#128202;</span> Job Distribution</h2>
+        <h2><span class="icon">&#128202;</span> <span id="pieChartTitle">Job Distribution</span></h2>
+        <div class="pie-mode-toggle">
+            <button type="button" class="period-btn active" data-pie="jobs" onclick="setPieMode('jobs')">Jobs</button>
+            <button type="button" class="period-btn" data-pie="money" onclick="setPieMode('money')">Money out</button>
+        </div>
         <div class="chart-wrapper" id="chartWrapper">
             <canvas id="pieChart" width="460" height="460"></canvas>
             <div class="chart-tooltip" id="chartTooltip"></div>
@@ -1065,8 +1072,15 @@
 
     <!-- Log Finance Entry -->
     <div class="card">
-        <h2><span class="icon">&#128181;</span> Log Expense</h2>
+        <h2><span class="icon">&#128181;</span> Log Revenue or Expense</h2>
         <form id="financeForm">
+            <div class="form-group">
+                <label for="finDirection">Money</label>
+                <select id="finDirection" onchange="renderFinanceTypes()">
+                    <option value="out">Out (expense)</option>
+                    <option value="in">In (revenue)</option>
+                </select>
+            </div>
             <div class="form-group">
                 <label for="finDate">Date</label>
                 <input type="date" id="finDate" required>
@@ -1104,9 +1118,16 @@
     <!-- Manage Finance Types -->
     <div class="card full-width grid-list-card">
         <h2><span class="icon">&#127991;&#65039;</span> Manage Types</h2>
+        <h3 class="type-group-title">Revenue types</h3>
+        <ul class="category-list grid-list" id="finIncomeTypeList"></ul>
+        <div class="add-cat-row">
+            <input type="text" id="newFinIncomeTypeName" placeholder="New revenue type..." maxlength="40">
+            <button class="btn btn-success btn-sm" onclick="addFinIncomeType()">+ Add</button>
+        </div>
+        <h3 class="type-group-title">Expense types</h3>
         <ul class="category-list grid-list" id="finTypeList"></ul>
         <div class="add-cat-row">
-            <input type="text" id="newFinTypeName" placeholder="New type name..." maxlength="40">
+            <input type="text" id="newFinTypeName" placeholder="New expense type..." maxlength="40">
             <button class="btn btn-success btn-sm" onclick="addFinType()">+ Add</button>
         </div>
     </div>
@@ -1122,11 +1143,12 @@
         <input type="file" id="bankFileInput" accept=".csv,.pdf,application/pdf,text/csv" style="display:none" onchange="handleBankUpload(event)">
         <div class="upload-hint">
             <strong>How it works:</strong> Download your bank statement as a CSV or PDF file from your bank's website.
-            Upload it here and the system will automatically categorize transactions into your expense types
-            (insurance, gas, tolls, etc.) based on the description. You'll get a preview to review and adjust
-            categories before importing. Every charge is imported — anything the system can't confidently label comes in as
-            <strong>Uncategorized</strong> (highlighted amber) so you can fix it later from the Finance Log.
-            Deposits, refunds and credit-card payments are left out so they can't be counted as expenses.
+            Upload it here and the system will automatically categorize transactions into your revenue and expense
+            types based on the description. You'll get a preview to review and adjust categories before importing.
+            Every line is imported — money out as an expense, money in as revenue — and anything the system can't
+            confidently label comes in as <strong>Uncategorized</strong> (highlighted amber) so you can fix it later
+            from the Finance Log. Credit-card payments made from checking are skipped, since those charges already
+            appear on the card statement and would otherwise be counted twice.
             <em>CSV works best; PDF support extracts text-based data from common statement formats.</em>
         </div>
     </div>
@@ -1983,12 +2005,14 @@ function setCloudSnapshot(jobs, fin, cats) {
 }
 
 function mapCloudJob(e) {
-    return {
+    var job = {
         id: e.id, date: e.date, category: e.category, amount: e.amount,
         revenue: (typeof e.revenue === 'number') ? e.revenue : 0,
         customer: e.customer || '', phone: e.phone || '', email: e.email || '',
         storeName: e.store_name || '', referredBy: e.referred_by || '', note: e.note || ''
     };
+    stripGuessedCustomerNames([job]);
+    return job;
 }
 
 function mapCloudFinance(e) {
@@ -2266,6 +2290,7 @@ function saveLocal() {
     localStorage.setItem('fhd_entries', JSON.stringify(entries));
     localStorage.setItem('fhd_finance', JSON.stringify(financeEntries));
     saveState('fhd_financeTypes', financeTypes);
+    saveState('fhd_financeIncomeTypes', financeIncomeTypes);
     saveState('fhd_chime', chimeEntries);
     localStorage.setItem('fhd_dirty', '1');
 }
@@ -2280,7 +2305,7 @@ function saveLocal() {
    ═══════════════════════════════════════ */
 
 var STATE_KEYS = [
-    'fhd_financeTypes', 'fhd_chime',
+    'fhd_financeTypes', 'fhd_financeIncomeTypes', 'fhd_chime',
     'fhd_teamDrivers2', 'fhd_teamOwners', 'fhd_schedule', 'fhd_availability',
     'fhd_auditLog', 'fhd_ownerContacts', 'fhd_ownerUnavailDays', 'fhd_manualPay',
     'fhd_leads', 'fhd_contacts', 'fhd_contacts_deleted', 'fhd_sheetColorMap'
@@ -2392,6 +2417,7 @@ async function pullState() {
 /* Reload the in-memory copies from localStorage and repaint the tabs. */
 function rehydrateState() {
     financeTypes = readJSON('fhd_financeTypes', financeTypes);
+    financeIncomeTypes = readJSON('fhd_financeIncomeTypes', financeIncomeTypes);
     chimeEntries = readJSON('fhd_chime', chimeEntries);
     teamDrivers = readJSON('fhd_teamDrivers2', teamDrivers);
     teamOwners = readJSON('fhd_teamOwners', teamOwners);
@@ -2523,6 +2549,57 @@ if (financeTypes.indexOf('Insurance') === -1) { financeTypes.splice(financeTypes
 // Auto-add Advertisement if missing
 if (financeTypes.indexOf('Advertisement') === -1) { financeTypes.splice(financeTypes.length - 1, 0, 'Advertisement'); saveState('fhd_financeTypes', financeTypes); }
 
+/* Money coming in. Revenue rows live in the same financeEntries list as
+   expenses and are told apart by their type, so profit is always "what the
+   bank shows in" minus "what the bank shows out" — jobs never enter it. */
+var UNCATEGORIZED_INCOME = 'Uncategorized Income';
+var financeIncomeTypes = JSON.parse(localStorage.getItem('fhd_financeIncomeTypes')) || [
+    'Customer Payment', 'Square Deposit', 'Zelle/Venmo/Cash App',
+    'Cash/Check Deposit', 'Refund/Reversal', 'Other Income', UNCATEGORIZED_INCOME
+];
+if (financeIncomeTypes.indexOf(UNCATEGORIZED_INCOME) === -1) {
+    financeIncomeTypes.push(UNCATEGORIZED_INCOME);
+    saveState('fhd_financeIncomeTypes', financeIncomeTypes);
+}
+
+/* An entry is revenue when its type is one of the revenue types — no extra
+   column, so this works for rows that came from the cloud too. */
+function isIncomeType(type) {
+    return financeIncomeTypes.indexOf(type) !== -1;
+}
+
+/* "Money Received" was the old catch-all for incoming money. */
+(function migrateMoneyReceived() {
+    var changed = false;
+    financeEntries.forEach(function(e) {
+        if (e.type === 'Money Received') { e.type = 'Other Income'; changed = true; }
+    });
+    if (changed) {
+        localStorage.setItem('fhd_finance', JSON.stringify(financeEntries));
+        localStorage.setItem('fhd_dirty', '1');
+    }
+})();
+
+/* Schedule imports used to guess a customer name off the front of the note
+   text, which mostly produced salespeople, address fragments and stray words.
+   Those are blanked so they can be filled in by hand. A hand-typed name is
+   kept unless it happens to be the literal opening of the note, which is what
+   the old guesser always produced. Runs on local and cloud data alike. */
+function stripGuessedCustomerNames(list) {
+    var cleared = 0;
+    list.forEach(function(e) {
+        if (!e.customer || !e.note) return;
+        var note = e.note.replace(/[^A-Za-z0-9]+/g, ' ').trim().toLowerCase();
+        var name = e.customer.replace(/[^A-Za-z0-9]+/g, ' ').trim().toLowerCase();
+        if (name && note.indexOf(name) === 0) { e.customer = ''; cleared++; }
+    });
+    return cleared;
+}
+if (stripGuessedCustomerNames(entries)) {
+    localStorage.setItem('fhd_entries', JSON.stringify(entries));
+    localStorage.setItem('fhd_dirty', '1');
+}
+
 var chimeEntries = JSON.parse(localStorage.getItem('fhd_chime')) || [];
 var currentPeriod = 'weekly';
 var chimePeriod = 'daily';
@@ -2605,6 +2682,40 @@ var tooltip = document.getElementById('chartTooltip');
 var slices = [];
 var animProgress = 0;
 var animId = null;
+var pieMode = localStorage.getItem('fhd_pieMode') === 'money' ? 'money' : 'jobs';
+
+/* Two views of the same card: how many jobs ran per category (operational) and
+   where the money actually went, straight from the Revenues & Expenses ledger
+   (bank and credit-card statements plus manual rows). */
+function pieData() {
+    if (pieMode === 'money') {
+        var byType = expensesByTypeIn(null);
+        var labels = Object.keys(byType).sort(function(a, b) { return byType[b] - byType[a]; });
+        return {
+            money: true,
+            labels: labels,
+            values: labels.map(function(t) { return byType[t]; })
+        };
+    }
+    return {
+        money: false,
+        labels: categories.slice(),
+        values: categories.map(function(cat) {
+            return entries.filter(function(e) { return e.category === cat; }).reduce(function(s, e) { return s + e.amount; }, 0);
+        })
+    };
+}
+
+function setPieMode(mode) {
+    pieMode = mode === 'money' ? 'money' : 'jobs';
+    localStorage.setItem('fhd_pieMode', pieMode);
+    document.querySelectorAll('.pie-mode-toggle .period-btn').forEach(function(b) {
+        b.classList.toggle('active', b.dataset.pie === pieMode);
+    });
+    document.getElementById('pieChartTitle').textContent =
+        pieMode === 'money' ? 'Where the Money Went' : 'Job Distribution';
+    buildChart();
+}
 
 function drawPie(progress) {
     var dpr = window.devicePixelRatio || 1;
@@ -2615,9 +2726,7 @@ function drawPie(progress) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     var cx = w / 2, cy = h / 2;
     var radius = Math.min(cx, cy) - 55;
-    var totals = categories.map(function(cat) {
-        return entries.filter(function(e) { return e.category === cat; }).reduce(function(s, e) { return s + e.amount; }, 0);
-    });
+    var totals = pieData().values;
     var grand = totals.reduce(function(a, b) { return a + b; }, 0);
     ctx.clearRect(0, 0, w, h);
     if (!grand) return;
@@ -2690,16 +2799,16 @@ canvas.addEventListener('mousemove', function(e) {
     if (dist > radius) { tooltip.classList.remove('visible'); canvas.style.cursor = 'default'; return; }
     var angle = Math.atan2(dy, dx);
     if (angle < -Math.PI / 2) angle += 2 * Math.PI;
-    var totals = categories.map(function(cat) {
-        return entries.filter(function(e) { return e.category === cat; }).reduce(function(s, e) { return s + e.amount; }, 0);
-    });
+    var data = pieData();
+    var totals = data.values;
     var grand = totals.reduce(function(a, b) { return a + b; }, 0);
     for (var si = 0; si < slices.length; si++) {
         var s = slices[si];
         if (!s) continue;
         if (angle >= s.start && angle < s.end) {
             var pct = ((s.val / grand) * 100).toFixed(1);
-            tooltip.innerHTML = '<strong>' + esc(categories[s.index]) + '</strong><br>' + s.val + ' jobs (' + pct + '%)';
+            var valLabel = data.money ? '$' + s.val.toFixed(2) : s.val + ' jobs';
+            tooltip.innerHTML = '<strong>' + esc(data.labels[s.index]) + '</strong><br>' + valLabel + ' (' + pct + '%)';
             tooltip.style.left = Math.min(mx + 14, canvas.clientWidth - 160) + 'px';
             tooltip.style.top = (my - 40) + 'px';
             tooltip.classList.add('visible'); canvas.style.cursor = 'pointer'; return;
@@ -2710,18 +2819,22 @@ canvas.addEventListener('mousemove', function(e) {
 canvas.addEventListener('mouseleave', function() { tooltip.classList.remove('visible'); canvas.style.cursor = 'default'; });
 
 function buildChart() {
-    var totals = categories.map(function(cat) {
-        return entries.filter(function(e) { return e.category === cat; }).reduce(function(s, e) { return s + e.amount; }, 0);
-    });
+    var data = pieData();
+    var totals = data.values;
     var hasData = totals.some(function(t) { return t > 0; });
-    document.getElementById('noDataMsg').style.display = hasData ? 'none' : 'block';
+    var msg = document.getElementById('noDataMsg');
+    msg.style.display = hasData ? 'none' : 'block';
+    msg.innerHTML = data.money
+        ? '<span class="big-icon">&#128179;</span>Import a bank or credit-card statement in Revenues &amp; Expenses to see where the money went.'
+        : '<span class="big-icon">&#128203;</span>Add your first entry below to see the chart come to life!';
     canvas.style.display = hasData ? 'block' : 'none';
     document.getElementById('chartLegend').style.display = hasData ? 'flex' : 'none';
     if (!hasData) return;
     var grand = totals.reduce(function(a, b) { return a + b; }, 0);
-    document.getElementById('chartLegend').innerHTML = categories.map(function(cat, i) {
+    document.getElementById('chartLegend').innerHTML = data.labels.map(function(cat, i) {
         var pct = grand ? ((totals[i] / grand) * 100).toFixed(1) : 0;
-        return '<span class="legend-item"><span class="legend-dot" style="background:' + PALETTE[i % PALETTE.length] + '"></span>' + esc(cat) + ' (' + totals[i] + ' &mdash; ' + pct + '%)</span>';
+        var val = data.money ? '$' + totals[i].toFixed(2) : totals[i];
+        return '<span class="legend-item"><span class="legend-dot" style="background:' + PALETTE[i % PALETTE.length] + '"></span>' + esc(cat) + ' (' + val + ' &mdash; ' + pct + '%)</span>';
     }).join('');
     animatePie();
 }
@@ -2742,11 +2855,20 @@ window.addEventListener('resize', function() {
    ═══════════════════════════════════════ */
 function renderSummary() {
     var total = entries.reduce(function(s, e) { return s + e.amount; }, 0);
-    var totalRevenue = entries.reduce(function(s, e) { return s + ((typeof e.revenue === 'number') ? e.revenue : 0); }, 0);
+    var jobValue = entries.reduce(function(s, e) { return s + ((typeof e.revenue === 'number') ? e.revenue : 0); }, 0);
+    var totals = financeTotals(null);
+    var netClass = totals.profit >= 0 ? 'green' : 'red';
+    var bankTitle = 'From the Revenues & Expenses ledger only — bank and credit-card statements plus rows you logged by hand. Entry Log jobs and Square payments are not counted here.';
     document.getElementById('summaryStrip').innerHTML =
         '<div class="summary-card"><div class="num">' + total + '</div><div class="label">Total Jobs</div></div>' +
-        '<div class="summary-card green"><div class="num">$' + totalRevenue.toFixed(2) + '</div><div class="label">Total Revenue</div></div>' +
-        '<div class="summary-card"><div class="num">' + categories.length + '</div><div class="label">Categories</div></div>' +
+        '<div class="summary-card green" title="' + escapeHTML(bankTitle) + '"><div class="num">$' + totals.revenue.toFixed(2) + '</div>' +
+            '<div class="label">Total Revenue<br><span class="card-sub">bank &amp; cards</span></div></div>' +
+        '<div class="summary-card red" title="' + escapeHTML(bankTitle) + '"><div class="num">$' + totals.expenses.toFixed(2) + '</div>' +
+            '<div class="label">Total Expenses<br><span class="card-sub">bank &amp; cards</span></div></div>' +
+        '<div class="summary-card ' + netClass + '" title="' + escapeHTML(bankTitle) + '"><div class="num">$' + totals.profit.toFixed(2) + '</div>' +
+            '<div class="label">Net Profit<br><span class="card-sub">bank &amp; cards</span></div></div>' +
+        '<div class="summary-card" title="Total price of the jobs in the Entry Log. Operational only — it never affects profit or loss."><div class="num">$' + jobValue.toFixed(2) + '</div>' +
+            '<div class="label">Job Value Logged<br><span class="card-sub">not accounting</span></div></div>' +
         '<div class="summary-card"><div class="num">' + entries.length + '</div><div class="label">Log Entries</div></div>';
 }
 
@@ -2794,30 +2916,56 @@ function removeCategory(i) {
 /* ═══════════════════════════════════════
    FINANCE TYPES
    ═══════════════════════════════════════ */
-function renderFinanceTypes() {
-    var expenseTypes = financeTypes.filter(function(t) { return t !== 'Money Received'; });
-    var optHtml = expenseTypes.map(function(t) { return '<option value="' + esc(t) + '">' + esc(t) + '</option>'; }).join('');
-    document.getElementById('finType').innerHTML = optHtml;
-    document.getElementById('filterFinType').innerHTML = '<option value="all">All Types</option><option value="Job Revenue">Job Revenue</option>' + optHtml;
-    document.getElementById('editFinTypeSelect').innerHTML = optHtml;
+function typeOptions(list) {
+    return list.map(function(t) { return '<option value="' + esc(t) + '">' + esc(t) + '</option>'; }).join('');
+}
 
-    document.getElementById('finTypeList').innerHTML = financeTypes.map(function(t, i) {
+function typeListHtml(list, moveFn, removeFn) {
+    return list.map(function(t, i) {
         var total = financeEntries.filter(function(e) { return e.type === t; }).reduce(function(s, e) { return s + e.amount; }, 0);
-        var upBtn = i > 0 ? '<button onclick="moveFinType(' + i + ',-1)" title="Move up">&#9650;</button>' : '<button disabled>&#9650;</button>';
-        var downBtn = i < financeTypes.length - 1 ? '<button onclick="moveFinType(' + i + ',1)" title="Move down">&#9660;</button>' : '<button disabled>&#9660;</button>';
-        var isRevenue = t === 'Money Received';
-        var cls = isRevenue ? 'cat-total' : 'cat-total';
-        return '<li><div class="reorder-btns">' + upBtn + downBtn + '</div><span class="cat-name">' + esc(t) + '</span><span class="' + cls + '">$' + total.toFixed(2) + '</span><button class="btn btn-danger" onclick="removeFinType(' + i + ')" title="Remove type">&times;</button></li>';
+        var upBtn = i > 0 ? '<button onclick="' + moveFn + '(' + i + ',-1)" title="Move up">&#9650;</button>' : '<button disabled>&#9650;</button>';
+        var downBtn = i < list.length - 1 ? '<button onclick="' + moveFn + '(' + i + ',1)" title="Move down">&#9660;</button>' : '<button disabled>&#9660;</button>';
+        return '<li><div class="reorder-btns">' + upBtn + downBtn + '</div><span class="cat-name">' + esc(t) + '</span><span class="cat-total">$' + total.toFixed(2) + '</span><button class="btn btn-danger" onclick="' + removeFn + '(' + i + ')" title="Remove type">&times;</button></li>';
     }).join('');
+}
+
+function renderFinanceTypes() {
+    var dirEl = document.getElementById('finDirection');
+    var incomeOpts = typeOptions(financeIncomeTypes);
+    var expenseOpts = typeOptions(financeTypes);
+    document.getElementById('finType').innerHTML = (dirEl && dirEl.value === 'in') ? incomeOpts : expenseOpts;
+    document.getElementById('filterFinType').innerHTML =
+        '<option value="all">All Types</option>' +
+        '<optgroup label="Revenue">' + incomeOpts + '</optgroup>' +
+        '<optgroup label="Expenses">' + expenseOpts + '</optgroup>';
+    document.getElementById('editFinTypeSelect').innerHTML = expenseOpts;
+
+    document.getElementById('finTypeList').innerHTML = typeListHtml(financeTypes, 'moveFinType', 'removeFinType');
+    document.getElementById('finIncomeTypeList').innerHTML = typeListHtml(financeIncomeTypes, 'moveFinIncomeType', 'removeFinIncomeType');
+}
+
+/* Direction is derived from the type name, so a name may only live in one list. */
+function typeNameTaken(name) {
+    var lower = name.toLowerCase();
+    return financeTypes.concat(financeIncomeTypes).some(function(t) { return t.toLowerCase() === lower; });
 }
 
 function addFinType() {
     var input = document.getElementById('newFinTypeName');
     var name = input.value.trim();
     if (!name) return toast('Please enter a type name.');
-    if (financeTypes.some(function(t) { return t.toLowerCase() === name.toLowerCase(); })) return toast('Type already exists.');
+    if (typeNameTaken(name)) return toast('Type already exists.');
     financeTypes.push(name); input.value = '';
     save(); renderFinanceTypes(); renderFinanceAll(); toast('Type "' + name + '" added!');
+}
+
+function addFinIncomeType() {
+    var input = document.getElementById('newFinIncomeTypeName');
+    var name = input.value.trim();
+    if (!name) return toast('Please enter a type name.');
+    if (typeNameTaken(name)) return toast('Type already exists.');
+    financeIncomeTypes.push(name); input.value = '';
+    save(); renderFinanceTypes(); renderFinanceAll(); toast('Revenue type "' + name + '" added!');
 }
 
 function removeFinType(i) {
@@ -2825,6 +2973,23 @@ function removeFinType(i) {
     if (!confirm('Remove "' + name + '"? Existing entries of this type will NOT be deleted.')) return;
     financeTypes.splice(i, 1); save(); renderFinanceTypes(); renderFinanceAll();
     toast('Type "' + name + '" removed.');
+}
+
+function removeFinIncomeType(i) {
+    var name = financeIncomeTypes[i];
+    if (name === UNCATEGORIZED_INCOME) return toast('This type is used by statement imports and cannot be removed.');
+    if (!confirm('Remove "' + name + '"? Entries of this type will count as expenses until you retype them.')) return;
+    financeIncomeTypes.splice(i, 1); save(); renderFinanceTypes(); renderFinanceAll();
+    toast('Revenue type "' + name + '" removed.');
+}
+
+function moveFinIncomeType(i, dir) {
+    var j = i + dir;
+    if (j < 0 || j >= financeIncomeTypes.length) return;
+    var temp = financeIncomeTypes[i];
+    financeIncomeTypes[i] = financeIncomeTypes[j];
+    financeIncomeTypes[j] = temp;
+    save(); renderFinanceTypes(); renderFinanceAll();
 }
 
 function moveFinType(i, dir) {
@@ -3456,6 +3621,7 @@ document.getElementById('financeForm').addEventListener('submit', function(e) {
 function setFinancePeriod(p) {
     currentPeriod = p;
     document.querySelectorAll('.period-btn').forEach(function(b) {
+        if (!b.dataset.period) return;
         b.classList.toggle('active', b.dataset.period === p);
     });
     renderFinanceAll();
@@ -3494,26 +3660,26 @@ function getFilteredFinance() {
     return financeEntries;
 }
 
-function getJobRevenueTotals() {
-    var totalRevenue = entries.reduce(function(s, e) { return s + ((typeof e.revenue === 'number') ? e.revenue : 0); }, 0);
-    var totalJobs = entries.reduce(function(s, e) { return s + e.amount; }, 0);
-    return { revenue: totalRevenue, jobs: totalJobs, entries: entries.length };
-}
-
-/* Single source of truth for every revenue/expense figure in the app: the
-   Revenues & Expenses tab and the Money Snapshot both read these.
+/* Single source of truth for every revenue/expense figure in the app. Only
+   Revenues & Expenses rows count — bank/credit-card statement imports and
+   manual entries. Job records and the Square Payments tab are tracked
+   separately and never move these numbers.
    A null range means "all time". */
 function inRange(dateStr, range) {
     return !range || (dateStr >= range.start && dateStr <= range.end);
 }
 
-function isExpenseEntry(e) {
-    return e.type !== 'Money Received';
+function isIncomeEntry(e) {
+    return isIncomeType(e.type);
 }
 
-function jobRevenueIn(range) {
-    return entries.reduce(function(s, e) {
-        return s + (inRange(e.date, range) && typeof e.revenue === 'number' ? e.revenue : 0);
+function isExpenseEntry(e) {
+    return !isIncomeType(e.type);
+}
+
+function financeRevenueIn(range) {
+    return getFilteredFinance().reduce(function(s, e) {
+        return s + (inRange(e.date, range) && isIncomeEntry(e) ? e.amount : 0);
     }, 0);
 }
 
@@ -3523,17 +3689,20 @@ function financeExpensesIn(range) {
     }, 0);
 }
 
-function expensesByTypeIn(range) {
+function byTypeIn(range, income) {
     var totals = {};
     getFilteredFinance().forEach(function(e) {
-        if (!inRange(e.date, range) || !isExpenseEntry(e)) return;
+        if (!inRange(e.date, range) || isIncomeEntry(e) !== income) return;
         totals[e.type] = (totals[e.type] || 0) + e.amount;
     });
     return totals;
 }
 
+function expensesByTypeIn(range) { return byTypeIn(range, false); }
+function revenueByTypeIn(range) { return byTypeIn(range, true); }
+
 function financeTotals(range) {
-    var revenue = jobRevenueIn(range);
+    var revenue = financeRevenueIn(range);
     var expenses = financeExpensesIn(range);
     return { revenue: revenue, expenses: expenses, profit: revenue - expenses };
 }
@@ -3543,19 +3712,22 @@ function financeTotals(range) {
    ═══════════════════════════════════════ */
 function renderFinanceSummary() {
     var all = getFilteredFinance();
-    var jobTotals = getJobRevenueTotals();
     var totals = financeTotals(null);
     var revenue = totals.revenue;
     var expenses = totals.expenses;
     var net = totals.profit;
     var netClass = net >= 0 ? 'green' : 'red';
-    var totalTransactions = all.length + jobTotals.entries;
+    var moneyIn = all.filter(isIncomeEntry).length;
+    var moneyOut = all.length - moneyIn;
+    var txTitle = all.length + ' rows in this ledger: ' + moneyIn + ' money in, ' + moneyOut + ' money out. ' +
+        'One transaction is one line on a bank or credit-card statement (or one entry you logged by hand). ' +
+        'Jobs and Square payments are counted on their own tabs.';
     document.getElementById('financeSummaryStrip').innerHTML =
-        '<div class="summary-card green"><div class="num">$' + revenue.toFixed(2) + '</div><div class="label">Total Revenue (Jobs)</div></div>' +
+        '<div class="summary-card green"><div class="num">$' + revenue.toFixed(2) + '</div><div class="label">Total Revenue</div></div>' +
         '<div class="summary-card red"><div class="num">$' + expenses.toFixed(2) + '</div><div class="label">Total Expenses</div></div>' +
         '<div class="summary-card ' + netClass + '"><div class="num">$' + net.toFixed(2) + '</div><div class="label">Net Profit</div></div>' +
-        '<div class="summary-card gold"><div class="num">' + totalTransactions + '</div><div class="label">Transactions</div></div>' +
-        '<div class="summary-card"><div class="num">' + jobTotals.jobs + '</div><div class="label">Total Jobs</div></div>';
+        '<div class="summary-card gold" title="' + escapeHTML(txTitle) + '"><div class="num">' + all.length + '</div>' +
+            '<div class="label">Transactions<br><span class="card-sub">' + moneyIn + ' in / ' + moneyOut + ' out</span></div></div>';
 }
 
 /* ═══════════════════════════════════════
@@ -3587,22 +3759,19 @@ function renderFinanceBreakdown() {
     document.getElementById('periodLabel').textContent = getPeriodLabel();
     document.getElementById('financeRangeLabel').textContent = getPeriodRangeLabel();
     var range = getCurrentPeriodRange();
-    var byType = expensesByTypeIn(range);
-    var periodJobRevenue = jobRevenueIn(range);
+    var byExpenseType = expensesByTypeIn(range);
+    var byIncomeType = revenueByTypeIn(range);
 
-    var expenseTypes = financeTypes.filter(function(t) { return t !== 'Money Received'; });
-    var types = ['Job Revenue'].concat(expenseTypes);
     var html = '';
-    types.forEach(function(type) {
-        var total, cls;
-        if (type === 'Job Revenue') {
-            total = periodJobRevenue;
-            cls = total > 0 ? 'fi-green' : 'fi-zero';
-        } else {
-            total = byType[type] || 0;
-            cls = total > 0 ? 'fi-red' : 'fi-zero';
-        }
-        html += '<div class="finance-item"><span class="fi-label">' + type + '</span><span class="fi-value ' + cls + '">$' + total.toFixed(2) + '</span></div>';
+    financeIncomeTypes.forEach(function(type) {
+        var total = byIncomeType[type] || 0;
+        var cls = total > 0 ? 'fi-green' : 'fi-zero';
+        html += '<div class="finance-item"><span class="fi-label">' + escapeHTML(type) + '</span><span class="fi-value ' + cls + '">$' + total.toFixed(2) + '</span></div>';
+    });
+    financeTypes.forEach(function(type) {
+        var total = byExpenseType[type] || 0;
+        var cls = total > 0 ? 'fi-red' : 'fi-zero';
+        html += '<div class="finance-item"><span class="fi-label">' + escapeHTML(type) + '</span><span class="fi-value ' + cls + '">$' + total.toFixed(2) + '</span></div>';
     });
     document.getElementById('financeGrid').innerHTML = html;
 }
@@ -3614,11 +3783,11 @@ function drawFinanceChart() {
     var fc = document.getElementById('financeBarChart');
     var fctx = fc.getContext('2d');
     var range = getCurrentPeriodRange();
-    var byType = expensesByTypeIn(range);
+    var byExpenseType = expensesByTypeIn(range);
+    var byIncomeType = revenueByTypeIn(range);
     var all = getFilteredFinance().filter(function(e) { return inRange(e.date, range); });
-    var periodJobRevenue = jobRevenueIn(range);
 
-    var hasData = all.length > 0 || periodJobRevenue > 0;
+    var hasData = all.length > 0;
 
     var msgEl = document.getElementById('noFinanceMsg');
     msgEl.style.display = hasData ? 'none' : 'block';
@@ -3626,7 +3795,7 @@ function drawFinanceChart() {
     if (!hasData) {
         // Distinguish "nothing logged yet" from "nothing in this period" —
         // otherwise an empty chart looks broken while the data sits a month back.
-        var haveAnything = financeEntries.length > 0 || entries.length > 0;
+        var haveAnything = financeEntries.length > 0;
         msgEl.innerHTML = haveAnything
             ? '<span class="big-icon">&#128197;</span>No activity between ' + getPeriodRangeLabel() +
               '.<br><button class="btn btn-outline btn-sm" style="margin-top:8px" onclick="setFinancePeriod(\'all\')">Show all time</button>'
@@ -3635,15 +3804,13 @@ function drawFinanceChart() {
     }
 
     var barData = [];
-    if (periodJobRevenue > 0) {
-        barData.push({ label: 'Job Revenue', value: periodJobRevenue, color: '#059669' });
-    }
-    var expenseTypes = financeTypes.filter(function(t) { return t !== 'Money Received'; });
-    expenseTypes.forEach(function(type) {
-        var total = byType[type] || 0;
-        if (total > 0) {
-            barData.push({ label: type, value: total, color: '#1e40af' });
-        }
+    financeIncomeTypes.forEach(function(type) {
+        var total = byIncomeType[type] || 0;
+        if (total > 0) barData.push({ label: type, value: total, color: '#059669' });
+    });
+    financeTypes.forEach(function(type) {
+        var total = byExpenseType[type] || 0;
+        if (total > 0) barData.push({ label: type, value: total, color: '#1e40af' });
     });
 
     if (barData.length === 0) {
@@ -3806,15 +3973,12 @@ function renderFinanceLog() {
     var monthFilter = document.getElementById('filterFinMonth').value;
     var searchTerm = (document.getElementById('financeSearchBar').value || '').trim().toLowerCase();
 
-    var expenseRows = financeEntries.slice().map(function(e) {
-        return { date: e.date, type: e.type, amount: e.amount, note: e.note, id: e.id, source: 'expense', bankSource: e.source || '' };
+    var combined = financeEntries.slice().map(function(e) {
+        return {
+            date: e.date, type: e.type, amount: e.amount, note: e.note, id: e.id,
+            income: isIncomeEntry(e), bankSource: e.source || ''
+        };
     });
-
-    var jobRows = entries.filter(function(e) { return typeof e.revenue === 'number' && e.revenue > 0; }).map(function(e) {
-        return { date: e.date, type: 'Job Revenue', amount: e.revenue, note: (e.customer || e.category) + (e.note ? ' — ' + e.note : ''), id: e.id, source: 'job' };
-    });
-
-    var combined = expenseRows.concat(jobRows);
     if (typeFilter !== 'all') {
         combined = combined.filter(function(e) { return e.type === typeFilter; });
     }
@@ -3849,11 +4013,11 @@ function renderFinanceLog() {
     var pageItems = combined.slice(start, start + finPageSize);
 
     body.innerHTML = pageItems.map(function(e) {
-        var srcLabel = e.bankSource === 'Credit Card' ? '<span style="font-size:10px;background:#4338ca;color:#fff;padding:1px 6px;border-radius:4px;">CC</span>' : (e.bankSource === 'Checking' ? '<span style="font-size:10px;background:var(--accent);color:#fff;padding:1px 6px;border-radius:4px;">Chk</span>' : (e.source === 'job' ? '<span style="font-size:10px;color:#999;">Jobs</span>' : '<span style="font-size:10px;color:#999;">Manual</span>'));
-        if (e.source === 'job') {
-            return '<tr><td></td><td>' + e.date + '</td><td>' + esc(e.type) + '</td><td class="amount-pos">+$' + e.amount.toFixed(2) + '</td><td>' + esc(e.note || '\u2014') + '</td><td>' + srcLabel + '</td><td class="action-cell"><span style="font-size:11px;color:#999;">From Jobs</span></td></tr>';
-        }
-        return '<tr><td><input type="checkbox" class="fin-select-cb" value="' + e.id + '" onchange="updateFinBulkBtn()"></td><td>' + e.date + '</td><td>' + esc(e.type) + '</td><td class="amount-neg">-$' + e.amount.toFixed(2) + '</td><td>' + esc(e.note || '\u2014') + '</td><td>' + srcLabel + '</td><td class="action-cell"><button class="btn-edit" onclick="editFinanceEntry(' + e.id + ')" title="Edit">&#9998;</button><button class="btn btn-danger" onclick="deleteFinanceEntry(' + e.id + ')" title="Delete">&times;</button></td></tr>';
+        var srcLabel = e.bankSource === 'Credit Card' ? '<span style="font-size:10px;background:#4338ca;color:#fff;padding:1px 6px;border-radius:4px;">CC</span>' : (e.bankSource === 'Checking' ? '<span style="font-size:10px;background:var(--accent);color:#fff;padding:1px 6px;border-radius:4px;">Chk</span>' : '<span style="font-size:10px;color:#999;">Manual</span>');
+        var amountCell = e.income
+            ? '<td class="amount-pos">+$' + e.amount.toFixed(2) + '</td>'
+            : '<td class="amount-neg">-$' + e.amount.toFixed(2) + '</td>';
+        return '<tr><td><input type="checkbox" class="fin-select-cb" value="' + e.id + '" onchange="updateFinBulkBtn()"></td><td>' + e.date + '</td><td>' + esc(e.type) + '</td>' + amountCell + '<td>' + esc(e.note || '\u2014') + '</td><td>' + srcLabel + '</td><td class="action-cell"><button class="btn-edit" onclick="editFinanceEntry(' + e.id + ')" title="Edit">&#9998;</button><button class="btn btn-danger" onclick="deleteFinanceEntry(' + e.id + ')" title="Delete">&times;</button></td></tr>';
     }).join('');
 
     pagDiv.innerHTML = buildPagination(finPage, totalPages, combined.length, 'setFinPage');
@@ -3889,8 +4053,10 @@ function editFinanceEntry(id) {
     document.getElementById('editFinId').value = id;
     document.getElementById('editFinDate').value = entry.date;
     var typeSelect = document.getElementById('editFinTypeSelect');
-    typeSelect.innerHTML = financeTypes.map(function(t) { return '<option value="' + esc(t) + '"' + (t === entry.type ? ' selected' : '') + '>' + esc(t) + '</option>'; }).join('');
-    if (!financeTypes.includes(entry.type)) {
+    typeSelect.innerHTML =
+        '<optgroup label="Revenue">' + financeIncomeTypes.map(function(t) { return '<option value="' + esc(t) + '"' + (t === entry.type ? ' selected' : '') + '>' + esc(t) + '</option>'; }).join('') + '</optgroup>' +
+        '<optgroup label="Expenses">' + financeTypes.map(function(t) { return '<option value="' + esc(t) + '"' + (t === entry.type ? ' selected' : '') + '>' + esc(t) + '</option>'; }).join('') + '</optgroup>';
+    if (!financeTypes.includes(entry.type) && !financeIncomeTypes.includes(entry.type)) {
         typeSelect.innerHTML += '<option value="' + esc(entry.type) + '" selected>' + esc(entry.type) + '</option>';
     }
     document.getElementById('editFinAmount').value = entry.amount;
@@ -4006,7 +4172,7 @@ var CATEGORY_RULES = [
     { pattern: /vehicle\s*tag|tag\s*renew|\bdmv\b|tag\s*agency|title\s*(fee|service|transfer)/i, type: 'Miscellaneous' }
 ];
 
-// Descriptions that mean money coming in — never imported as an expense
+// Descriptions that mean money coming in — imported as revenue, not an expense
 var DEPOSIT_PATTERN = /deposit|payment\s*received|\bincome\b|\brevenue\b|customer\s*pay|zelle\s*(payment\s*)?from|venmo\s*from|cash\s*app\s*from|direct\s*dep|transfer\s*in\b|refund|reversal|interest\s*paid|remote\s*(online\s*)?deposit|counter\s*credit|square\s*inc|mobile\s*deposit/i;
 
 // Card payments / internal transfers: already counted as their own card-statement expenses
@@ -4048,28 +4214,53 @@ function categorizeTransaction(description) {
     return null;
 }
 
-var bankSkipStats = { deposits: 0, transfers: 0 };
+var INCOME_RULES = [
+    { pattern: /square/i, type: 'Square Deposit' },
+    { pattern: /zelle|venmo|cash\s*app/i, type: 'Zelle/Venmo/Cash App' },
+    { pattern: /refund|reversal|return/i, type: 'Refund/Reversal' },
+    { pattern: /remote\s*(online\s*)?deposit|mobile\s*deposit|counter\s*credit|check\s*deposit|cash\s*deposit/i, type: 'Cash/Check Deposit' },
+    { pattern: /customer\s*pay|payment\s*received|invoice/i, type: 'Customer Payment' }
+];
 
-// Builds one preview row from a statement line, or returns null when the line
-// is money coming in / an internal transfer. Types are always validated against
-// the user's expense types so an import can never create an unknown category.
+function categorizeIncome(description) {
+    var desc = (description || '').toLowerCase();
+    for (var i = 0; i < INCOME_RULES.length; i++) {
+        if (INCOME_RULES[i].pattern.test(desc)) return INCOME_RULES[i].type;
+    }
+    return null;
+}
+
+var bankSkipStats = { transfers: 0 };
+
+// Builds one preview row from a statement line, or returns null for an internal
+// transfer (a card payment out of checking is already an expense on the card
+// statement, so importing both would double-count it). Money in becomes a
+// revenue row, money out an expense row; either way the type is validated
+// against the user's own lists so an import can never invent a category.
 function buildBankRow(dateStr, description, amount, isCredit) {
     var desc = (description || '').trim();
     if (INTERNAL_TRANSFER_PATTERN.test(desc)) { bankSkipStats.transfers++; return null; }
-    if (isCredit || DEPOSIT_PATTERN.test(desc)) { bankSkipStats.deposits++; return null; }
 
-    var isZelle = /zelle\s*payment\s*to\s/i.test(desc);
-    var type = isZelle ? categorizeZellePayment(desc, amount) : null;
-    if (!type) type = categorizeTransaction(desc);
-
-    var needsSelect = !type || financeTypes.indexOf(type) === -1;
-    if (needsSelect) type = UNCATEGORIZED;
+    var income = !!isCredit || DEPOSIT_PATTERN.test(desc);
+    var type, needsSelect;
+    if (income) {
+        type = categorizeIncome(desc);
+        needsSelect = !type || financeIncomeTypes.indexOf(type) === -1;
+        if (needsSelect) type = UNCATEGORIZED_INCOME;
+    } else {
+        var isZelle = /zelle\s*payment\s*to\s/i.test(desc);
+        type = isZelle ? categorizeZellePayment(desc, amount) : null;
+        if (!type) type = categorizeTransaction(desc);
+        needsSelect = !type || financeTypes.indexOf(type) === -1;
+        if (needsSelect) type = UNCATEGORIZED;
+    }
 
     return {
         date: dateStr,
         description: desc,
         amount: Math.abs(amount),
         type: type,
+        income: income,
         include: true,
         needsSelect: needsSelect
     };
@@ -4312,7 +4503,7 @@ function parsePDFText(text) {
     var multi = candidates.filter(function(c) { return c.amounts.length > 1; }).length;
     var hasBalanceColumn = candidates.length > 0 && multi > candidates.length / 2;
 
-    bankSkipStats = { deposits: 0, transfers: 0 };
+    bankSkipStats = { transfers: 0 };
     bankParsedRows = [];
     candidates.forEach(function(c) {
         var idx = hasBalanceColumn && c.amounts.length > 1 ? c.amounts.length - 2 : c.amounts.length - 1;
@@ -4325,9 +4516,7 @@ function parsePDFText(text) {
     if (bankParsedRows.length === 0) {
         console.log('[PDF Debug] No expenses found. Full text dump:');
         console.log(text);
-        toast(bankSkipStats.deposits > 0
-            ? 'Only deposits (' + bankSkipStats.deposits + ') were found in this PDF — nothing to import as an expense.'
-            : 'No transactions could be extracted. Open browser console (F12) to see extracted text for debugging. Try CSV export for best results.', true);
+        toast('No transactions could be extracted. Open browser console (F12) to see extracted text for debugging. Try CSV export for best results.', true);
         return;
     }
 
@@ -4412,7 +4601,7 @@ function parseBankCSV(csvText) {
         parsed.map(function(r) { return r.description; })
     );
 
-    bankSkipStats = { deposits: 0, transfers: 0 };
+    bankSkipStats = { transfers: 0 };
     bankParsedRows = [];
     parsed.forEach(function(r) {
         var isCredit = r.explicitCredit;
@@ -4424,9 +4613,7 @@ function parseBankCSV(csvText) {
     });
 
     if (bankParsedRows.length === 0) {
-        toast(bankSkipStats.deposits > 0
-            ? 'No expenses found — the ' + bankSkipStats.deposits + ' transaction(s) in this file all look like deposits.'
-            : 'No valid transactions found in the file.', true);
+        toast('No valid transactions found in the file.', true);
         return;
     }
 
@@ -4434,8 +4621,8 @@ function parseBankCSV(csvText) {
     showBankPreview();
 }
 
-function bankTypeOptions(selected) {
-    return financeTypes.map(function(t) {
+function bankTypeOptions(selected, income) {
+    return (income ? financeIncomeTypes : financeTypes).map(function(t) {
         return '<option value="' + esc(t) + '"' + (t === selected ? ' selected' : '') + '>' + esc(t) + '</option>';
     }).join('');
 }
@@ -4444,11 +4631,11 @@ function showBankPreview() {
 
     var html = '<table class="preview-table"><thead><tr><th style="width:30px"><input type="checkbox" class="preview-check" checked onchange="toggleAllBankRows(this)"></th><th>Date</th><th>Description</th><th>Amount</th><th>Category</th></tr></thead><tbody>';
     bankParsedRows.forEach(function(row, idx) {
-        var cls = 'amount-neg';
-        var prefix = '-';
+        var cls = row.income ? 'amount-pos' : 'amount-neg';
+        var prefix = row.income ? '+' : '-';
         var isDupe = findDuplicateBankRow(row).length > 0;
         var rowStyle = row.needsSelect ? ' style="background:#fff8e1;border-left:3px solid #f9a825;"' : (isDupe ? ' style="background:#fff8e1;border-left:3px solid #f9a825;"' : '');
-        var selectOpts = bankTypeOptions(row.type);
+        var selectOpts = bankTypeOptions(row.type, row.income);
         var onChangeHandler = 'bankRowTypeChanged(' + idx + ', this)';
         var dupeTag = isDupe ? '<span style="font-size:9px;background:var(--warning);color:#fff;padding:1px 5px;border-radius:4px;margin-left:4px;font-weight:600;">DUPLICATE?</span>' : '';
         if (isDupe) row.include = false;
@@ -4470,18 +4657,18 @@ function showBankPreview() {
 
 function updateBankPreviewStats() {
     var included = bankParsedRows.filter(function(r) { return r.include; });
-    var exp = included.reduce(function(s, r) { return s + r.amount; }, 0);
+    var exp = included.reduce(function(s, r) { return s + (r.income ? 0 : r.amount); }, 0);
+    var inc = included.reduce(function(s, r) { return s + (r.income ? r.amount : 0); }, 0);
     var needsSelect = included.filter(function(r) { return r.needsSelect; }).length;
-    var statsHtml = included.length + ' of ' + bankParsedRows.length + ' expenses selected &nbsp;|&nbsp; ' +
-        'Total: <strong style="color:#c0392b">$' + exp.toFixed(2) + '</strong>';
-    var skipped = [];
-    if (bankSkipStats.deposits > 0) skipped.push(bankSkipStats.deposits + ' deposit' + (bankSkipStats.deposits === 1 ? '' : 's'));
-    if (bankSkipStats.transfers > 0) skipped.push(bankSkipStats.transfers + ' card payment' + (bankSkipStats.transfers === 1 ? '' : 's'));
-    if (skipped.length) {
-        statsHtml += ' &nbsp;|&nbsp; <span style="color:#666">' + skipped.join(' and ') + ' skipped (not expenses)</span>';
+    var statsHtml = included.length + ' of ' + bankParsedRows.length + ' transactions selected &nbsp;|&nbsp; ' +
+        'In: <strong style="color:#059669">$' + inc.toFixed(2) + '</strong> &nbsp;|&nbsp; ' +
+        'Out: <strong style="color:#c0392b">$' + exp.toFixed(2) + '</strong>';
+    if (bankSkipStats.transfers > 0) {
+        statsHtml += ' &nbsp;|&nbsp; <span style="color:#666">' + bankSkipStats.transfers + ' card payment' +
+            (bankSkipStats.transfers === 1 ? '' : 's') + ' skipped (already on the card statement)</span>';
     }
     if (needsSelect > 0) {
-        statsHtml += ' &nbsp;|&nbsp; <strong style="color:#b8860b">' + needsSelect + ' imported as ' + UNCATEGORIZED + '</strong>' +
+        statsHtml += ' &nbsp;|&nbsp; <strong style="color:#b8860b">' + needsSelect + ' uncategorized</strong>' +
             ' <button onclick="setUncategorizedToMisc()" style="font-size:11px;padding:2px 8px;margin-left:6px;cursor:pointer">Set all to Miscellaneous</button>';
     }
     document.getElementById('bankPreviewStats').innerHTML = statsHtml;
@@ -4500,7 +4687,7 @@ function bankRowTypeChanged(idx, select) {
 function setUncategorizedToMisc() {
     var fallback = financeTypes.indexOf('Miscellaneous') !== -1 ? 'Miscellaneous' : financeTypes[0];
     bankParsedRows.forEach(function(row) {
-        if (row.needsSelect) { row.type = fallback; row.needsSelect = false; }
+        if (row.needsSelect && !row.income) { row.type = fallback; row.needsSelect = false; }
     });
     showBankPreview();
 }
@@ -4534,8 +4721,9 @@ function confirmBankImport() {
     if (toImport.length === 0) { toast('No transactions selected.'); return; }
     var uncategorized = 0;
     toImport.forEach(function(row) {
-        if (financeTypes.indexOf(row.type) === -1) row.type = UNCATEGORIZED;
-        if (row.type === UNCATEGORIZED) uncategorized++;
+        var valid = row.income ? financeIncomeTypes : financeTypes;
+        if (valid.indexOf(row.type) === -1) row.type = row.income ? UNCATEGORIZED_INCOME : UNCATEGORIZED;
+        if (row.type === UNCATEGORIZED || row.type === UNCATEGORIZED_INCOME) uncategorized++;
     });
 
     toImport.forEach(function(row) {
@@ -4553,7 +4741,7 @@ function confirmBankImport() {
     renderFinanceAll();
     closeBankPreview();
     toast(toImport.length + ' transactions imported' +
-        (uncategorized > 0 ? ' — ' + uncategorized + ' as "' + UNCATEGORIZED + '", filter the Finance Log by that type to fix them.' : ' successfully!'));
+        (uncategorized > 0 ? ' — ' + uncategorized + ' uncategorized, filter the Finance Log by those types to fix them.' : ' successfully!'));
 }
 
 // Drag & drop support
@@ -6238,8 +6426,8 @@ function renderMoneySnapshot() {
     var lastMonth = financeTotals(prevMonth);
     var delta = thisMonth.profit - lastMonth.profit;
 
-    var unpaid = entries.filter(function(e) {
-        return inRange(e.date, month) && !(typeof e.revenue === 'number' && e.revenue > 0);
+    var uncategorized = financeEntries.filter(function(e) {
+        return inRange(e.date, month) && (e.type === UNCATEGORIZED || e.type === UNCATEGORIZED_INCOME);
     });
     var top = topExpenseCategory(month);
     var monthName = new Date(month.start + 'T00:00:00').toLocaleString('en-US', { month: 'long' });
@@ -6252,14 +6440,14 @@ function renderMoneySnapshot() {
         '<div class="money-notes">' +
             '<div class="money-note"><span class="mn-label">vs last month</span>' +
                 '<span class="mn-value ' + (delta >= 0 ? 'up' : 'down') + '">' + (delta >= 0 ? '\u25B2 ' : '\u25BC ') + money(Math.abs(delta)) + '</span></div>' +
-            '<div class="money-note"><span class="mn-label">Jobs with no revenue logged</span>' +
-                '<span class="mn-value' + (unpaid.length ? ' down' : '') + '">' + unpaid.length + '</span></div>' +
+            '<div class="money-note"><span class="mn-label">Uncategorized rows this month</span>' +
+                '<span class="mn-value' + (uncategorized.length ? ' down' : '') + '">' + uncategorized.length + '</span></div>' +
             '<div class="money-note"><span class="mn-label">Biggest expense this month</span>' +
                 '<span class="mn-value">' + (top ? escapeHTML(top.type) + ' \u00b7 ' + money(top.amount) : '\u2014') + '</span></div>' +
         '</div>' +
-        (unpaid.length ? '<div class="money-unpaid">' + unpaid.slice(0, 5).map(function(e) {
-            return '<div class="mu-row"><span>' + escapeHTML(e.customer || e.category) + '</span><span>' + e.date + '</span></div>';
-        }).join('') + (unpaid.length > 5 ? '<div class="mu-more">+' + (unpaid.length - 5) + ' more</div>' : '') + '</div>' : '');
+        (uncategorized.length ? '<div class="money-unpaid">' + uncategorized.slice(0, 5).map(function(e) {
+            return '<div class="mu-row"><span>' + escapeHTML((e.note || e.type).slice(0, 40)) + '</span><span>' + e.date + '</span></div>';
+        }).join('') + (uncategorized.length > 5 ? '<div class="mu-more">+' + (uncategorized.length - 5) + ' more</div>' : '') + '</div>' : '');
 }
 
 function escapeHTML(str) {
@@ -6611,25 +6799,6 @@ function schedExtractPrice(text) {
     return { amount: null, hourly: false };
 }
 
-function schedExtractCustomer(text, phone) {
-    var flat = text.replace(/\s+/g, ' ').trim();
-    if (phone) {
-        var idx = flat.indexOf(phone);
-        if (idx > 0) flat = flat.slice(0, idx);
-    }
-    flat = flat.split(/\b(?:deliver|delivery|address|window)\b/i)[0];
-    flat = flat.replace(/\$\s*[\d,.]+/g, ' ')
-               .replace(/\b\d{4,}\b/g, ' ')
-               .replace(/\b\d{1,2}\s*(?:hr|hour)s?\b/gi, ' ')
-               .replace(/\b(?:per\s*hour|an?\s+hour|hr|junk\s*removal|floor\s*models?|display\s*models?|warehouse|miami\s*gardens|tamarac|pick\s?ups?|drop\s?offs?|moves?|moving|multiple)\b/gi, ' ')
-               .replace(/[,;|+:]+/g, ' ')
-               .replace(/\s+/g, ' ')
-               .trim()
-               .replace(/^[-–—:.\s]+|[-–—:.\s]+$/g, '');
-    var words = flat.split(' ').filter(Boolean).slice(0, 6);
-    return words.join(' ').replace(/^[^A-Za-z0-9]+/, '').slice(0, 60);
-}
-
 function schedIsMove(text) {
     return /\bmoves?\b|\bmoving\b/i.test(text);
 }
@@ -6662,7 +6831,7 @@ function schedBuildRows() {
                 color: cell.color,
                 skip: mapped === SCHED_SKIP && !(useMove && move),
                 category: (useMove && move) ? moveCatVal : (mapped === SCHED_SKIP ? '' : mapped),
-                customer: schedExtractCustomer(cell.text, phone),
+                customer: '',
                 phone: phone,
                 email: schedExtractEmail(cell.text),
                 revenue: price.amount,
@@ -6920,12 +7089,14 @@ function renderAll() {
 }
 function renderFinanceAll() {
     renderFinanceTypes(); renderFinanceSummary(); renderFinanceBreakdown(); drawFinanceChart(); renderFinanceLog(); renderMoneySnapshot();
+    renderSummary(); buildChart();
 }
 
 document.getElementById('entryDate').value = today();
 document.getElementById('finDate').value = today();
 document.getElementById('chimeDate').value = today();
 document.getElementById('footerYear').textContent = new Date().getFullYear();
+setPieMode(pieMode);
 renderAll();
 renderFinanceAll();
 </script>
