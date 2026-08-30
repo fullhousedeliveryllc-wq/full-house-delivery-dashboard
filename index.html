@@ -6218,8 +6218,14 @@ addAutofillDecoys();
 /* ═══════════════════════════════════════
    SCHEDULE SHEET IMPORT (.xlsx)
    ═══════════════════════════════════════ */
-var schedBlocks = [];
+var schedSheets = [];
 var schedRows = [];
+var schedAnchorYear = new Date().getFullYear();
+var schedFrom = '';
+var schedTo = '';
+var schedPage = 1;
+var SCHED_PAGE_SIZE = 150;
+var SCHED_SKIP = '__skip__';
 var schedColorMap = readJSON('fhd_sheetColorMap', {});
 var SCHED_COLOR_SUGGESTIONS = {
     cyan: 'Miami Gardens Pickup',
@@ -6288,15 +6294,23 @@ function schedSerialToDate(serial) {
     return d.toISOString().slice(0, 10);
 }
 
-function schedParseHeaderDate(cell, fallbackYear) {
-    if (cell.num !== null && cell.isDate && cell.num > 20000 && cell.num < 80000) return schedSerialToDate(cell.num);
+/* Header cells hold a month and a day; the year in the file is unreliable
+   (weeks were copied forward without fixing it), so only month/day are kept
+   here and the year is worked out backwards from the last week — see
+   schedYearMap(). */
+function schedParseHeaderDate(cell) {
+    if (cell.num !== null && cell.isDate && cell.num > 20000 && cell.num < 80000) {
+        var iso = schedSerialToDate(cell.num);
+        if (!iso) return null;
+        return { mo: parseInt(iso.slice(5, 7), 10), day: parseInt(iso.slice(8, 10), 10), year: parseInt(iso.slice(0, 4), 10) };
+    }
     var m = /^(\d{1,2})\s*[\/-]\s*(\d{1,2})(?:\s*[\/-]\s*(\d{2,4}))?$/.exec((cell.text || '').trim());
-    if (!m) return '';
-    var year = m[3] ? parseInt(m[3], 10) : fallbackYear;
-    if (year < 100) year += 2000;
+    if (!m) return null;
     var mo = parseInt(m[1], 10), day = parseInt(m[2], 10);
-    if (mo < 1 || mo > 12 || day < 1 || day > 31) return '';
-    return year + '-' + String(mo).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+    if (mo < 1 || mo > 12 || day < 1 || day > 31) return null;
+    var year = m[3] ? parseInt(m[3], 10) : null;
+    if (year !== null && year < 100) year += 2000;
+    return { mo: mo, day: day, year: year };
 }
 
 function schedIsNoise(text) {
@@ -6304,10 +6318,14 @@ function schedIsNoise(text) {
     if (t.length < 4) return true;
     if (/^\d{1,2}(:\d{2})?\s*(am|pm)?$/i.test(t)) return true;
     if (/^(sunday|monday|tuesday|wednesday|thursday|friday|saturday)$/i.test(t)) return true;
+    if (/^(profit|goal|total|expenses?|to ?do|color key|notes?|week of)\b/i.test(t)) return true;
+    if (/^(light |dark )?(blue|red|green|yellow|orange|purple|pink)\s*[-\u2013]/i.test(t)) return true;
+    if (/^no deliveries/i.test(t)) return true;
+    if (/^[A-Za-z]+\s+off$/i.test(t)) return true;
     return false;
 }
 
-function schedParseSheet(name, doc, strings, styleInfo, fallbackYear) {
+function schedParseSheet(name, doc, strings, styleInfo) {
     var cellEls = doc.getElementsByTagName('c');
     var grid = {};
     var maxRow = 0;
@@ -6342,30 +6360,68 @@ function schedParseSheet(name, doc, strings, styleInfo, fallbackYear) {
         for (var col = 1; col <= 40; col++) {
             var cell = grid[r + ',' + col];
             if (!cell) continue;
-            var iso = schedParseHeaderDate(cell, fallbackYear);
-            if (iso) { found[col] = iso; count++; }
+            var md = schedParseHeaderDate(cell);
+            if (md) { found[col] = md; count++; }
         }
         if (count >= 2) { headerRow = r; colDates = found; }
     }
-    if (!headerRow) return [];
+    if (!headerRow) return null;
 
-    var blocks = [];
+    var cells = [];
     for (var row = headerRow + 1; row <= maxRow; row++) {
         for (var key in colDates) {
             var cc = grid[row + ',' + key];
             if (!cc || !cc.text || schedIsNoise(cc.text)) continue;
-            blocks.push({
-                sheet: name,
-                date: colDates[key],
+            cells.push({
+                col: parseInt(key, 10),
                 color: cc.color,
                 text: cc.text.replace(/\r\n/g, '\n').trim()
             });
         }
     }
-    return blocks;
+    return { name: name, colDates: colDates, cells: cells };
 }
 
-async function schedParseWorkbook(buf, fallbackYear) {
+/* Google Sheets keeps the real year behind the m/d display, so that wins when
+   it is there. For pages that only carry text like "9/18", walk backwards from
+   the last week and drop a year every time the month climbs going left. */
+function schedYearMap(sheets, anchorYear) {
+    var seq = [];
+    sheets.forEach(function(sh, si) {
+        Object.keys(sh.colDates).map(Number).sort(function(a, b) { return a - b; }).forEach(function(col) {
+            seq.push({ si: si, col: col, md: sh.colDates[col] });
+        });
+    });
+    var year = anchorYear;
+    var later = null;
+    var map = {};
+    for (var i = seq.length - 1; i >= 0; i--) {
+        var md = seq[i].md;
+        if (md.year) year = md.year;
+        else if (later && md.mo > later.mo) year--;
+        map[seq[i].si + ':' + seq[i].col] = year + '-' + String(md.mo).padStart(2, '0') + '-' + String(md.day).padStart(2, '0');
+        later = md;
+    }
+    return map;
+}
+
+function schedNeedsYear() {
+    return schedSheets.some(function(sh) {
+        return Object.keys(sh.colDates).some(function(col) { return !sh.colDates[col].year; });
+    });
+}
+
+function schedDefaultAnchorYear(sheets) {
+    for (var i = sheets.length - 1; i >= 0; i--) {
+        var cols = Object.keys(sheets[i].colDates).map(Number).sort(function(a, b) { return a - b; });
+        for (var j = cols.length - 1; j >= 0; j--) {
+            if (sheets[i].colDates[cols[j]].year) return sheets[i].colDates[cols[j]].year;
+        }
+    }
+    return new Date().getFullYear();
+}
+
+async function schedParseWorkbook(buf) {
     var zip = await JSZip.loadAsync(buf);
     var parser = new DOMParser();
     var readXml = async function(path) {
@@ -6391,7 +6447,7 @@ async function schedParseWorkbook(buf, fallbackYear) {
             relMap[relEls[i].getAttribute('Id')] = relEls[i].getAttribute('Target').replace(/^\/?xl\//, '');
         }
     }
-    var blocks = [];
+    var sheets = [];
     var sheetEls = wb.getElementsByTagName('sheet');
     for (var k = 0; k < sheetEls.length; k++) {
         var rid = sheetEls[k].getAttribute('r:id') || sheetEls[k].getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id');
@@ -6399,9 +6455,10 @@ async function schedParseWorkbook(buf, fallbackYear) {
         if (!target) continue;
         var doc = await readXml('xl/' + target);
         if (!doc) continue;
-        blocks = blocks.concat(schedParseSheet(sheetEls[k].getAttribute('name') || ('Sheet ' + (k + 1)), doc, strings, styleInfo, fallbackYear));
+        var parsed = schedParseSheet(sheetEls[k].getAttribute('name') || ('Sheet ' + (k + 1)), doc, strings, styleInfo);
+        if (parsed) sheets.push(parsed);
     }
-    return blocks;
+    return sheets;
 }
 
 function schedColorFamily(hex) {
@@ -6428,7 +6485,11 @@ function schedColorFamily(hex) {
 
 function schedSuggestCategory(hex) {
     if (Object.prototype.hasOwnProperty.call(schedColorMap, hex)) return schedColorMap[hex];
-    return SCHED_COLOR_SUGGESTIONS[schedColorFamily(hex)] || '';
+    var family = SCHED_COLOR_SUGGESTIONS[schedColorFamily(hex)];
+    if (family) return family;
+    /* near-black cells are the daily profit/goal banners, not jobs */
+    if (hex && (parseInt(hex.substr(1, 2), 16) + parseInt(hex.substr(3, 2), 16) + parseInt(hex.substr(5, 2), 16)) / 3 < 40) return SCHED_SKIP;
+    return '';
 }
 
 function schedExtractPhone(text) {
@@ -6472,37 +6533,56 @@ function schedIsMove(text) {
     return /\bmoves?\b|\bmoving\b/i.test(text);
 }
 
+function schedDupKey(date, note) {
+    return date + '|' + (note || '').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
 function schedBuildRows() {
     var moveOn = document.getElementById('schedMoveToggle');
     var useMove = !moveOn || moveOn.checked;
     var moveCat = document.getElementById('schedMoveCat');
     var moveCatVal = moveCat ? moveCat.value : SCHED_MOVE_CATEGORY;
-    schedRows = schedBlocks.map(function(b) {
-        var price = schedExtractPrice(b.text);
-        var phone = schedExtractPhone(b.text);
-        var move = schedIsMove(b.text);
-        return {
-            date: b.date,
-            sheet: b.sheet,
-            color: b.color,
-            category: (useMove && move) ? moveCatVal : schedSuggestCategory(b.color),
-            customer: schedExtractCustomer(b.text, phone),
-            phone: phone,
-            email: schedExtractEmail(b.text),
-            revenue: price.amount,
-            hourly: price.hourly,
-            note: b.text,
-            duplicate: schedIsDuplicate(b.date, b.text),
-            selected: !schedIsDuplicate(b.date, b.text)
-        };
+    var yearMap = schedYearMap(schedSheets, schedAnchorYear);
+    var existing = {};
+    entries.forEach(function(e) { existing[schedDupKey(e.date, e.note)] = 1; });
+
+    schedRows = [];
+    schedSheets.forEach(function(sh, si) {
+        sh.cells.forEach(function(cell) {
+            var date = yearMap[si + ':' + cell.col] || '';
+            var mapped = schedSuggestCategory(cell.color);
+            var move = schedIsMove(cell.text);
+            var price = schedExtractPrice(cell.text);
+            var phone = schedExtractPhone(cell.text);
+            var dupe = !!existing[schedDupKey(date, cell.text)];
+            schedRows.push({
+                date: date,
+                sheet: sh.name,
+                color: cell.color,
+                skip: mapped === SCHED_SKIP && !(useMove && move),
+                category: (useMove && move) ? moveCatVal : (mapped === SCHED_SKIP ? '' : mapped),
+                customer: schedExtractCustomer(cell.text, phone),
+                phone: phone,
+                email: schedExtractEmail(cell.text),
+                revenue: price.amount,
+                hourly: price.hourly,
+                note: cell.text,
+                duplicate: dupe,
+                selected: !dupe
+            });
+        });
+    });
+    schedApplyRange();
+}
+
+function schedApplyRange() {
+    schedRows.forEach(function(r) {
+        r.inRange = (!schedFrom || r.date >= schedFrom) && (!schedTo || r.date <= schedTo);
     });
 }
 
-function schedIsDuplicate(date, note) {
-    var key = (note || '').replace(/\s+/g, ' ').trim().toLowerCase();
-    return entries.some(function(e) {
-        return e.date === date && (e.note || '').replace(/\s+/g, ' ').trim().toLowerCase() === key;
-    });
+function schedVisibleRows() {
+    return schedRows.filter(function(r) { return !r.skip && r.inRange; });
 }
 
 async function handleScheduleFile(input) {
@@ -6513,22 +6593,27 @@ async function handleScheduleFile(input) {
     if (!/\.xlsx$/i.test(file.name)) return toast('Please upload the .xlsx download (File → Download → Microsoft Excel). CSV files lose the colors.', true);
     try {
         var buf = await file.arrayBuffer();
-        schedBlocks = await schedParseWorkbook(buf, new Date().getFullYear());
+        schedSheets = await schedParseWorkbook(buf);
     } catch (err) {
         console.error('[SHEET]', err);
         return toast('Could not read that spreadsheet: ' + err.message, true);
     }
-    if (!schedBlocks.length) {
+    if (!schedSheets.length || !schedSheets.some(function(s) { return s.cells.length; })) {
         return toast('No dated job blocks found. Each page needs a row of dates across the top with the job blocks underneath.', true);
     }
+    schedAnchorYear = schedDefaultAnchorYear(schedSheets);
+    schedFrom = '';
+    schedTo = '';
+    schedPage = 1;
     schedBuildRows();
     showSchedPreview();
 }
 
-function schedCategoryOptions(selected) {
+function schedCategoryOptions(selected, withSkip) {
     var opts = '<option value="">— No category —</option>';
+    if (withSkip) opts += '<option value="' + SCHED_SKIP + '"' + (selected === SCHED_SKIP ? ' selected' : '') + '>— Skip, do not import —</option>';
     var known = categories.slice();
-    if (selected && known.indexOf(selected) === -1) known.push(selected);
+    if (selected && selected !== SCHED_SKIP && known.indexOf(selected) === -1) known.push(selected);
     Object.keys(SCHED_COLOR_SUGGESTIONS).forEach(function(f) {
         if (known.indexOf(SCHED_COLOR_SUGGESTIONS[f]) === -1) known.push(SCHED_COLOR_SUGGESTIONS[f]);
     });
@@ -6542,7 +6627,8 @@ function schedCategoryOptions(selected) {
 
 function showSchedPreview() {
     var colorCounts = {};
-    schedBlocks.forEach(function(b) { colorCounts[b.color] = (colorCounts[b.color] || 0) + 1; });
+    schedRows.forEach(function(r) { colorCounts[r.color] = (colorCounts[r.color] || 0) + 1; });
+    var dates = schedRows.map(function(r) { return r.date; }).filter(Boolean).sort();
 
     var html = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:16px;">' +
         '<div style="font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-light);margin-bottom:10px;">Color → Category</div>' +
@@ -6553,14 +6639,25 @@ function showSchedPreview() {
             '<span style="font-size:11px;color:var(--text-light);width:78px;flex:0 0 auto;">' + (hex || 'no fill') + '</span>' +
             '<span style="font-size:11px;color:var(--text-light);width:46px;flex:0 0 auto;">' + colorCounts[hex] + ' job' + (colorCounts[hex] === 1 ? '' : 's') + '</span>' +
             '<select style="flex:1;padding:4px 8px;border:1px solid #ccc;border-radius:4px;font-size:12px;" onchange="schedColorChanged(\'' + hex + '\', this.value)">' +
-            schedCategoryOptions(schedSuggestCategory(hex)) + '</select></div>';
+            schedCategoryOptions(schedSuggestCategory(hex), true) + '</select></div>';
     });
     html += '</div><div style="margin-top:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;">' +
         '<label style="display:flex;align-items:center;gap:6px;white-space:nowrap;"><input type="checkbox" id="schedMoveToggle" checked onchange="schedRefreshRows()"> Blocks mentioning a “move” are categorized as</label>' +
         '<select id="schedMoveCat" style="padding:4px 8px;border:1px solid #ccc;border-radius:4px;font-size:12px;max-width:200px;" onchange="schedRefreshRows()">' + schedCategoryOptions(SCHED_MOVE_CATEGORY) + '</select>' +
         '<span style="margin-left:auto;display:flex;align-items:center;gap:6px;white-space:nowrap;">Import as <select id="schedStatus" style="padding:4px 8px;border:1px solid #ccc;border-radius:4px;font-size:12px;">' +
         ['Completed', 'Confirmed', 'Pending', 'In Progress'].map(function(s) { return '<option value="' + s + '">' + s + '</option>'; }).join('') +
-        '</select></span></div></div><div id="schedRowsWrap"></div>';
+        '</select></span></div>' +
+        '<div style="margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;">' +
+        (schedNeedsYear() ?
+            '<span style="white-space:nowrap;">Last week in the sheet ends in</span>' +
+            '<input type="number" id="schedYear" value="' + schedAnchorYear + '" min="2000" max="2100" style="width:84px;padding:4px 8px;border:1px solid #ccc;border-radius:4px;font-size:12px;" onchange="schedYearChanged(this.value)">' +
+            '<span style="color:var(--text-light);">pages without a year count back from there</span>' : '') +
+        '<span style="margin-left:auto;display:flex;align-items:center;gap:6px;white-space:nowrap;">Only weeks between ' +
+        '<input type="date" id="schedFrom" value="' + schedFrom + '" style="padding:4px 8px;border:1px solid #ccc;border-radius:4px;font-size:12px;" onchange="schedRangeChanged()"> and ' +
+        '<input type="date" id="schedTo" value="' + schedTo + '" style="padding:4px 8px;border:1px solid #ccc;border-radius:4px;font-size:12px;" onchange="schedRangeChanged()"></span>' +
+        '</div>' +
+        (dates.length ? '<div style="margin-top:6px;font-size:12px;color:var(--text-light);">Sheet covers ' + dates[0] + ' → ' + dates[dates.length - 1] + ' across ' + schedSheets.length + ' page' + (schedSheets.length === 1 ? '' : 's') + '.</div>' : '') +
+        '</div><div id="schedRowsWrap"></div>';
 
     document.getElementById('schedPreviewBody').innerHTML = html;
     schedRenderRows();
@@ -6568,9 +6665,16 @@ function showSchedPreview() {
 }
 
 function schedRenderRows() {
+    var visible = schedVisibleRows();
+    var pages = Math.max(1, Math.ceil(visible.length / SCHED_PAGE_SIZE));
+    if (schedPage > pages) schedPage = pages;
+    var start = (schedPage - 1) * SCHED_PAGE_SIZE;
+    var pageRows = visible.slice(start, start + SCHED_PAGE_SIZE);
+
     var html = '<table class="preview-table"><thead><tr><th style="width:30px"><input type="checkbox" class="preview-check" checked onchange="schedToggleAll(this)"></th>' +
         '<th>Date</th><th>Category</th><th>Customer</th><th>Phone</th><th>Email</th><th>Revenue</th><th>Note</th></tr></thead><tbody>';
-    schedRows.forEach(function(row, idx) {
+    pageRows.forEach(function(row) {
+        var idx = schedRows.indexOf(row);
         var dupTag = row.duplicate ? '<span style="font-size:9px;background:var(--warning);color:#fff;padding:1px 5px;border-radius:3px;margin-left:4px;">DUPLICATE</span>' : '';
         html += '<tr' + (row.duplicate ? ' style="background:#fff8e1;"' : '') + '>' +
             '<td><input type="checkbox" class="preview-check" ' + (row.selected ? 'checked' : '') + ' onchange="schedRows[' + idx + '].selected=this.checked;schedUpdateStats()"></td>' +
@@ -6583,14 +6687,41 @@ function schedRenderRows() {
             '<td style="max-width:320px;font-size:12px;color:var(--text-light);" title="' + esc(row.note) + '">' + esc(row.note.replace(/\s+/g, ' ').slice(0, 110)) + (row.note.length > 110 ? '…' : '') + '</td></tr>';
     });
     html += '</tbody></table>';
+    if (pages > 1) {
+        html += '<div style="display:flex;align-items:center;justify-content:center;gap:12px;padding:12px 0;font-size:13px;">' +
+            '<button class="btn btn-outline btn-sm" ' + (schedPage === 1 ? 'disabled' : '') + ' onclick="schedGoPage(' + (schedPage - 1) + ')">&larr; Prev</button>' +
+            '<span>Page ' + schedPage + ' of ' + pages + '</span>' +
+            '<button class="btn btn-outline btn-sm" ' + (schedPage === pages ? 'disabled' : '') + ' onclick="schedGoPage(' + (schedPage + 1) + ')">Next &rarr;</button></div>';
+    }
     document.getElementById('schedRowsWrap').innerHTML = html;
     schedUpdateStats();
+}
+
+function schedGoPage(page) {
+    schedPage = page;
+    schedRenderRows();
+    document.getElementById('schedPreviewBody').scrollTop = 0;
 }
 
 function schedRefreshRows() {
     var selected = schedRows.map(function(r) { return r.selected; });
     schedBuildRows();
     schedRows.forEach(function(r, i) { if (selected[i] !== undefined) r.selected = selected[i]; });
+    schedRenderRows();
+}
+
+function schedYearChanged(value) {
+    var year = parseInt(value, 10);
+    if (!year || year < 2000 || year > 2100) return;
+    schedAnchorYear = year;
+    schedRefreshRows();
+}
+
+function schedRangeChanged() {
+    schedFrom = document.getElementById('schedFrom').value;
+    schedTo = document.getElementById('schedTo').value;
+    schedApplyRange();
+    schedPage = 1;
     schedRenderRows();
 }
 
@@ -6601,15 +6732,21 @@ function schedColorChanged(hex, value) {
 }
 
 function schedToggleAll(cb) {
-    schedRows.forEach(function(r) { r.selected = cb.checked; });
+    schedVisibleRows().forEach(function(r) { r.selected = cb.checked; });
     schedRenderRows();
 }
 
 function schedUpdateStats() {
-    var sel = schedRows.filter(function(r) { return r.selected; }).length;
-    var dupes = schedRows.filter(function(r) { return r.duplicate; }).length;
+    var visible = schedVisibleRows();
+    var sel = visible.filter(function(r) { return r.selected; }).length;
+    var dupes = visible.filter(function(r) { return r.duplicate; }).length;
+    var outOfRange = schedRows.filter(function(r) { return !r.skip && !r.inRange; }).length;
+    var skipped = schedRows.filter(function(r) { return r.skip; }).length;
     document.getElementById('schedPreviewStats').textContent =
-        sel + ' of ' + schedRows.length + ' blocks selected' + (dupes ? ' · ' + dupes + ' already imported' : '');
+        sel + ' of ' + visible.length + ' blocks selected' +
+        (dupes ? ' · ' + dupes + ' already imported' : '') +
+        (outOfRange ? ' · ' + outOfRange + ' outside the date range' : '') +
+        (skipped ? ' · ' + skipped + ' skipped by color' : '');
 }
 
 function closeSchedPreview() {
@@ -6617,7 +6754,7 @@ function closeSchedPreview() {
 }
 
 function confirmScheduleImport() {
-    var picked = schedRows.filter(function(r) { return r.selected; });
+    var picked = schedVisibleRows().filter(function(r) { return r.selected; });
     if (!picked.length) return toast('Select at least one block to import.', true);
     var statusEl = document.getElementById('schedStatus');
     var status = statusEl ? statusEl.value : 'Completed';
