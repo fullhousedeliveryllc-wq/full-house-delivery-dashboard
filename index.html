@@ -1147,8 +1147,10 @@
             types based on the description. You'll get a preview to review and adjust categories before importing.
             Every line is imported — money out as an expense, money in as revenue — and anything the system can't
             confidently label comes in as <strong>Uncategorized</strong> (highlighted amber) so you can fix it later
-            from the Finance Log. Credit-card payments made from checking are skipped, since those charges already
-            appear on the card statement and would otherwise be counted twice.
+            from the Finance Log. On a checking statement every deposit and Zelle/Venmo payment in is revenue and
+            every payment out is an expense; on a credit-card statement every charge is an expense. Credit-card
+            payments are skipped on <em>both</em> statements — the checking debit and the card's "payment thank you"
+            credit — since that spending is already itemized as card charges and would otherwise be counted twice.
             <em>CSV works best; PDF support extracts text-based data from common statement formats.</em>
         </div>
     </div>
@@ -4173,10 +4175,22 @@ var CATEGORY_RULES = [
 ];
 
 // Descriptions that mean money coming in — imported as revenue, not an expense
-var DEPOSIT_PATTERN = /deposit|payment\s*received|\bincome\b|\brevenue\b|customer\s*pay|zelle\s*(payment\s*)?from|venmo\s*from|cash\s*app\s*from|direct\s*dep|transfer\s*in\b|refund|reversal|interest\s*paid|remote\s*(online\s*)?deposit|counter\s*credit|square\s*inc|mobile\s*deposit/i;
+var DEPOSIT_PATTERN = /deposit|payment\s*received|\bincome\b|\brevenue\b|customer\s*pay|zelle[\w\s]{0,20}from\b|quickpay\s*credit|venmo\s*from|cash\s*app\s*from|direct\s*dep|transfer\s*in\b|refund|reversal|interest\s*paid|remote\s*(online\s*)?deposit|counter\s*credit|square\s*inc|mobile\s*deposit/i;
 
-// Card payments / internal transfers: already counted as their own card-statement expenses
-var INTERNAL_TRANSFER_PATTERN = /payment\s*to\s*chase\s*card|chase\s*credit\s*crd\s*(epay|autopay)|automatic\s*payment\s*-\s*thank/i;
+// Paying a credit card moves money between your own accounts — the spending it
+// covers is already itemized on the card statement. Matched on both statements:
+// the debit out of checking and the "payment thank you" credit on the card.
+var CARD_ISSUER = '(chase|amex|american\\s*express|discover|capital\\s*one|citi(bank|cards?)?|barclay(card|s)?|synchrony|wells\\s*fargo|bank\\s*of\\s*america|bk\\s*of\\s*amer|us\\s*bank|navy\\s*federal)';
+var INTERNAL_TRANSFER_PATTERN = new RegExp(
+    'payment\\s*(received\\s*)?[-\u2013]?\\s*thank\\s*you' +
+    '|(credit\\s*)?card\\s*(bill\\s*)?(payment|pymt|autopay)' +
+    '|cardmember\\s*(payment|pymt)' +
+    '|' + CARD_ISSUER + '[^a-z]*(credit\\s*)?(crd|card)?[^a-z]*(e.?pay(ment)?|autopay|online\\s*pmt|mobile\\s*pymt|bill\\s*pay)' +
+    '|payment\\s*to\\s*' + CARD_ISSUER +
+    '|autopay\\s*payment', 'i');
+
+// The only credits a credit-card statement carries: payments and returns.
+var CARD_CREDIT_PATTERN = /payment|pymt|thank\s*you|refund|return|credit|reversal|adjustment|cash\s*?back|reward|statement\s*credit/i;
 
 var COMMISSION_NAMES = ['jt', 'jorge t', 'jorge torrens'];
 
@@ -4241,7 +4255,12 @@ function buildBankRow(dateStr, description, amount, isCredit) {
     var desc = (description || '').trim();
     if (INTERNAL_TRANSFER_PATTERN.test(desc)) { bankSkipStats.transfers++; return null; }
 
-    var income = !!isCredit || DEPOSIT_PATTERN.test(desc);
+    // The statement's own sign wins whenever it is known — a debit stays an
+    // expense even if its description happens to say "deposit" or "refund".
+    // The description is only consulted when the file gives no direction.
+    var income = (isCredit === null || isCredit === undefined)
+        ? DEPOSIT_PATTERN.test(desc)
+        : !!isCredit;
     var type, needsSelect;
     if (income) {
         type = categorizeIncome(desc);
@@ -4508,7 +4527,7 @@ function parsePDFText(text) {
     candidates.forEach(function(c) {
         var idx = hasBalanceColumn && c.amounts.length > 1 ? c.amounts.length - 2 : c.amounts.length - 1;
         var amtObj = c.amounts[idx];
-        var isCredit = !amtObj.negative && /deposit|credit|transfer\s*in|payment\s*received|direct\s*dep/i.test(c.line);
+        var isCredit = amtObj.negative ? false : null;
         var row = buildBankRow(c.date, c.description || 'PDF Transaction', amtObj.value, isCredit);
         if (row) bankParsedRows.push(row);
     });
@@ -4540,15 +4559,25 @@ function kindIsCredit(value) {
 // Banks disagree on signs: some export expenses as negative, credit-card exports
 // often list charges as positive. Work out which convention this file uses so
 // expenses are never dropped as if they were deposits.
-function detectSignConvention(amounts, descriptions) {
-    var negatives = 0, positives = 0;
-    amounts.forEach(function(a) { if (a < 0) negatives++; else if (a > 0) positives++; });
-    if (negatives > 0) return 'negative-is-expense';
-    if (positives === 0) return 'negative-is-expense';
+function detectSignConvention(rows) {
+    var negatives = rows.filter(function(r) { return r.signedAmount < 0; });
+    var positives = rows.filter(function(r) { return r.signedAmount > 0; });
+    if (positives.length === 0) return 'negative-is-expense';
+
+    if (negatives.length > 0) {
+        // A card export flips the convention: charges are positive and the only
+        // negatives are payments and merchant credits. Checking statements always
+        // have ordinary negative spending, so they never look like this.
+        var allNegativesAreCredits = negatives.every(function(r) {
+            return CARD_CREDIT_PATTERN.test(r.description);
+        });
+        return (allNegativesAreCredits && positives.length > negatives.length)
+            ? 'all-positive-are-expenses' : 'negative-is-expense';
+    }
 
     // Everything is positive: fall back to the description to spot the deposits.
-    var deposits = descriptions.filter(function(d) { return DEPOSIT_PATTERN.test(d); }).length;
-    return deposits < positives ? 'all-positive-are-expenses' : 'negative-is-expense';
+    var deposits = positives.filter(function(r) { return DEPOSIT_PATTERN.test(r.description); }).length;
+    return deposits < positives.length ? 'all-positive-are-expenses' : 'negative-is-expense';
 }
 
 function parseBankCSV(csvText) {
@@ -4596,17 +4625,21 @@ function parseBankCSV(csvText) {
         });
     }
 
-    var convention = detectSignConvention(
-        parsed.filter(function(r) { return r.explicitCredit === null; }).map(function(r) { return r.signedAmount; }),
-        parsed.map(function(r) { return r.description; })
-    );
+    var convention = detectSignConvention(parsed.filter(function(r) { return r.explicitCredit === null; }));
 
     bankSkipStats = { transfers: 0 };
     bankParsedRows = [];
     parsed.forEach(function(r) {
         var isCredit = r.explicitCredit;
         if (isCredit === null) {
-            isCredit = convention === 'all-positive-are-expenses' ? false : r.signedAmount > 0;
+            if (convention === 'all-positive-are-expenses') {
+                // Card export: every charge is an expense however it is signed.
+                // A negative line is a payment (skipped as an internal transfer)
+                // or a merchant credit, which is money back.
+                isCredit = r.signedAmount < 0;
+            } else {
+                isCredit = r.signedAmount > 0;
+            }
         }
         var row = buildBankRow(r.date, r.description, r.signedAmount, isCredit);
         if (row) bankParsedRows.push(row);
