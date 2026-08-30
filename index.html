@@ -10,6 +10,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>if(typeof pdfjsLib!=='undefined'){pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';}</script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         :root {
             --primary: #0f2744;
@@ -123,6 +124,7 @@
             padding: 24px;
             border: 1px solid var(--tint-border);
             transition: box-shadow 0.2s ease;
+            min-width: 0;
         }
         .card:hover {
             box-shadow: 0 1px 2px rgba(16,24,40,0.05), 0 6px 20px rgba(37,99,235,0.08), var(--glass-inset);
@@ -417,6 +419,34 @@
         }
         .btn-edit:hover { background: var(--surface); border-color: #cfd4da; color: var(--text); }
         .action-cell { white-space: nowrap; }
+
+        /* Wide logs: keep the right-hand columns reachable instead of clipped */
+        .table-scroll { overflow-x: auto; min-width: 0; max-width: 100%; }
+        .table-scroll::-webkit-scrollbar { height: 10px; }
+        .table-scroll::-webkit-scrollbar-thumb { background: #c3cbd6; border-radius: 6px; }
+        .table-scroll table { min-width: 100%; }
+        .log-table td, .log-table th { padding: 9px 10px; }
+        .log-table .nowrap { white-space: nowrap; }
+        .log-table .note-cell { max-width: 300px; min-width: 170px; cursor: pointer; }
+        .log-table .note-cell > span {
+            display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+            overflow: hidden; white-space: pre-wrap; line-height: 1.45;
+        }
+        .log-table .note-cell.expanded > span { -webkit-line-clamp: unset; }
+        .log-table th:last-child, .log-table td.action-cell {
+            position: sticky; right: 0; background: #fff;
+            box-shadow: -8px 0 8px -8px rgba(16,24,40,0.25);
+        }
+        .log-table th:last-child { background: var(--surface); z-index: 3; }
+        .log-table td.action-cell { z-index: 2; }
+        /* Let the widest log use the screen instead of the 1280px column grid */
+        @media (min-width: 1340px) {
+            .card.bleed {
+                position: relative; left: 50%;
+                width: calc(100vw - 40px); margin-left: calc(-50vw + 20px);
+                max-width: 1700px;
+            }
+        }
 
         /* Edit Modal */
         .edit-overlay {
@@ -932,8 +962,27 @@
         </div>
     </div>
 
-    <!-- Entry Log -->
+    <!-- Schedule Sheet Import -->
     <div class="card full-width">
+        <h2><span class="icon">&#128197;</span> Import Schedule Sheet</h2>
+        <div class="upload-zone" id="schedUploadZone" onclick="document.getElementById('schedFileInput').click()">
+            <span class="upload-icon">&#128202;</span>
+            <p><strong>Click to upload</strong> your schedule spreadsheet</p>
+            <p class="formats">Excel (.xlsx) &mdash; in Google Sheets use File &rarr; Download &rarr; Microsoft Excel (.xlsx)</p>
+        </div>
+        <input type="file" id="schedFileInput" accept=".xlsx" style="display:none" onchange="handleScheduleFile(this)">
+        <p class="upload-hint">
+            <strong>How it works:</strong> every colored block on the weekly calendar becomes one entry &mdash; date from the
+            column header, plus price, phone and email pulled out of the text, and the block's exact wording copied into the
+            note. The <strong>cell color decides the category</strong>; you map each color to one of your categories in the
+            preview (saved for next time), and anything mentioning a <em>move</em> is categorized as a move regardless of color.
+            Blocks already imported are flagged as duplicates so re-uploading the same sheet is safe.
+            <em>CSV loses the colors &mdash; the .xlsx download is required.</em>
+        </p>
+    </div>
+
+    <!-- Entry Log -->
+    <div class="card full-width bleed">
         <h2><span class="icon">&#128210;</span> Entry Log</h2>
         <div class="search-bar-wrap">
             <span class="search-icon">&#128269;</span>
@@ -946,8 +995,8 @@
             <input type="month" id="filterMonth" onchange="entryPage=1;renderLog()">
             <button class="btn btn-outline btn-sm" onclick="clearFilters()">Clear Filters</button>
         </div>
-        <div style="overflow-x:auto;">
-            <table>
+        <div class="table-scroll">
+            <table class="log-table">
                 <thead>
                     <tr>
                         <th style="width:30px"><input type="checkbox" id="entrySelectAll" onchange="toggleEntrySelectAll(this)"></th>
@@ -1448,6 +1497,24 @@
             <div style="display:flex;gap:8px;">
                 <button class="btn btn-outline" onclick="closeBankPreview()">Cancel</button>
                 <button class="btn btn-primary" onclick="confirmBankImport()">&#10004; Import Selected</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Schedule Sheet Preview Modal -->
+<div class="modal-overlay" id="schedPreviewModal">
+    <div class="modal-box" style="max-width:1150px;">
+        <div class="modal-header">
+            <h3>&#128202; Review Schedule Import</h3>
+            <button class="btn btn-outline btn-sm" onclick="closeSchedPreview()">&times; Close</button>
+        </div>
+        <div class="modal-body" id="schedPreviewBody"></div>
+        <div class="modal-footer">
+            <span class="stats" id="schedPreviewStats"></span>
+            <div style="display:flex;gap:8px;">
+                <button class="btn btn-outline" onclick="closeSchedPreview()">Cancel</button>
+                <button class="btn btn-primary" onclick="confirmScheduleImport()">&#10004; Import Selected</button>
             </div>
         </div>
     </div>
@@ -2179,7 +2246,7 @@ var STATE_KEYS = [
     'fhd_financeTypes', 'fhd_chime',
     'fhd_teamDrivers2', 'fhd_teamOwners', 'fhd_schedule', 'fhd_availability',
     'fhd_auditLog', 'fhd_ownerContacts', 'fhd_ownerUnavailDays', 'fhd_manualPay',
-    'fhd_leads', 'fhd_contacts', 'fhd_contacts_deleted'
+    'fhd_leads', 'fhd_contacts', 'fhd_contacts_deleted', 'fhd_sheetColorMap'
 ];
 var STATE_DIRTY_KEY = 'fhd_state_dirty';
 var _statePushTimer = null;
@@ -2299,6 +2366,7 @@ function rehydrateState() {
     leads = readJSON('fhd_leads', leads);
     contacts = readJSON('fhd_contacts', contacts);
     deletedContactKeys = readJSON('fhd_contacts_deleted', deletedContactKeys);
+    schedColorMap = readJSON('fhd_sheetColorMap', schedColorMap);
     renderAll();
     renderFinanceAll();
     renderChimeAll();
@@ -3022,7 +3090,8 @@ function renderLog() {
         var statusVal = e.status || 'Completed';
         var statusClass = statusVal.toLowerCase().replace(/\s+/g, '-');
         var statusCell = '<select class="job-status-select ' + statusClass + '" onchange="updateJobStatus(' + e.id + ',this.value,this)">' + ['Pending','Confirmed','In Progress','Completed'].map(function(s) { return '<option value="' + s + '"' + (statusVal === s ? ' selected' : '') + '>' + s + '</option>'; }).join('') + '</select>';
-        return '<tr><td><input type="checkbox" class="entry-select-cb" value="' + e.id + '" onchange="updateEntryBulkBtn()"></td><td>' + e.date + '</td><td>' + esc(e.category) + '</td><td>' + esc(e.customer || '\u2014') + '</td><td>' + esc(e.phone || '\u2014') + '</td><td>' + esc(e.email || '\u2014') + '</td><td>' + esc(details || '\u2014') + '</td><td>' + e.amount + '</td><td>' + rev + '</td><td>' + esc(e.note || '\u2014') + '</td><td>' + statusCell + '</td><td>' + docsCell + '</td><td class="action-cell"><button class="btn-edit" onclick="editEntry(' + e.id + ')" title="Edit">&#9998;</button><button class="btn btn-danger" onclick="deleteEntry(' + e.id + ')" title="Delete">&times;</button></td></tr>';
+        var noteText = e.note || '\u2014';
+        return '<tr><td><input type="checkbox" class="entry-select-cb" value="' + e.id + '" onchange="updateEntryBulkBtn()"></td><td class="nowrap">' + e.date + '</td><td>' + esc(e.category) + '</td><td>' + esc(e.customer || '\u2014') + '</td><td class="nowrap">' + esc(e.phone || '\u2014') + '</td><td>' + esc(e.email || '\u2014') + '</td><td>' + esc(details || '\u2014') + '</td><td>' + e.amount + '</td><td class="nowrap">' + rev + '</td><td class="note-cell" title="' + esc(noteText) + '" onclick="this.classList.toggle(\'expanded\')"><span>' + esc(noteText) + '</span></td><td>' + statusCell + '</td><td>' + docsCell + '</td><td class="action-cell"><button class="btn-edit" onclick="editEntry(' + e.id + ')" title="Edit">&#9998;</button><button class="btn btn-danger" onclick="deleteEntry(' + e.id + ')" title="Delete">&times;</button></td></tr>';
     }).join('');
 
     pagDiv.innerHTML = buildPagination(entryPage, totalPages, filtered.length, 'setEntryPage');
@@ -6145,6 +6214,582 @@ function addAutofillDecoys() {
 }
 addAutofillDecoys();
 ['entrySearchBar', 'financeSearchBar', 'leadSearchBar', 'contactSearchBar'].forEach(hardenSearchInput);
+
+/* ═══════════════════════════════════════
+   SCHEDULE SHEET IMPORT (.xlsx)
+   ═══════════════════════════════════════ */
+var schedSheets = [];
+var schedRows = [];
+var schedAnchorYear = new Date().getFullYear();
+var schedFrom = '';
+var schedTo = '';
+var schedPage = 1;
+var SCHED_PAGE_SIZE = 150;
+var SCHED_SKIP = '__skip__';
+var schedColorMap = readJSON('fhd_sheetColorMap', {});
+var SCHED_COLOR_SUGGESTIONS = {
+    cyan: 'Miami Gardens Pickup',
+    red: 'Floor Models',
+    green: 'Junk Removal',
+    orange: 'Tamarac Pickup'
+};
+var SCHED_MOVE_CATEGORY = 'Moves';
+
+function schedRefToPos(ref) {
+    var m = /^([A-Z]+)(\d+)$/.exec(ref);
+    if (!m) return null;
+    var col = 0;
+    for (var i = 0; i < m[1].length; i++) col = col * 26 + (m[1].charCodeAt(i) - 64);
+    return { row: parseInt(m[2], 10), col: col };
+}
+
+function schedNodeText(node) {
+    var ts = node.getElementsByTagName('t');
+    var out = '';
+    for (var i = 0; i < ts.length; i++) {
+        if (ts[i].parentNode && ts[i].parentNode.nodeName.indexOf('rPh') !== -1) continue;
+        out += ts[i].textContent;
+    }
+    return out;
+}
+
+function schedStyleInfo(styles) {
+    var info = { fill: [], isDate: [] };
+    if (!styles) return info;
+    var dateFmts = { 14:1, 15:1, 16:1, 17:1, 18:1, 19:1, 20:1, 21:1, 22:1, 45:1, 46:1, 47:1 };
+    var numFmts = styles.getElementsByTagName('numFmt');
+    for (var n = 0; n < numFmts.length; n++) {
+        var code = numFmts[n].getAttribute('formatCode') || '';
+        if (/[dy]/i.test(code.replace(/\[[^\]]*\]/g, '').replace(/"[^"]*"/g, ''))) {
+            dateFmts[parseInt(numFmts[n].getAttribute('numFmtId'), 10)] = 1;
+        }
+    }
+    var fillColors = [];
+    var fillsEl = styles.getElementsByTagName('fills')[0];
+    var fills = fillsEl ? fillsEl.getElementsByTagName('fill') : [];
+    for (var f = 0; f < fills.length; f++) {
+        var pf = fills[f].getElementsByTagName('patternFill')[0];
+        var hex = '';
+        if (pf && pf.getAttribute('patternType') && pf.getAttribute('patternType') !== 'none') {
+            var fg = pf.getElementsByTagName('fgColor')[0];
+            var rgb = fg ? fg.getAttribute('rgb') : null;
+            if (rgb) hex = '#' + rgb.slice(-6).toUpperCase();
+        }
+        fillColors.push(hex);
+    }
+    var xfsEl = styles.getElementsByTagName('cellXfs')[0];
+    var xfs = xfsEl ? xfsEl.getElementsByTagName('xf') : [];
+    for (var x = 0; x < xfs.length; x++) {
+        var fillId = parseInt(xfs[x].getAttribute('fillId') || '0', 10);
+        info.fill.push(fillColors[fillId] || '');
+        info.isDate.push(!!dateFmts[parseInt(xfs[x].getAttribute('numFmtId') || '0', 10)]);
+    }
+    return info;
+}
+
+function schedSerialToDate(serial) {
+    var ms = Math.round((serial - 25569) * 86400000);
+    var d = new Date(ms);
+    if (isNaN(d.getTime())) return '';
+    return d.toISOString().slice(0, 10);
+}
+
+/* Header cells hold a month and a day; the year in the file is unreliable
+   (weeks were copied forward without fixing it), so only month/day are kept
+   here and the year is worked out backwards from the last week — see
+   schedYearMap(). */
+function schedParseHeaderDate(cell) {
+    if (cell.num !== null && cell.isDate && cell.num > 20000 && cell.num < 80000) {
+        var iso = schedSerialToDate(cell.num);
+        if (!iso) return null;
+        return { mo: parseInt(iso.slice(5, 7), 10), day: parseInt(iso.slice(8, 10), 10), year: parseInt(iso.slice(0, 4), 10) };
+    }
+    var m = /^(\d{1,2})\s*[\/-]\s*(\d{1,2})(?:\s*[\/-]\s*(\d{2,4}))?$/.exec((cell.text || '').trim());
+    if (!m) return null;
+    var mo = parseInt(m[1], 10), day = parseInt(m[2], 10);
+    if (mo < 1 || mo > 12 || day < 1 || day > 31) return null;
+    var year = m[3] ? parseInt(m[3], 10) : null;
+    if (year !== null && year < 100) year += 2000;
+    return { mo: mo, day: day, year: year };
+}
+
+function schedIsNoise(text) {
+    var t = text.trim();
+    if (t.length < 4) return true;
+    if (/^\d{1,2}(:\d{2})?\s*(am|pm)?$/i.test(t)) return true;
+    if (/^(sunday|monday|tuesday|wednesday|thursday|friday|saturday)$/i.test(t)) return true;
+    if (/^(profit|goal|total|expenses?|to ?do|color key|notes?|week of)\b/i.test(t)) return true;
+    if (/^(light |dark )?(blue|red|green|yellow|orange|purple|pink)\s*[-\u2013]/i.test(t)) return true;
+    if (/^no deliveries/i.test(t)) return true;
+    if (/^[A-Za-z]+\s+off$/i.test(t)) return true;
+    return false;
+}
+
+function schedParseSheet(name, doc, strings, styleInfo) {
+    var cellEls = doc.getElementsByTagName('c');
+    var grid = {};
+    var maxRow = 0;
+    for (var i = 0; i < cellEls.length; i++) {
+        var c = cellEls[i];
+        var pos = schedRefToPos(c.getAttribute('r') || '');
+        if (!pos) continue;
+        var type = c.getAttribute('t');
+        var sIdx = parseInt(c.getAttribute('s') || '0', 10);
+        var vEl = c.getElementsByTagName('v')[0];
+        var text = '', num = null;
+        if (type === 's' && vEl) text = strings[parseInt(vEl.textContent, 10)] || '';
+        else if (type === 'inlineStr') {
+            var isEl = c.getElementsByTagName('is')[0];
+            text = isEl ? schedNodeText(isEl) : '';
+        } else if (vEl) {
+            text = vEl.textContent || '';
+            if (type !== 'str' && text !== '' && !isNaN(Number(text))) num = Number(text);
+        }
+        grid[pos.row + ',' + pos.col] = {
+            text: text,
+            num: num,
+            isDate: !!styleInfo.isDate[sIdx],
+            color: styleInfo.fill[sIdx] || ''
+        };
+        if (pos.row > maxRow) maxRow = pos.row;
+    }
+
+    var headerRow = 0, colDates = {};
+    for (var r = 1; r <= Math.min(maxRow, 60) && !headerRow; r++) {
+        var found = {}, count = 0;
+        for (var col = 1; col <= 40; col++) {
+            var cell = grid[r + ',' + col];
+            if (!cell) continue;
+            var md = schedParseHeaderDate(cell);
+            if (md) { found[col] = md; count++; }
+        }
+        if (count >= 2) { headerRow = r; colDates = found; }
+    }
+    if (!headerRow) return null;
+
+    var cells = [];
+    for (var row = headerRow + 1; row <= maxRow; row++) {
+        for (var key in colDates) {
+            var cc = grid[row + ',' + key];
+            if (!cc || !cc.text || schedIsNoise(cc.text)) continue;
+            cells.push({
+                col: parseInt(key, 10),
+                color: cc.color,
+                text: cc.text.replace(/\r\n/g, '\n').trim()
+            });
+        }
+    }
+    return { name: name, colDates: colDates, cells: cells };
+}
+
+/* Google Sheets keeps the real year behind the m/d display, so that wins when
+   it is there. For pages that only carry text like "9/18", walk backwards from
+   the last week and drop a year every time the month climbs going left. */
+function schedYearMap(sheets, anchorYear) {
+    var seq = [];
+    sheets.forEach(function(sh, si) {
+        Object.keys(sh.colDates).map(Number).sort(function(a, b) { return a - b; }).forEach(function(col) {
+            seq.push({ si: si, col: col, md: sh.colDates[col] });
+        });
+    });
+    var year = anchorYear;
+    var later = null;
+    var map = {};
+    for (var i = seq.length - 1; i >= 0; i--) {
+        var md = seq[i].md;
+        if (md.year) year = md.year;
+        else if (later && md.mo > later.mo) year--;
+        map[seq[i].si + ':' + seq[i].col] = year + '-' + String(md.mo).padStart(2, '0') + '-' + String(md.day).padStart(2, '0');
+        later = md;
+    }
+    return map;
+}
+
+function schedNeedsYear() {
+    return schedSheets.some(function(sh) {
+        return Object.keys(sh.colDates).some(function(col) { return !sh.colDates[col].year; });
+    });
+}
+
+function schedDefaultAnchorYear(sheets) {
+    for (var i = sheets.length - 1; i >= 0; i--) {
+        var cols = Object.keys(sheets[i].colDates).map(Number).sort(function(a, b) { return a - b; });
+        for (var j = cols.length - 1; j >= 0; j--) {
+            if (sheets[i].colDates[cols[j]].year) return sheets[i].colDates[cols[j]].year;
+        }
+    }
+    return new Date().getFullYear();
+}
+
+async function schedParseWorkbook(buf) {
+    var zip = await JSZip.loadAsync(buf);
+    var parser = new DOMParser();
+    var readXml = async function(path) {
+        var file = zip.file(path);
+        if (!file) return null;
+        return parser.parseFromString(await file.async('string'), 'application/xml');
+    };
+    var wb = await readXml('xl/workbook.xml');
+    if (!wb) throw new Error('this does not look like an .xlsx workbook');
+    var rels = await readXml('xl/_rels/workbook.xml.rels');
+    var sst = await readXml('xl/sharedStrings.xml');
+    var styleInfo = schedStyleInfo(await readXml('xl/styles.xml'));
+
+    var strings = [];
+    if (sst) {
+        var sis = sst.getElementsByTagName('si');
+        for (var s = 0; s < sis.length; s++) strings.push(schedNodeText(sis[s]));
+    }
+    var relMap = {};
+    if (rels) {
+        var relEls = rels.getElementsByTagName('Relationship');
+        for (var i = 0; i < relEls.length; i++) {
+            relMap[relEls[i].getAttribute('Id')] = relEls[i].getAttribute('Target').replace(/^\/?xl\//, '');
+        }
+    }
+    var sheets = [];
+    var sheetEls = wb.getElementsByTagName('sheet');
+    for (var k = 0; k < sheetEls.length; k++) {
+        var rid = sheetEls[k].getAttribute('r:id') || sheetEls[k].getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id');
+        var target = relMap[rid];
+        if (!target) continue;
+        var doc = await readXml('xl/' + target);
+        if (!doc) continue;
+        var parsed = schedParseSheet(sheetEls[k].getAttribute('name') || ('Sheet ' + (k + 1)), doc, strings, styleInfo);
+        if (parsed) sheets.push(parsed);
+    }
+    return sheets;
+}
+
+function schedColorFamily(hex) {
+    if (!hex) return '';
+    var r = parseInt(hex.substr(1, 2), 16) / 255,
+        g = parseInt(hex.substr(3, 2), 16) / 255,
+        b = parseInt(hex.substr(5, 2), 16) / 255;
+    var max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+    var l = (max + min) / 2;
+    if (d < 0.09 || l > 0.95) return '';
+    var h = 0;
+    if (max === r) h = 60 * (((g - b) / d) % 6);
+    else if (max === g) h = 60 * ((b - r) / d + 2);
+    else h = 60 * ((r - g) / d + 4);
+    if (h < 0) h += 360;
+    if (h < 16 || h >= 345) return 'red';
+    if (h < 50) return 'orange';
+    if (h < 70) return 'yellow';
+    if (h < 165) return 'green';
+    if (h < 200) return 'cyan';
+    if (h < 260) return 'blue';
+    return 'purple';
+}
+
+function schedSuggestCategory(hex) {
+    if (Object.prototype.hasOwnProperty.call(schedColorMap, hex)) return schedColorMap[hex];
+    var family = SCHED_COLOR_SUGGESTIONS[schedColorFamily(hex)];
+    if (family) return family;
+    /* near-black cells are the daily profit/goal banners, not jobs */
+    if (hex && (parseInt(hex.substr(1, 2), 16) + parseInt(hex.substr(3, 2), 16) + parseInt(hex.substr(5, 2), 16)) / 3 < 40) return SCHED_SKIP;
+    return '';
+}
+
+function schedExtractPhone(text) {
+    var m = /(?:^|[^\d])((?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})(?!\d)/.exec(text);
+    return m ? m[1].trim() : '';
+}
+
+function schedExtractEmail(text) {
+    var m = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/.exec(text);
+    return m ? m[0] : '';
+}
+
+function schedExtractPrice(text) {
+    var hourly = /\$?\s*(\d{1,4}(?:\.\d{1,2})?)\s*(?:\/|per\s*|an?\s+)\s*(?:hr|hour)\b/i.exec(text);
+    if (hourly) return { amount: parseFloat(hourly[1]), hourly: true };
+    var fixed = /\$\s*(\d[\d,]*(?:\.\d{1,2})?)/.exec(text);
+    if (fixed) return { amount: parseFloat(fixed[1].replace(/,/g, '')), hourly: false };
+    return { amount: null, hourly: false };
+}
+
+function schedExtractCustomer(text, phone) {
+    var flat = text.replace(/\s+/g, ' ').trim();
+    if (phone) {
+        var idx = flat.indexOf(phone);
+        if (idx > 0) flat = flat.slice(0, idx);
+    }
+    flat = flat.split(/\b(?:deliver|delivery|address|window)\b/i)[0];
+    flat = flat.replace(/\$\s*[\d,.]+/g, ' ')
+               .replace(/\b\d{4,}\b/g, ' ')
+               .replace(/\b\d{1,2}\s*(?:hr|hour)s?\b/gi, ' ')
+               .replace(/\b(?:per\s*hour|an?\s+hour|hr|junk\s*removal|floor\s*models?|display\s*models?|warehouse|miami\s*gardens|tamarac|pick\s?ups?|drop\s?offs?|moves?|moving|multiple)\b/gi, ' ')
+               .replace(/[,;|+:]+/g, ' ')
+               .replace(/\s+/g, ' ')
+               .trim()
+               .replace(/^[-–—:.\s]+|[-–—:.\s]+$/g, '');
+    var words = flat.split(' ').filter(Boolean).slice(0, 6);
+    return words.join(' ').replace(/^[^A-Za-z0-9]+/, '').slice(0, 60);
+}
+
+function schedIsMove(text) {
+    return /\bmoves?\b|\bmoving\b/i.test(text);
+}
+
+function schedDupKey(date, note) {
+    return date + '|' + (note || '').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function schedBuildRows() {
+    var moveOn = document.getElementById('schedMoveToggle');
+    var useMove = !moveOn || moveOn.checked;
+    var moveCat = document.getElementById('schedMoveCat');
+    var moveCatVal = moveCat ? moveCat.value : SCHED_MOVE_CATEGORY;
+    var yearMap = schedYearMap(schedSheets, schedAnchorYear);
+    var existing = {};
+    entries.forEach(function(e) { existing[schedDupKey(e.date, e.note)] = 1; });
+
+    schedRows = [];
+    schedSheets.forEach(function(sh, si) {
+        sh.cells.forEach(function(cell) {
+            var date = yearMap[si + ':' + cell.col] || '';
+            var mapped = schedSuggestCategory(cell.color);
+            var move = schedIsMove(cell.text);
+            var price = schedExtractPrice(cell.text);
+            var phone = schedExtractPhone(cell.text);
+            var dupe = !!existing[schedDupKey(date, cell.text)];
+            schedRows.push({
+                date: date,
+                sheet: sh.name,
+                color: cell.color,
+                skip: mapped === SCHED_SKIP && !(useMove && move),
+                category: (useMove && move) ? moveCatVal : (mapped === SCHED_SKIP ? '' : mapped),
+                customer: schedExtractCustomer(cell.text, phone),
+                phone: phone,
+                email: schedExtractEmail(cell.text),
+                revenue: price.amount,
+                hourly: price.hourly,
+                note: cell.text,
+                duplicate: dupe,
+                selected: !dupe
+            });
+        });
+    });
+    schedApplyRange();
+}
+
+function schedApplyRange() {
+    schedRows.forEach(function(r) {
+        r.inRange = (!schedFrom || r.date >= schedFrom) && (!schedTo || r.date <= schedTo);
+    });
+}
+
+function schedVisibleRows() {
+    return schedRows.filter(function(r) { return !r.skip && r.inRange; });
+}
+
+async function handleScheduleFile(input) {
+    var file = input.files && input.files[0];
+    input.value = '';
+    if (!file) return;
+    if (typeof JSZip === 'undefined') return toast('Sheet import needs an internet connection to load its reader. Reload and try again.', true);
+    if (!/\.xlsx$/i.test(file.name)) return toast('Please upload the .xlsx download (File → Download → Microsoft Excel). CSV files lose the colors.', true);
+    try {
+        var buf = await file.arrayBuffer();
+        schedSheets = await schedParseWorkbook(buf);
+    } catch (err) {
+        console.error('[SHEET]', err);
+        return toast('Could not read that spreadsheet: ' + err.message, true);
+    }
+    if (!schedSheets.length || !schedSheets.some(function(s) { return s.cells.length; })) {
+        return toast('No dated job blocks found. Each page needs a row of dates across the top with the job blocks underneath.', true);
+    }
+    schedAnchorYear = schedDefaultAnchorYear(schedSheets);
+    schedFrom = '';
+    schedTo = '';
+    schedPage = 1;
+    schedBuildRows();
+    showSchedPreview();
+}
+
+function schedCategoryOptions(selected, withSkip) {
+    var opts = '<option value="">— No category —</option>';
+    if (withSkip) opts += '<option value="' + SCHED_SKIP + '"' + (selected === SCHED_SKIP ? ' selected' : '') + '>— Skip, do not import —</option>';
+    var known = categories.slice();
+    if (selected && selected !== SCHED_SKIP && known.indexOf(selected) === -1) known.push(selected);
+    Object.keys(SCHED_COLOR_SUGGESTIONS).forEach(function(f) {
+        if (known.indexOf(SCHED_COLOR_SUGGESTIONS[f]) === -1) known.push(SCHED_COLOR_SUGGESTIONS[f]);
+    });
+    if (known.indexOf(SCHED_MOVE_CATEGORY) === -1) known.push(SCHED_MOVE_CATEGORY);
+    known.forEach(function(c) {
+        var isNew = categories.indexOf(c) === -1;
+        opts += '<option value="' + esc(c) + '"' + (c === selected ? ' selected' : '') + '>' + esc(c) + (isNew ? ' (new)' : '') + '</option>';
+    });
+    return opts;
+}
+
+function showSchedPreview() {
+    var colorCounts = {};
+    schedRows.forEach(function(r) { colorCounts[r.color] = (colorCounts[r.color] || 0) + 1; });
+    var dates = schedRows.map(function(r) { return r.date; }).filter(Boolean).sort();
+
+    var html = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:16px;">' +
+        '<div style="font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-light);margin-bottom:10px;">Color → Category</div>' +
+        '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;">';
+    Object.keys(colorCounts).sort(function(a, b) { return colorCounts[b] - colorCounts[a]; }).forEach(function(hex) {
+        html += '<div style="display:flex;align-items:center;gap:8px;">' +
+            '<span style="width:18px;height:18px;border-radius:4px;border:1px solid var(--border);flex:0 0 auto;background:' + (hex || '#ffffff') + ';"></span>' +
+            '<span style="font-size:11px;color:var(--text-light);width:78px;flex:0 0 auto;">' + (hex || 'no fill') + '</span>' +
+            '<span style="font-size:11px;color:var(--text-light);width:46px;flex:0 0 auto;">' + colorCounts[hex] + ' job' + (colorCounts[hex] === 1 ? '' : 's') + '</span>' +
+            '<select style="flex:1;padding:4px 8px;border:1px solid #ccc;border-radius:4px;font-size:12px;" onchange="schedColorChanged(\'' + hex + '\', this.value)">' +
+            schedCategoryOptions(schedSuggestCategory(hex), true) + '</select></div>';
+    });
+    html += '</div><div style="margin-top:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;">' +
+        '<label style="display:flex;align-items:center;gap:6px;white-space:nowrap;"><input type="checkbox" id="schedMoveToggle" checked onchange="schedRefreshRows()"> Blocks mentioning a “move” are categorized as</label>' +
+        '<select id="schedMoveCat" style="padding:4px 8px;border:1px solid #ccc;border-radius:4px;font-size:12px;max-width:200px;" onchange="schedRefreshRows()">' + schedCategoryOptions(SCHED_MOVE_CATEGORY) + '</select>' +
+        '<span style="margin-left:auto;display:flex;align-items:center;gap:6px;white-space:nowrap;">Import as <select id="schedStatus" style="padding:4px 8px;border:1px solid #ccc;border-radius:4px;font-size:12px;">' +
+        ['Completed', 'Confirmed', 'Pending', 'In Progress'].map(function(s) { return '<option value="' + s + '">' + s + '</option>'; }).join('') +
+        '</select></span></div>' +
+        '<div style="margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;">' +
+        (schedNeedsYear() ?
+            '<span style="white-space:nowrap;">Last week in the sheet ends in</span>' +
+            '<input type="number" id="schedYear" value="' + schedAnchorYear + '" min="2000" max="2100" style="width:84px;padding:4px 8px;border:1px solid #ccc;border-radius:4px;font-size:12px;" onchange="schedYearChanged(this.value)">' +
+            '<span style="color:var(--text-light);">pages without a year count back from there</span>' : '') +
+        '<span style="margin-left:auto;display:flex;align-items:center;gap:6px;white-space:nowrap;">Only weeks between ' +
+        '<input type="date" id="schedFrom" value="' + schedFrom + '" style="padding:4px 8px;border:1px solid #ccc;border-radius:4px;font-size:12px;" onchange="schedRangeChanged()"> and ' +
+        '<input type="date" id="schedTo" value="' + schedTo + '" style="padding:4px 8px;border:1px solid #ccc;border-radius:4px;font-size:12px;" onchange="schedRangeChanged()"></span>' +
+        '</div>' +
+        (dates.length ? '<div style="margin-top:6px;font-size:12px;color:var(--text-light);">Sheet covers ' + dates[0] + ' → ' + dates[dates.length - 1] + ' across ' + schedSheets.length + ' page' + (schedSheets.length === 1 ? '' : 's') + '.</div>' : '') +
+        '</div><div id="schedRowsWrap"></div>';
+
+    document.getElementById('schedPreviewBody').innerHTML = html;
+    schedRenderRows();
+    document.getElementById('schedPreviewModal').classList.add('active');
+}
+
+function schedRenderRows() {
+    var visible = schedVisibleRows();
+    var pages = Math.max(1, Math.ceil(visible.length / SCHED_PAGE_SIZE));
+    if (schedPage > pages) schedPage = pages;
+    var start = (schedPage - 1) * SCHED_PAGE_SIZE;
+    var pageRows = visible.slice(start, start + SCHED_PAGE_SIZE);
+
+    var html = '<table class="preview-table"><thead><tr><th style="width:30px"><input type="checkbox" class="preview-check" checked onchange="schedToggleAll(this)"></th>' +
+        '<th>Date</th><th>Category</th><th>Customer</th><th>Phone</th><th>Email</th><th>Revenue</th><th>Note</th></tr></thead><tbody>';
+    pageRows.forEach(function(row) {
+        var idx = schedRows.indexOf(row);
+        var dupTag = row.duplicate ? '<span style="font-size:9px;background:var(--warning);color:#fff;padding:1px 5px;border-radius:3px;margin-left:4px;">DUPLICATE</span>' : '';
+        html += '<tr' + (row.duplicate ? ' style="background:#fff8e1;"' : '') + '>' +
+            '<td><input type="checkbox" class="preview-check" ' + (row.selected ? 'checked' : '') + ' onchange="schedRows[' + idx + '].selected=this.checked;schedUpdateStats()"></td>' +
+            '<td style="white-space:nowrap">' + esc(row.date) + dupTag + '</td>' +
+            '<td><select style="padding:4px 8px;border:1px solid #ccc;border-radius:4px;font-size:12px;" onchange="schedRows[' + idx + '].category=this.value">' + schedCategoryOptions(row.category) + '</select></td>' +
+            '<td>' + esc(row.customer || '—') + '</td>' +
+            '<td style="white-space:nowrap">' + esc(row.phone || '—') + '</td>' +
+            '<td>' + esc(row.email || '—') + '</td>' +
+            '<td style="white-space:nowrap">' + (row.revenue === null ? '—' : '$' + row.revenue.toFixed(2) + (row.hourly ? '/hr' : '')) + '</td>' +
+            '<td style="max-width:320px;font-size:12px;color:var(--text-light);" title="' + esc(row.note) + '">' + esc(row.note.replace(/\s+/g, ' ').slice(0, 110)) + (row.note.length > 110 ? '…' : '') + '</td></tr>';
+    });
+    html += '</tbody></table>';
+    if (pages > 1) {
+        html += '<div style="display:flex;align-items:center;justify-content:center;gap:12px;padding:12px 0;font-size:13px;">' +
+            '<button class="btn btn-outline btn-sm" ' + (schedPage === 1 ? 'disabled' : '') + ' onclick="schedGoPage(' + (schedPage - 1) + ')">&larr; Prev</button>' +
+            '<span>Page ' + schedPage + ' of ' + pages + '</span>' +
+            '<button class="btn btn-outline btn-sm" ' + (schedPage === pages ? 'disabled' : '') + ' onclick="schedGoPage(' + (schedPage + 1) + ')">Next &rarr;</button></div>';
+    }
+    document.getElementById('schedRowsWrap').innerHTML = html;
+    schedUpdateStats();
+}
+
+function schedGoPage(page) {
+    schedPage = page;
+    schedRenderRows();
+    document.getElementById('schedPreviewBody').scrollTop = 0;
+}
+
+function schedRefreshRows() {
+    var selected = schedRows.map(function(r) { return r.selected; });
+    schedBuildRows();
+    schedRows.forEach(function(r, i) { if (selected[i] !== undefined) r.selected = selected[i]; });
+    schedRenderRows();
+}
+
+function schedYearChanged(value) {
+    var year = parseInt(value, 10);
+    if (!year || year < 2000 || year > 2100) return;
+    schedAnchorYear = year;
+    schedRefreshRows();
+}
+
+function schedRangeChanged() {
+    schedFrom = document.getElementById('schedFrom').value;
+    schedTo = document.getElementById('schedTo').value;
+    schedApplyRange();
+    schedPage = 1;
+    schedRenderRows();
+}
+
+function schedColorChanged(hex, value) {
+    schedColorMap[hex] = value;
+    saveState('fhd_sheetColorMap', schedColorMap);
+    schedRefreshRows();
+}
+
+function schedToggleAll(cb) {
+    schedVisibleRows().forEach(function(r) { r.selected = cb.checked; });
+    schedRenderRows();
+}
+
+function schedUpdateStats() {
+    var visible = schedVisibleRows();
+    var sel = visible.filter(function(r) { return r.selected; }).length;
+    var dupes = visible.filter(function(r) { return r.duplicate; }).length;
+    var outOfRange = schedRows.filter(function(r) { return !r.skip && !r.inRange; }).length;
+    var skipped = schedRows.filter(function(r) { return r.skip; }).length;
+    document.getElementById('schedPreviewStats').textContent =
+        sel + ' of ' + visible.length + ' blocks selected' +
+        (dupes ? ' · ' + dupes + ' already imported' : '') +
+        (outOfRange ? ' · ' + outOfRange + ' outside the date range' : '') +
+        (skipped ? ' · ' + skipped + ' skipped by color' : '');
+}
+
+function closeSchedPreview() {
+    document.getElementById('schedPreviewModal').classList.remove('active');
+}
+
+function confirmScheduleImport() {
+    var picked = schedVisibleRows().filter(function(r) { return r.selected; });
+    if (!picked.length) return toast('Select at least one block to import.', true);
+    var statusEl = document.getElementById('schedStatus');
+    var status = statusEl ? statusEl.value : 'Completed';
+    var newCats = [];
+    picked.forEach(function(r) {
+        if (r.category && categories.indexOf(r.category) === -1 && newCats.indexOf(r.category) === -1) newCats.push(r.category);
+    });
+    newCats.forEach(function(c) { categories.push(c); });
+
+    var base = Date.now();
+    picked.forEach(function(r, i) {
+        entries.push({
+            id: base + i,
+            date: r.date,
+            category: r.category,
+            amount: 1,
+            revenue: r.revenue === null ? 0 : r.revenue,
+            customer: r.customer,
+            phone: r.phone,
+            email: r.email,
+            storeName: '',
+            referredBy: '',
+            note: r.note,
+            invoices: [],
+            status: status,
+            hourlyRate: r.hourly ? r.revenue : undefined
+        });
+    });
+    save();
+    renderAll();
+    renderFinanceAll();
+    closeSchedPreview();
+    toast('Imported ' + picked.length + ' job' + (picked.length === 1 ? '' : 's') +
+        (newCats.length ? ' · added ' + newCats.length + ' new categor' + (newCats.length === 1 ? 'y' : 'ies') : ''));
+}
 
 /* ═══════════════════════════════════════
    INIT
