@@ -1186,6 +1186,7 @@
             </table>
         </div>
         <div class="pagination" id="financePagination"></div>
+        <div id="finSelectAllBanner" style="display:none;text-align:center;margin-top:6px;font-size:13px;color:#334155;"></div>
         <div style="display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:6px;">
             <button class="expand-toggle" id="finExpandBtn" onclick="toggleFinExpand()">Expand to 100</button>
             <button class="expand-toggle" id="finBulkDeleteBtn" style="display:none;color:#c0392b;border-color:#c0392b;" onclick="bulkDeleteFinEntries()">Delete Selected</button>
@@ -3439,25 +3440,59 @@ function bulkDeleteEntries() {
     });
 }
 
-/* Select All / Bulk Delete — Finance Log */
+/* Select All / Bulk Delete — Finance Log.
+   The checkboxes only cover the visible page, so ticking every one of them
+   offers "select all N matching" — that deletes everything the current filters
+   match, across pages, rather than just what happens to be on screen. */
+var finAllMatchingSelected = false;
+var finFilteredIds = [];
+
 function toggleFinSelectAll(masterCb) {
     document.querySelectorAll('.fin-select-cb').forEach(function(cb) { cb.checked = masterCb.checked; });
+    if (!masterCb.checked) finAllMatchingSelected = false;
+    updateFinBulkBtn();
+}
+function selectAllMatchingFin() {
+    finAllMatchingSelected = true;
     updateFinBulkBtn();
 }
 function updateFinBulkBtn() {
-    var count = document.querySelectorAll('.fin-select-cb:checked').length;
+    var boxes = document.querySelectorAll('.fin-select-cb');
+    var onPage = document.querySelectorAll('.fin-select-cb:checked').length;
+    if (onPage < boxes.length) finAllMatchingSelected = false;
+    var count = finAllMatchingSelected ? finFilteredIds.length : onPage;
+
     var btn = document.getElementById('finBulkDeleteBtn');
     btn.style.display = count > 0 ? 'inline-block' : 'none';
     btn.textContent = 'Delete Selected (' + count + ')';
+
+    var banner = document.getElementById('finSelectAllBanner');
+    var hasMorePages = finFilteredIds.length > boxes.length;
+    if (onPage > 0 && onPage === boxes.length && hasMorePages) {
+        banner.style.display = 'block';
+        banner.innerHTML = finAllMatchingSelected
+            ? 'All <strong>' + finFilteredIds.length + '</strong> matching entries are selected. ' +
+              '<a href="#" onclick="finAllMatchingSelected=false;updateFinBulkBtn();return false;">Select only this page</a>'
+            : 'All ' + onPage + ' entries on this page are selected. ' +
+              '<a href="#" onclick="selectAllMatchingFin();return false;">Select all ' + finFilteredIds.length + ' matching entries</a>';
+    } else {
+        banner.style.display = 'none';
+        banner.innerHTML = '';
+    }
 }
 function bulkDeleteFinEntries() {
     var ids = [];
-    document.querySelectorAll('.fin-select-cb:checked').forEach(function(cb) { ids.push(cb.value); });
+    if (finAllMatchingSelected) {
+        ids = finFilteredIds.slice();
+    } else {
+        document.querySelectorAll('.fin-select-cb:checked').forEach(function(cb) { ids.push(cb.value); });
+    }
     if (!ids.length) return;
     showBulkDeleteWarning(ids.length, function() {
         ids.forEach(function(id) {
             financeEntries = financeEntries.filter(function(e) { return String(e.id) !== String(id); });
         });
+        finAllMatchingSelected = false;
         saveLocal(); renderFinanceAll(); toast(ids.length + ' finance entries deleted.');
         if (supaClient && currentUser) flushSync();
     });
@@ -4040,6 +4075,9 @@ function renderFinanceLog() {
     });
     var body = document.getElementById('financeLogBody');
     var pagDiv = document.getElementById('financePagination');
+    finFilteredIds = combined.map(function(e) { return String(e.id); });
+    finAllMatchingSelected = false;
+    document.getElementById('finSelectAllBanner').style.display = 'none';
     if (!combined.length) { body.innerHTML = '<tr><td colspan="7" class="empty-log">No finance entries yet.</td></tr>'; pagDiv.innerHTML = ''; document.getElementById('finBulkDeleteBtn').style.display = 'none'; return; }
 
     var finPageSize = getFinPageSize();
