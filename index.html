@@ -2303,8 +2303,15 @@ window.syncDebug = async function() {
 
 function saveLocal() {
     /* Last line of defence: whatever path added a job, an identical one never
-       reaches storage or the cloud. */
+       reaches storage or the cloud — unless it carries nothing to tell it apart
+       from a real second job that day, which is flagged instead of deleted. */
     entries = dedupeJobs(entries);
+    if (lookAlikeJobs && lookAlikeJobs !== warnedLookAlikes) {
+        warnedLookAlikes = lookAlikeJobs;
+        toast(lookAlikeJobs + ' job' + (lookAlikeJobs === 1 ? ' looks' : 's look') +
+            ' identical to another (same day and price, no note, phone or email). ' +
+            'Nothing was deleted \u2014 add a note to tell them apart.', true);
+    }
     localStorage.setItem('fhd_categories', JSON.stringify(categories));
     localStorage.setItem('fhd_entries', JSON.stringify(entries));
     localStorage.setItem('fhd_finance', JSON.stringify(financeEntries));
@@ -3178,11 +3185,28 @@ function exactJobKeySet(list) {
     return set;
 }
 
+/* Anything the sheet block itself carried — its wording, phone or email — tells
+   two jobs apart. A job with none of them, once the customer name is blanked,
+   is indistinguishable from another job on the same day at the same price even
+   when they are two real jobs, so those are never deleted automatically. */
+function jobIsDistinguishable(e) {
+    return !!((e.note || '').trim() || (e.customer || '').trim() ||
+        (e.phone || '').trim() || (e.email || '').trim());
+}
+
+var lookAlikeJobs = 0;
+var warnedLookAlikes = 0;
+
 function dedupeJobs(list) {
     var seen = {};
+    lookAlikeJobs = 0;
     return list.filter(function(e) {
         var k = exactJobKey(e);
-        if (seen[k]) return false;
+        if (seen[k]) {
+            if (jobIsDistinguishable(e)) return false;
+            lookAlikeJobs++;
+            return true;
+        }
         seen[k] = true;
         return true;
     });
