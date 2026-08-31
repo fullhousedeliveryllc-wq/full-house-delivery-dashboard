@@ -827,7 +827,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v69</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v70</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -4619,13 +4619,21 @@ var NON_TXN_SECTION_HEADING = /^\s*(daily\s+ending\s+balance|(checking|account|s
 /* Headings never carry figures; the same words followed by a count and a total
    ("Deposits and Additions 36 $53,662.35") are a summary row, not a heading. */
 function statementSection(line) {
+    /* A non-transaction heading closes the section even when extraction glued
+       the first row of its table onto it ("DAILY ENDING BALANCE 01/12 23,245.88"),
+       otherwise that whole grid keeps importing under the previous heading. */
+    if (NON_TXN_SECTION_HEADING.test(line)) return null;
     if (/\d/.test(line)) return undefined;
     for (var i = 0; i < TXN_SECTION_HEADINGS.length; i++) {
         if (TXN_SECTION_HEADINGS[i].re.test(line)) return TXN_SECTION_HEADINGS[i];
     }
-    if (NON_TXN_SECTION_HEADING.test(line)) return null;
     return undefined;
 }
+
+/* Wording that only ever describes money leaving the account. A statement
+   layout we misread can hand us the wrong sign; a card purchase or a Zelle
+   sent out is an expense regardless. */
+var OUTGOING_DESCRIPTION = /\b(card\s+purchase|purchase\s+(with|authorized)|recurring\s+card|debit\s+card\s+purchase|zelle\s+payment\s+to|payment\s+to\b|(atm\s+)?withdrawals?\b|cash\s+withdrawal|check\s*#|bill\s*pay|autopay|service\s+charge|monthly\s+fee)/i;
 
 var bankSkipStats = { transfers: 0, totals: 0 };
 
@@ -4645,6 +4653,7 @@ function buildBankRow(dateStr, description, amount, isCredit) {
     var income = (isCredit === null || isCredit === undefined)
         ? DEPOSIT_PATTERN.test(desc)
         : !!isCredit;
+    if (income && OUTGOING_DESCRIPTION.test(desc)) income = false;
     var type, needsSelect;
     if (income) {
         type = categorizeIncome(desc);
@@ -4954,7 +4963,10 @@ function parsePDFText(text) {
         if (!usableDate) return;
 
         var desc = searchText.replace(/[-]?\$?\s*[\d,]+\.\d{2}/g, '').replace(/[-]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
-        if (desc.length < 2) desc = 'PDF Transaction';
+        /* Every real transaction names something — a merchant, a person, a
+           payment type. A row of nothing but dates and figures is a balance
+           grid or a totals table, whatever section the parser thinks it is in. */
+        if (!/[a-z]{3}/i.test(desc)) { outsideRows++; return; }
 
         if (sectioned && !section) { outsideRows++; return; }
 
