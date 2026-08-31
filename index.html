@@ -827,7 +827,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v70</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v71</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -2555,7 +2555,7 @@ var FINANCE_COLORS = {
    Uncategorized so it can be completed by hand. */
 var JOB_UNCATEGORIZED = 'Uncategorized';
 var JOB_CATEGORIES = [
-    'Furniture Store Warehouse', 'Furniture Store Floor Models', 'Move',
+    'Furniture Store Warehouse', 'Furniture Store Floor Models', 'Movings',
     'Junk Removal', 'Repeat Customers', 'Online Customers', JOB_UNCATEGORIZED
 ];
 var LEGACY_JOB_CATEGORIES = {
@@ -2575,7 +2575,11 @@ var LEGACY_JOB_CATEGORIES = {
     'display model': 'Furniture Store Floor Models',
     'display models': 'Furniture Store Floor Models',
     'furniture store floor models': 'Furniture Store Floor Models',
-    'move': 'Move', 'moves': 'Move', 'moving': 'Move', 'moving job': 'Move',
+    /* Every wording for a moving job is one category. */
+    'move': 'Movings', 'moves': 'Movings', 'moving': 'Movings', 'moving job': 'Movings',
+    'moving jobs': 'Movings', 'move customer': 'Movings', 'move customers': 'Movings',
+    'moves customer': 'Movings', 'moves customers': 'Movings', 'moving customer': 'Movings',
+    'moving customers': 'Movings', 'movings': 'Movings',
     'junk removal': 'Junk Removal',
     'repeat customer': 'Repeat Customers', 'repeat customers': 'Repeat Customers',
     'online customer': 'Online Customers', 'online customers': 'Online Customers',
@@ -7036,7 +7040,7 @@ var SCHED_COLOR_SUGGESTIONS = {
     orange: 'Furniture Store Warehouse',
     yellow: 'Furniture Store Warehouse'
 };
-var SCHED_MOVE_CATEGORY = 'Move';
+var SCHED_MOVE_CATEGORY = 'Movings';
 
 function schedRefToPos(ref) {
     var m = /^([A-Z]+)(\d+)$/.exec(ref);
