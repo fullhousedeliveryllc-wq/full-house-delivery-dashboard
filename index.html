@@ -827,7 +827,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v74</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v75</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -4629,7 +4629,14 @@ var STATEMENT_TOTAL_PATTERN = new RegExp(
     '|cash\\s+access\\s+line|available\\s+for\\s+cash|opening/closing\\s+date' +
     '|balance\\s+over\\s+the\\s+credit\\s+access\\s+line)\\s*:?\\s*\\d*\\s*$' +
     '|minimum\\s+daily\\s+ending\\s+balance|business\\s+card\\s+activity|payment\\s+solutions.{0,3}activity' +
-    '|monthly\\s+service\\s+fee', 'i');
+    '|monthly\\s+service\\s+fee' +
+    /* Per-card roll-ups on a multi-card statement, e.g.
+       "TRANSACTIONS THIS CYCLE (CARD 7067)  -2,668.19" — every one of those
+       charges is already listed individually under ACCOUNT ACTIVITY. */
+    '|\\b(transactions?|purchases?|charges?|payments?|credits?|fees?|activity|spending)\\s+' +
+    '(this|for\\s+(this|the))\\s+(cycle|period|statement|month|billing\\s+period)\\b' +
+    '|^\\s*total\\s+(for|on)\\s+(card|account)\\b' +
+    '|^\\s*(card|account)\\s*(#|no\\.?|number)?\\s*[x*\\d-]{4,}\\s+totals?\\b', 'i');
 
 /* Headings that open a summary block, and the ones that open a real transaction
    list. Everything between a summary heading and the next dated line is a
@@ -4645,7 +4652,7 @@ var TXN_SECTION_HEADINGS = [
     { re: /^\s*atm\s*(&|and)?\s*debit\s+card\s+withdrawals?\b/i, credit: false },
     { re: /^\s*electronic\s+withdrawals?\b/i, credit: false },
     { re: /^\s*(other\s+withdrawals?|checks?\s+paid|fees?(\s*(and|&)\s*charges?)?)\s*$/i, credit: false },
-    { re: /^\s*(account\s+activity|transaction\s+detail|transactions?)\s*$/i, credit: null }
+    { re: /^\s*(account\s+activity|transaction\s+detail|transactions?)\s*(\(?\s*(card|acct\.?|account)[^)]*\)?)?\s*$/i, credit: null }
 ];
 
 /* Headings that close a transaction section. */
@@ -4658,7 +4665,9 @@ function statementSection(line) {
        the first row of its table onto it ("DAILY ENDING BALANCE 01/12 23,245.88"),
        otherwise that whole grid keeps importing under the previous heading. */
     if (NON_TXN_SECTION_HEADING.test(line)) return null;
-    if (/\d/.test(line)) return undefined;
+    /* Figures make it a row, not a heading — but a card number does not
+       ('ACCOUNT ACTIVITY (CARD 7067)' still opens the card's table). */
+    if (/\d[\d,]*\.\d{2}/.test(line) || /\d{1,2}\/\d{1,2}/.test(line)) return undefined;
     for (var i = 0; i < TXN_SECTION_HEADINGS.length; i++) {
         if (TXN_SECTION_HEADINGS[i].re.test(line)) return TXN_SECTION_HEADINGS[i];
     }
@@ -4938,20 +4947,23 @@ function parsePDFText(text) {
     var period = statementPeriodEnd(text);
     var BARE_DATE = /(?:^|\s)(\d{1,2}\/\d{1,2})(?![\/\d])/;
 
-    var lastDate = null;
-    var inSummary = false;
-
     /* When the statement labels its transaction tables, only those tables are
        read. Layouts we do not recognize keep the old whole-document scan. */
     var sectioned = lines.some(function(l) { return statementSection(l); });
-    var section = null;
     var outsideRows = 0;
+
+    function scanLines(useSections) {
+    var found = [];
+    var lastDate = null;
+    var inSummary = false;
+    var section = null;
+    outsideRows = 0;
 
     lines.forEach(function(line) {
         if (line.trim().length < 3) return;
-        if (sectioned) {
-            var found = statementSection(line);
-            if (found !== undefined) { section = found; return; }
+        if (useSections) {
+            var heading = statementSection(line);
+            if (heading !== undefined) { section = heading; return; }
         }
         if (SUMMARY_HEADING_PATTERN.test(line)) { inSummary = true; return; }
 
@@ -5005,13 +5017,23 @@ function parsePDFText(text) {
            grid or a totals table, whatever section the parser thinks it is in. */
         if (!/[a-z]{3}/i.test(desc)) { outsideRows++; return; }
 
-        if (sectioned && !section) { outsideRows++; return; }
+        if (useSections && !section) { outsideRows++; return; }
 
-        candidates.push({
+        found.push({
             date: usableDate, description: desc.substring(0, 80), amounts: amounts,
             line: line, summary: inSummary, credit: section ? section.credit : null
         });
     });
+    return found;
+    }
+
+    candidates = scanLines(sectioned);
+    /* A layout whose headings we half-recognize can leave every row "outside" a
+       table and import nothing at all; the whole-document scan is the fallback. */
+    if (sectioned && candidates.length === 0) {
+        console.log('[PDF] no rows inside the recognized tables — rescanning the whole document');
+        candidates = scanLines(false);
+    }
 
     // Statement rows usually read "date  description  amount  balance"; when most
     // rows carry two amounts the trailing one is the running balance, not the
@@ -5040,7 +5062,8 @@ function parsePDFText(text) {
     if (bankParsedRows.length === 0) {
         console.log('[PDF Debug] No expenses found. Full text dump:');
         console.log(text);
-        toast('No transactions could be extracted. Open browser console (F12) to see extracted text for debugging. Try CSV export for best results.', true);
+        toast('No transactions could be extracted — if the PDF is a scan or an image, its text cannot be read. ' +
+            'Open the browser console (F12) to see what was extracted, or use the CSV export instead.', true);
         return;
     }
 
@@ -7753,7 +7776,7 @@ function dropImportedStatementTotals() {
         return !(e.note && STATEMENT_TOTAL_PATTERN.test(e.note));
     });
     var removed = before - financeEntries.length;
-    localStorage.setItem('fhd_totalsPurge', '2');
+    localStorage.setItem('fhd_totalsPurge', '3');
     if (removed) {
         console.log('[FINANCE] Removed ' + removed + ' statement total rows');
         save();
