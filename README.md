@@ -4,7 +4,7 @@ Business dashboard for **Fullhouse Delivery LLC** — track customer jobs, reven
 
 ## Features
 
-- **Customer & Job Tracking** — log deliveries by category (Furniture Store Jobs, Repeat Customers, Online Customers, and custom categories) with customer details
+- **Customer & Job Tracking** — log deliveries by category (Furniture Store Warehouse, Furniture Store Floor Models, Move, Junk Removal, Repeat Customers, Online Customers, and custom categories) with customer details
 - **Revenue & Expense Tracking** — log income and expenses with financial breakdowns (daily, weekly, monthly, quarterly)
 - **Bank Statement Import** — upload CSV or PDF bank statements with automatic transaction categorization
 - **Pie & Bar Charts** — visual overview of job distribution and financial performance
