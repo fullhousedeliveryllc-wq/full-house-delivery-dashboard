@@ -827,7 +827,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v71</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v72</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -4547,6 +4547,12 @@ function categorizeZellePayment(description, amount) {
     /* Someone off the roster whose memo says it is pay for work. */
     if (WAGE_MEMO_PATTERN.test(rest)) return 'Driver Pay';
 
+    /* Not a name we pay for work — it may be a vendor that happens to take
+       Zelle ("Juan Family Mechanic"), so the merchant rules get a say before
+       this falls back to a commission. */
+    var vendor = categorizeTransaction(rest);
+    if (vendor) return vendor;
+
     // Any other Zelle to an individual defaults to Commissions
     return 'Commissions';
 }
@@ -7630,7 +7636,7 @@ function renderFinanceAll() {
    expense chart is right without re-importing the statements. Manual rows (no
    source) and types the user picked himself are left alone. */
 function reclassifyImportedZelles() {
-    if (localStorage.getItem('fhd_zelleReclass') === '2') return 0;
+    if (localStorage.getItem('fhd_zelleReclass') === '3') return 0;
     if (!financeEntries.length) return 0;
     var retype = { 'Distributions': 1, 'Commissions': 1, 'Uncategorized': 1, 'Driver Pay': 1 };
     var changed = 0;
@@ -7640,7 +7646,7 @@ function reclassifyImportedZelles() {
         var type = categorizeZellePayment(e.note, e.amount);
         if (type && financeTypes.indexOf(type) !== -1 && type !== e.type) { e.type = type; changed++; }
     });
-    localStorage.setItem('fhd_zelleReclass', '2');
+    localStorage.setItem('fhd_zelleReclass', '3');
     if (changed) {
         console.log('[FINANCE] Reclassified ' + changed + ' imported Zelle rows');
         save();
