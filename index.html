@@ -827,7 +827,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v68</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v69</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -2303,8 +2303,15 @@ window.syncDebug = async function() {
 
 function saveLocal() {
     /* Last line of defence: whatever path added a job, an identical one never
-       reaches storage or the cloud. */
+       reaches storage or the cloud — unless it carries nothing to tell it apart
+       from a real second job that day, which is flagged instead of deleted. */
     entries = dedupeJobs(entries);
+    if (lookAlikeJobs && lookAlikeJobs !== warnedLookAlikes) {
+        warnedLookAlikes = lookAlikeJobs;
+        toast(lookAlikeJobs + ' job' + (lookAlikeJobs === 1 ? ' looks' : 's look') +
+            ' identical to another (same day and price, no note, phone or email). ' +
+            'Nothing was deleted \u2014 add a note to tell them apart.', true);
+    }
     localStorage.setItem('fhd_categories', JSON.stringify(categories));
     localStorage.setItem('fhd_entries', JSON.stringify(entries));
     localStorage.setItem('fhd_finance', JSON.stringify(financeEntries));
@@ -3178,11 +3185,28 @@ function exactJobKeySet(list) {
     return set;
 }
 
+/* Anything the sheet block itself carried — its wording, phone or email — tells
+   two jobs apart. A job with none of them, once the customer name is blanked,
+   is indistinguishable from another job on the same day at the same price even
+   when they are two real jobs, so those are never deleted automatically. */
+function jobIsDistinguishable(e) {
+    return !!((e.note || '').trim() || (e.customer || '').trim() ||
+        (e.phone || '').trim() || (e.email || '').trim());
+}
+
+var lookAlikeJobs = 0;
+var warnedLookAlikes = 0;
+
 function dedupeJobs(list) {
     var seen = {};
+    lookAlikeJobs = 0;
     return list.filter(function(e) {
         var k = exactJobKey(e);
-        if (seen[k]) return false;
+        if (seen[k]) {
+            if (jobIsDistinguishable(e)) return false;
+            lookAlikeJobs++;
+            return true;
+        }
         seen[k] = true;
         return true;
     });
@@ -4577,6 +4601,32 @@ var STATEMENT_TOTAL_PATTERN = new RegExp(
    roll-up of the statement, not a transaction. */
 var SUMMARY_HEADING_PATTERN = /(checking|account|statement|savings|activity)\s+summary|summary\s+of\s+(account|activity)|how\s+to\s+avoid\s+the\s+monthly\s+service\s+fee|account\s+information/i;
 
+/* A statement PDF is a stack of tables and only a few of them list transactions.
+   Everything else — DAILY ENDING BALANCE, the summaries, the fine print — holds
+   dated money that is not a transaction, so parsing is scoped to the sections
+   below and the section also tells us the direction of every amount in it. */
+var TXN_SECTION_HEADINGS = [
+    { re: /^\s*deposits?\s*(and|&)\s*additions\b/i, credit: true },
+    { re: /^\s*atm\s*(&|and)?\s*debit\s+card\s+withdrawals?\b/i, credit: false },
+    { re: /^\s*electronic\s+withdrawals?\b/i, credit: false },
+    { re: /^\s*(other\s+withdrawals?|checks?\s+paid|fees?(\s*(and|&)\s*charges?)?)\s*$/i, credit: false },
+    { re: /^\s*(account\s+activity|transaction\s+detail|transactions?)\s*$/i, credit: null }
+];
+
+/* Headings that close a transaction section. */
+var NON_TXN_SECTION_HEADING = /^\s*(daily\s+ending\s+balance|(checking|account|statement|savings)\s+summary|service\s+charge\s+summary|summary\s+of\s+(account|activity)|interest\s+charges?|year[-\s]to[-\s]date|important\s+information|how\s+to\s+avoid|account\s+information|(balance|fees?|rewards?)\s+summary)/i;
+
+/* Headings never carry figures; the same words followed by a count and a total
+   ("Deposits and Additions 36 $53,662.35") are a summary row, not a heading. */
+function statementSection(line) {
+    if (/\d/.test(line)) return undefined;
+    for (var i = 0; i < TXN_SECTION_HEADINGS.length; i++) {
+        if (TXN_SECTION_HEADINGS[i].re.test(line)) return TXN_SECTION_HEADINGS[i];
+    }
+    if (NON_TXN_SECTION_HEADING.test(line)) return null;
+    return undefined;
+}
+
 var bankSkipStats = { transfers: 0, totals: 0 };
 
 // Builds one preview row from a statement line, or returns null for an internal
@@ -4845,8 +4895,18 @@ function parsePDFText(text) {
     var lastDate = null;
     var inSummary = false;
 
+    /* When the statement labels its transaction tables, only those tables are
+       read. Layouts we do not recognize keep the old whole-document scan. */
+    var sectioned = lines.some(function(l) { return statementSection(l); });
+    var section = null;
+    var outsideRows = 0;
+
     lines.forEach(function(line) {
         if (line.trim().length < 3) return;
+        if (sectioned) {
+            var found = statementSection(line);
+            if (found !== undefined) { section = found; return; }
+        }
         if (SUMMARY_HEADING_PATTERN.test(line)) { inSummary = true; return; }
 
         var dateStr = null;
@@ -4896,7 +4956,12 @@ function parsePDFText(text) {
         var desc = searchText.replace(/[-]?\$?\s*[\d,]+\.\d{2}/g, '').replace(/[-]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
         if (desc.length < 2) desc = 'PDF Transaction';
 
-        candidates.push({ date: usableDate, description: desc.substring(0, 80), amounts: amounts, line: line, summary: inSummary });
+        if (sectioned && !section) { outsideRows++; return; }
+
+        candidates.push({
+            date: usableDate, description: desc.substring(0, 80), amounts: amounts,
+            line: line, summary: inSummary, credit: section ? section.credit : null
+        });
     });
 
     // Statement rows usually read "date  description  amount  balance"; when most
@@ -4908,12 +4973,17 @@ function parsePDFText(text) {
     var multi = candidates.filter(function(c) { return c.amounts.length > 1; }).length;
     var hasBalanceColumn = candidates.length > 0 && multi > candidates.length / 2;
 
-    bankSkipStats = { transfers: 0, totals: summaryRows };
+    bankSkipStats = { transfers: 0, totals: summaryRows + outsideRows };
     bankParsedRows = [];
     candidates.forEach(function(c) {
         var idx = hasBalanceColumn && c.amounts.length > 1 ? c.amounts.length - 2 : c.amounts.length - 1;
         var amtObj = c.amounts[idx];
-        var isCredit = amtObj.negative ? false : null;
+        /* The table a row sits under is the most reliable direction there is:
+           everything under DEPOSITS AND ADDITIONS is money in, everything under
+           a withdrawals heading is money out, however the amount is printed. */
+        var isCredit = c.credit === true || c.credit === false
+            ? c.credit
+            : (amtObj.negative ? false : null);
         var row = buildBankRow(c.date, c.description || 'PDF Transaction', amtObj.value, isCredit);
         if (row) bankParsedRows.push(row);
     });
