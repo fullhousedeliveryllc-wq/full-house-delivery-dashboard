@@ -827,7 +827,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v65</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v66</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -2168,7 +2168,7 @@ async function loadFromSupabase() {
         financeEntries = cloudFinance;
         normalizeJobCategories(entries);
         clearImportedCustomerNames(entries);
-        reclassifyImportedZelles();
+        migrateImportedFinance();
 
         localStorage.setItem('fhd_categories', JSON.stringify(categories));
         localStorage.setItem('fhd_entries', JSON.stringify(entries));
@@ -4354,32 +4354,51 @@ function importData(event) {
    ═══════════════════════════════════════ */
 var bankParsedRows = [];
 
-/* Crew wages leave the checking account as a Zelle to someone on the roster —
-   $150 (Oslain $160) is the usual minimum, not a ceiling, so the amount is not
-   used to classify. A few people are paid under another person's name, and the
-   two owners are paid this way whenever they work a job themselves. Money the
-   owners take for themselves is memoed "distribution" and is an expense too. */
-var PAY_ROSTER_ALIASES = [
-    'oslain', 'masi', 'danny lopez', 'emanuel salinas', 'craig',
-    'jorge lopez', 'angel orbe', 'jose', 'ricky', 'dayron',
-    'david garcia', 'josh verde'
+/* Everything the business pays out by Zelle is either crew wages, a sales
+   commission or an owner taking money for himself.
+
+   Crew: $150 is the usual floor (Oslain $160), the high $200s the usual ceiling,
+   and over $300 is rare — so the amount is a weak hint, never the decider. Some
+   people are paid under another person's name (Masi for Danny Lopez, Emanuel
+   Salinas for Craig).
+
+   Owners: a payment to an owner is a distribution unless the memo says it was
+   worked, and a distribution can be any size. The owners do occasionally work a
+   job, which is why the memo wins over the name.
+
+   Commissions: 10% of a job, $80 to over $1000, usually $120-$700 — the same
+   range as everything else, so commissions are recognised by who was paid. */
+var CREW_ALIASES = ['oslain', 'masi', 'danny lopez', 'craig', 'jose', 'ricky', 'dayron'];
+var OWNER_ALIASES = [
+    'jorge lopez', 'jorge lopez perez', 'angel orbe', 'angel',
+    'emanuel salinas', 'josh verde', 'david garcia'
 ];
+/* Above this, an owner payment is a distribution even without a memo: crew pay
+   very rarely breaks $300. */
+var OWNER_WAGE_CEILING = 300;
 var DISTRIBUTION_PATTERN = /distribution|owner\s*draw|\bdraw\b/i;
 /* Tested against the memo only — "Zelle payment to" is in every description. */
 var WAGE_MEMO_PATTERN = /\bpay\b|\bpaid\b|\bpayroll\b|\bwages?\b|\bworked?\b/i;
 
-/* The roster the user maintains on the Team tab, so a rename keeps working. */
-function payRosterNames() {
-    var names = PAY_ROSTER_ALIASES.slice();
-    (typeof teamDrivers !== 'undefined' ? teamDrivers : []).forEach(function(d) {
-        var n = String(d && d.name || '').trim().toLowerCase();
-        if (n && names.indexOf(n) === -1) names.push(n);
-    });
-    (typeof teamOwners !== 'undefined' ? teamOwners : []).forEach(function(o) {
-        var n = String(o || '').trim().toLowerCase();
+/* Both lists follow the Team tab, so renaming someone there keeps imports right. */
+function addNames(names, extra) {
+    (extra || []).forEach(function(v) {
+        var n = String(v && v.name || v || '').trim().toLowerCase();
         if (n && names.indexOf(n) === -1) names.push(n);
     });
     return names;
+}
+function crewNames() {
+    return addNames(CREW_ALIASES.slice(), typeof teamDrivers !== 'undefined' ? teamDrivers : []);
+}
+function ownerNames() {
+    return addNames(OWNER_ALIASES.slice(), typeof teamOwners !== 'undefined' ? teamOwners : []);
+}
+function matchesName(text, names) {
+    for (var i = 0; i < names.length; i++) {
+        if (names[i] && text.indexOf(names[i]) !== -1) return true;
+    }
+    return false;
 }
 
 var CATEGORY_RULES = [
@@ -4431,17 +4450,19 @@ function categorizeZellePayment(description, amount) {
 
     if (DISTRIBUTION_PATTERN.test(desc)) return 'Distributions';
 
-    var ci;
-    for (ci = 0; ci < COMMISSION_NAMES.length; ci++) {
-        if (rest.indexOf(COMMISSION_NAMES[ci]) !== -1) return 'Commissions';
+    if (matchesName(rest, COMMISSION_NAMES)) return 'Commissions';
+
+    /* An owner is paid for himself unless the memo says he worked the job, and
+       even then only up to what a crew member would have earned. */
+    if (matchesName(rest, ownerNames())) {
+        var worked = WAGE_MEMO_PATTERN.test(rest) &&
+            (!(amount > 0) || amount <= OWNER_WAGE_CEILING);
+        return worked ? 'Driver Pay' : 'Distributions';
     }
 
-    var roster = payRosterNames();
-    for (var ri = 0; ri < roster.length; ri++) {
-        if (rest.indexOf(roster[ri]) !== -1) return 'Driver Pay';
-    }
+    if (matchesName(rest, crewNames())) return 'Driver Pay';
 
-    /* Someone not on the roster, but the memo says it is pay for work. */
+    /* Someone off the roster whose memo says it is pay for work. */
     if (WAGE_MEMO_PATTERN.test(rest)) return 'Driver Pay';
 
     // Any other Zelle to an individual defaults to Commissions
@@ -4472,7 +4493,21 @@ function categorizeIncome(description) {
     return null;
 }
 
-var bankSkipStats = { transfers: 0 };
+/* Statement subtotal lines ("Total Card Purchases", "Total Card Deposits &
+   Credits", "Total Fees Charged", ...). They repeat money that is already
+   listed transaction by transaction, and the credits side is the card being
+   paid off, not income — importing either double-counts. */
+var STATEMENT_TOTAL_SUBJECT = '(card|atm|electronic|checking|account|other|monthly|daily|' +
+    'purchases?|deposits?|credits?|charges?|fees?|payments?|withdrawals?|debits?|' +
+    'transactions?|interest|advances?|adjustments?|activity)';
+/* Anchored on a total *of something* so a merchant like "Total Wine" survives. */
+var STATEMENT_TOTAL_PATTERN = new RegExp(
+    '^\\s*(sub)?totals?\\s+(of\\s+)?' + STATEMENT_TOTAL_SUBJECT +
+    '|^\\s*' + STATEMENT_TOTAL_SUBJECT + '(\\s+(&|and|\\+)?\\s*' + STATEMENT_TOTAL_SUBJECT + ')*\\s+totals?\\s*$' +
+    '|^\\s*(beginning|ending|previous|new|closing|opening|available|current)\\s+balance\\b' +
+    '|^\\s*(minimum\\s+payment|payment\\s+due|credit\\s+(limit|available)|available\\s+credit|statement\\s+balance)\\b', 'i');
+
+var bankSkipStats = { transfers: 0, totals: 0 };
 
 // Builds one preview row from a statement line, or returns null for an internal
 // transfer (a card payment out of checking is already an expense on the card
@@ -4481,6 +4516,7 @@ var bankSkipStats = { transfers: 0 };
 // against the user's own lists so an import can never invent a category.
 function buildBankRow(dateStr, description, amount, isCredit) {
     var desc = (description || '').trim();
+    if (STATEMENT_TOTAL_PATTERN.test(desc)) { bankSkipStats.totals++; return null; }
     if (INTERNAL_TRANSFER_PATTERN.test(desc)) { bankSkipStats.transfers++; return null; }
 
     // The statement's own sign wins whenever it is known — a debit stays an
@@ -4750,7 +4786,7 @@ function parsePDFText(text) {
     var multi = candidates.filter(function(c) { return c.amounts.length > 1; }).length;
     var hasBalanceColumn = candidates.length > 0 && multi > candidates.length / 2;
 
-    bankSkipStats = { transfers: 0 };
+    bankSkipStats = { transfers: 0, totals: 0 };
     bankParsedRows = [];
     candidates.forEach(function(c) {
         var idx = hasBalanceColumn && c.amounts.length > 1 ? c.amounts.length - 2 : c.amounts.length - 1;
@@ -4855,7 +4891,7 @@ function parseBankCSV(csvText) {
 
     var convention = detectSignConvention(parsed.filter(function(r) { return r.explicitCredit === null; }));
 
-    bankSkipStats = { transfers: 0 };
+    bankSkipStats = { transfers: 0, totals: 0 };
     bankParsedRows = [];
     parsed.forEach(function(r) {
         var isCredit = r.explicitCredit;
@@ -4927,6 +4963,10 @@ function updateBankPreviewStats() {
     if (bankSkipStats.transfers > 0) {
         statsHtml += ' &nbsp;|&nbsp; <span style="color:#666">' + bankSkipStats.transfers + ' card payment' +
             (bankSkipStats.transfers === 1 ? '' : 's') + ' skipped (already on the card statement)</span>';
+    }
+    if (bankSkipStats.totals > 0) {
+        statsHtml += ' &nbsp;|&nbsp; <span style="color:#666">' + bankSkipStats.totals + ' statement total' +
+            (bankSkipStats.totals === 1 ? '' : 's') + ' skipped (already counted line by line)</span>';
     }
     if (needsSelect > 0) {
         statsHtml += ' &nbsp;|&nbsp; <strong style="color:#b8860b">' + needsSelect + ' uncategorized</strong>' +
@@ -7375,7 +7415,7 @@ function renderFinanceAll() {
    expense chart is right without re-importing the statements. Manual rows (no
    source) and types the user picked himself are left alone. */
 function reclassifyImportedZelles() {
-    if (localStorage.getItem('fhd_zelleReclass') === '1') return 0;
+    if (localStorage.getItem('fhd_zelleReclass') === '2') return 0;
     if (!financeEntries.length) return 0;
     var retype = { 'Distributions': 1, 'Commissions': 1, 'Uncategorized': 1, 'Driver Pay': 1 };
     var changed = 0;
@@ -7385,7 +7425,7 @@ function reclassifyImportedZelles() {
         var type = categorizeZellePayment(e.note, e.amount);
         if (type && financeTypes.indexOf(type) !== -1 && type !== e.type) { e.type = type; changed++; }
     });
-    localStorage.setItem('fhd_zelleReclass', '1');
+    localStorage.setItem('fhd_zelleReclass', '2');
     if (changed) {
         console.log('[FINANCE] Reclassified ' + changed + ' imported Zelle rows');
         save();
@@ -7393,7 +7433,34 @@ function reclassifyImportedZelles() {
     }
     return changed;
 }
-reclassifyImportedZelles();
+
+/* Earlier imports took the statement's own subtotal lines in as transactions,
+   so "Total Card Deposits & Credits" was sitting in the ledger as income on top
+   of the purchases it summarises. They are dropped once. */
+function dropImportedStatementTotals() {
+    if (localStorage.getItem('fhd_totalsPurge') === '1') return 0;
+    if (!financeEntries.length) return 0;
+    var before = financeEntries.length;
+    financeEntries = financeEntries.filter(function(e) {
+        return !(e.note && STATEMENT_TOTAL_PATTERN.test(e.note));
+    });
+    var removed = before - financeEntries.length;
+    localStorage.setItem('fhd_totalsPurge', '1');
+    if (removed) {
+        console.log('[FINANCE] Removed ' + removed + ' statement total rows');
+        save();
+        renderFinanceAll();
+        toast('Removed ' + removed + ' statement total row' + (removed === 1 ? '' : 's') +
+            ' that were double-counting your transactions.');
+    }
+    return removed;
+}
+
+function migrateImportedFinance() {
+    dropImportedStatementTotals();
+    reclassifyImportedZelles();
+}
+migrateImportedFinance();
 
 document.getElementById('entryDate').value = today();
 document.getElementById('finDate').value = today();
