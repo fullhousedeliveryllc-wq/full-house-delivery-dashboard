@@ -827,7 +827,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v73</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v74</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -1202,6 +1202,27 @@
         <div style="display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:6px;">
             <button class="expand-toggle" id="finExpandBtn" onclick="toggleFinExpand()">Expand to 100</button>
             <button class="expand-toggle" id="finBulkDeleteBtn" style="display:none;color:#c0392b;border-color:#c0392b;" onclick="bulkDeleteFinEntries()">Delete Selected</button>
+        </div>
+    </div>
+
+    <!-- Import History -->
+    <div class="card full-width">
+        <h2><span class="icon">&#128337;</span> Statement Import History</h2>
+        <div style="overflow-x:auto;">
+            <table class="finance-table">
+                <thead>
+                    <tr>
+                        <th>Imported</th>
+                        <th>File</th>
+                        <th>Account</th>
+                        <th>Rows added</th>
+                        <th>Statement period</th>
+                        <th>Totals</th>
+                        <th>Skipped</th>
+                    </tr>
+                </thead>
+                <tbody id="importLogBody"></tbody>
+            </table>
         </div>
     </div>
 </div>
@@ -2334,7 +2355,8 @@ var STATE_KEYS = [
     'fhd_financeTypes', 'fhd_financeIncomeTypes', 'fhd_chime',
     'fhd_teamDrivers2', 'fhd_teamOwners', 'fhd_schedule', 'fhd_availability',
     'fhd_auditLog', 'fhd_ownerContacts', 'fhd_ownerUnavailDays', 'fhd_manualPay',
-    'fhd_leads', 'fhd_contacts', 'fhd_contacts_deleted', 'fhd_sheetColorMap'
+    'fhd_leads', 'fhd_contacts', 'fhd_contacts_deleted', 'fhd_sheetColorMap',
+    'fhd_importLog'
 ];
 var STATE_DIRTY_KEY = 'fhd_state_dirty';
 var _statePushTimer = null;
@@ -2456,6 +2478,7 @@ function rehydrateState() {
     contacts = readJSON('fhd_contacts', contacts);
     deletedContactKeys = readJSON('fhd_contacts_deleted', deletedContactKeys);
     schedColorMap = readJSON('fhd_sheetColorMap', schedColorMap);
+    importLog = readJSON('fhd_importLog', importLog);
     renderAll();
     renderFinanceAll();
     renderChimeAll();
@@ -2725,6 +2748,8 @@ function canonicalCategoryList(list) {
 })();
 
 var chimeEntries = JSON.parse(localStorage.getItem('fhd_chime')) || [];
+/* One record per statement upload that was actually imported. */
+var importLog = readJSON('fhd_importLog', []);
 var currentPeriod = 'weekly';
 var chimePeriod = 'daily';
 var pendingInvoices = [];
@@ -4767,6 +4792,7 @@ function detectColumns(headers) {
 }
 
 var bankFileSource = 'Checking';
+var bankFileName = '';
 function detectBankSource(filename) {
     var fn = (filename || '').toLowerCase();
     if (/cc|credit\s*card/i.test(fn)) return 'Credit Card';
@@ -4777,6 +4803,7 @@ function handleBankUpload(event) {
     var file = event.target.files[0];
     if (!file) return;
     bankFileSource = detectBankSource(file.name);
+    bankFileName = file.name;
     var ext = file.name.toLowerCase().split('.').pop();
 
     if (ext === 'pdf') {
@@ -5226,6 +5253,58 @@ function toggleAllBankRows(cb) {
     updateBankPreviewStats();
 }
 
+/* Every accepted statement upload leaves a receipt in the Finance tab: when it
+   was imported, from which file, and what the parser did with it. */
+function recordStatementImport(rows, uncategorized) {
+    var dates = rows.map(function(r) { return r.date; }).sort();
+    var inRows = rows.filter(function(r) { return r.income; });
+    importLog.unshift({
+        at: new Date().toISOString(),
+        file: bankFileName || 'statement',
+        source: bankFileSource,
+        added: rows.length,
+        parsed: bankParsedRows.length,
+        deselected: bankParsedRows.length - rows.length,
+        transfers: bankSkipStats.transfers,
+        totals: bankSkipStats.totals,
+        uncategorized: uncategorized,
+        income: inRows.reduce(function(s, r) { return s + r.amount; }, 0),
+        expense: rows.reduce(function(s, r) { return s + (r.income ? 0 : r.amount); }, 0),
+        from: dates[0] || '',
+        to: dates[dates.length - 1] || ''
+    });
+    if (importLog.length > 200) importLog.length = 200;
+    saveState('fhd_importLog', importLog);
+}
+
+function renderImportLog() {
+    var body = document.getElementById('importLogBody');
+    if (!body) return;
+    if (!importLog.length) {
+        body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:16px;">' +
+            'No statements imported yet.</td></tr>';
+        return;
+    }
+    body.innerHTML = importLog.map(function(r) {
+        var when = new Date(r.at);
+        var skips = [];
+        if (r.deselected) skips.push(r.deselected + ' unchecked/duplicate');
+        if (r.transfers) skips.push(r.transfers + ' card payment' + (r.transfers === 1 ? '' : 's'));
+        if (r.totals) skips.push(r.totals + ' summary/balance line' + (r.totals === 1 ? '' : 's'));
+        return '<tr>' +
+            '<td>' + esc(when.toLocaleString()) + '</td>' +
+            '<td>' + esc(r.file) + '</td>' +
+            '<td>' + esc(r.source) + '</td>' +
+            '<td>' + r.added + ' of ' + r.parsed +
+            (r.uncategorized ? ' <span style="color:#b8860b">(' + r.uncategorized + ' uncategorized)</span>' : '') + '</td>' +
+            '<td>' + esc(r.from) + (r.to && r.to !== r.from ? ' \u2192 ' + esc(r.to) : '') + '</td>' +
+            '<td><span style="color:#059669">+$' + r.income.toFixed(2) + '</span> / ' +
+            '<span style="color:#c0392b">-$' + r.expense.toFixed(2) + '</span></td>' +
+            '<td style="color:#64748b">' + esc(skips.join(', ') || 'none') + '</td>' +
+            '</tr>';
+    }).join('');
+}
+
 function closeBankPreview() {
     document.getElementById('bankPreviewModal').classList.remove('active');
     bankParsedRows = [];
@@ -5252,6 +5331,8 @@ function confirmBankImport() {
         });
     });
 
+    recordStatementImport(toImport, uncategorized);
+
     save();
     renderFinanceAll();
     closeBankPreview();
@@ -5270,6 +5351,7 @@ function confirmBankImport() {
         var file = e.dataTransfer.files[0];
         if (!file) return;
         bankFileSource = detectBankSource(file.name);
+        bankFileName = file.name;
         var ext = file.name.toLowerCase().split('.').pop();
         if (ext === 'csv') {
             var reader = new FileReader();
@@ -7632,7 +7714,7 @@ function renderAll() {
     if (document.getElementById('tab-leads').classList.contains('active')) renderContacts();
 }
 function renderFinanceAll() {
-    renderFinanceTypes(); renderFinanceSummary(); renderFinanceBreakdown(); drawFinanceChart(); renderFinanceLog(); renderMoneySnapshot();
+    renderFinanceTypes(); renderFinanceSummary(); renderFinanceBreakdown(); drawFinanceChart(); renderFinanceLog(); renderImportLog(); renderMoneySnapshot();
     renderSummary(); buildChart();
 }
 
