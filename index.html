@@ -827,7 +827,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v67</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v68</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -975,7 +975,7 @@
             <button class="btn btn-outline btn-sm" onclick="exportCSV()">&#128229; Export CSV</button>
             <button class="btn btn-outline btn-sm" onclick="document.getElementById('importFile').click()">&#128228; Import JSON</button>
             <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
-
+            <button class="btn btn-outline btn-sm" onclick="scanDuplicateJobs()" title="Finds jobs that were imported more than once — same day, same price and same note — and keeps one of each.">&#129529; Find Duplicate Jobs</button>
         </div>
     </div>
 
@@ -3186,6 +3186,60 @@ function dedupeJobs(list) {
         seen[k] = true;
         return true;
     });
+}
+
+/* Same job re-imported after a category or customer-name migration no longer
+   matches on the exact key, so the cleanup groups on what the schedule sheet
+   itself provided: the day, the price and the block's wording. A job with no
+   note carries nothing to tell two same-day, same-price jobs apart, so those
+   are only ever matched on the exact key. */
+function looseJobKey(e) {
+    var note = (e.note || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    if (!note) return null;
+    return [e.date || '', e.amount || 0, e.revenue || 0, note].join('|');
+}
+
+/* How much of a job is filled in — the richest copy of a duplicate is kept. */
+function jobCompleteness(e) {
+    return (e.customer ? 2 : 0) + (e.phone ? 1 : 0) + (e.email ? 1 : 0) +
+        (e.category && e.category !== JOB_UNCATEGORIZED ? 2 : 0) + (e.note ? 1 : 0);
+}
+
+function findDuplicateJobGroups() {
+    var groups = {};
+    entries.forEach(function(e) {
+        var k = looseJobKey(e) || ('exact|' + exactJobKey(e));
+        (groups[k] = groups[k] || []).push(e);
+    });
+    return Object.keys(groups).map(function(k) { return groups[k]; })
+        .filter(function(g) { return g.length > 1; });
+}
+
+function scanDuplicateJobs() {
+    var groups = findDuplicateJobGroups();
+    var extra = groups.reduce(function(s, g) { return s + g.length - 1; }, 0);
+    if (!extra) { toast('No duplicate jobs found — all ' + entries.length + ' entries are unique.'); return; }
+
+    var value = 0;
+    var drop = [];
+    groups.forEach(function(g) {
+        var best = g.slice().sort(function(a, b) { return jobCompleteness(b) - jobCompleteness(a); })[0];
+        g.forEach(function(e) {
+            if (e === best) return;
+            drop.push(e);
+            value += (typeof e.revenue === 'number' ? e.revenue : 0);
+        });
+    });
+
+    if (!confirm('Found ' + extra + ' duplicate job' + (extra === 1 ? '' : 's') + ' across ' + groups.length +
+        ' job' + (groups.length === 1 ? '' : 's') + ' (same date, price and note).\n\nRemoving them drops $' +
+        value.toFixed(2) + ' of double-counted job value and leaves ' + (entries.length - extra) +
+        ' entries. The most complete copy of each job is kept.\n\nRemove them?')) return;
+
+    entries = entries.filter(function(e) { return drop.indexOf(e) === -1; });
+    save();
+    renderAll();
+    toast('Removed ' + extra + ' duplicate job' + (extra === 1 ? '' : 's') + '.');
 }
 
 function isExactDuplicateEntry(entry) {
@@ -7430,6 +7484,8 @@ function confirmScheduleImport() {
 
     var base = Date.now();
     var seen = exactJobKeySet();
+    var seenLoose = {};
+    entries.forEach(function(e) { var lk = looseJobKey(e); if (lk) seenLoose[lk] = true; });
     var added = 0, skipped = 0;
     picked.forEach(function(r, i) {
         var row = {
@@ -7451,8 +7507,13 @@ function confirmScheduleImport() {
         /* Catches both rows already in the log and the same block appearing
            twice in the workbook. */
         var k = exactJobKey(row);
-        if (seen[k]) { skipped++; return; }
+        /* The loose key ignores category and customer, so a block already in the
+           log still counts as imported after a category migration or the
+           customer-name wipe changed how it is stored. */
+        var lk = looseJobKey(row);
+        if (seen[k] || (lk && seenLoose[lk])) { skipped++; return; }
         seen[k] = true;
+        if (lk) seenLoose[lk] = true;
         entries.push(row);
         added++;
     });
