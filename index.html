@@ -827,7 +827,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v66</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v67</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -4505,7 +4505,23 @@ var STATEMENT_TOTAL_PATTERN = new RegExp(
     '^\\s*(sub)?totals?\\s+(of\\s+)?' + STATEMENT_TOTAL_SUBJECT +
     '|^\\s*' + STATEMENT_TOTAL_SUBJECT + '(\\s+(&|and|\\+)?\\s*' + STATEMENT_TOTAL_SUBJECT + ')*\\s+totals?\\s*$' +
     '|^\\s*(beginning|ending|previous|new|closing|opening|available|current)\\s+balance\\b' +
-    '|^\\s*(minimum\\s+payment|payment\\s+due|credit\\s+(limit|available)|available\\s+credit|statement\\s+balance)\\b', 'i');
+    '|^\\s*(minimum\\s+payment|payment\\s+due|credit\\s+(limit|available)|available\\s+credit|statement\\s+balance)\\b' +
+    /* The Chase CHECKING SUMMARY and card ACCOUNT SUMMARY blocks: whole-period
+       roll-ups printed as label + count + amount, plus the service-fee
+       fine print that quotes your balance and card activity. */
+    '|^\\s*(deposits?\\s+and\\s+additions|electronic\\s+withdrawals?|atm\\s*(&|and)?\\s*debit\\s+card\\s+withdrawals?' +
+    '|checks?\\s+paid|other\\s+withdrawals?|fees?\\s*(and|&)?\\s*(charges?)?' +
+    '|payments?\\s*,?\\s*credits?|purchases?|cash\\s+advances?|balance\\s+transfers?' +
+    '|interest\\s+charged|fees?\\s+charged|past\\s+due\\s+amount|revolving\\s+credit\\s+amount' +
+    '|cash\\s+access\\s+line|available\\s+for\\s+cash|opening/closing\\s+date' +
+    '|balance\\s+over\\s+the\\s+credit\\s+access\\s+line)\\s*:?\\s*\\d*\\s*$' +
+    '|minimum\\s+daily\\s+ending\\s+balance|business\\s+card\\s+activity|payment\\s+solutions.{0,3}activity' +
+    '|monthly\\s+service\\s+fee', 'i');
+
+/* Headings that open a summary block, and the ones that open a real transaction
+   list. Everything between a summary heading and the next dated line is a
+   roll-up of the statement, not a transaction. */
+var SUMMARY_HEADING_PATTERN = /(checking|account|statement|savings|activity)\s+summary|summary\s+of\s+(account|activity)|how\s+to\s+avoid\s+the\s+monthly\s+service\s+fee|account\s+information/i;
 
 var bankSkipStats = { transfers: 0, totals: 0 };
 
@@ -4725,6 +4741,31 @@ function handlePDFUpload(file) {
     reader.readAsArrayBuffer(file);
 }
 
+function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+/* The last calendar date printed anywhere on the statement — its closing date,
+   used as the year anchor for rows that only print month/day. */
+function statementPeriodEnd(text) {
+    var best = null;
+    function consider(mo, day, yr) {
+        if (yr < 100) yr += 2000;
+        if (mo < 1 || mo > 12 || day < 1 || day > 31 || yr < 2000 || yr > 2100) return;
+        var key = yr * 10000 + mo * 100 + day;
+        if (!best || key > best.key) best = { key: key, year: yr, month: mo };
+    }
+    var re = /(\d{1,2})\/(\d{1,2})\/(\d{2,4})/g;
+    var m;
+    while ((m = re.exec(text)) !== null) {
+        consider(parseInt(m[1], 10), parseInt(m[2], 10), parseInt(m[3], 10));
+    }
+    var MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+    var nameRe = /(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2}),?\s+(\d{4})/gi;
+    while ((m = nameRe.exec(text)) !== null) {
+        consider(MONTHS.indexOf(m[1].toLowerCase()) + 1, parseInt(m[2], 10), parseInt(m[3], 10));
+    }
+    return best;
+}
+
 function parsePDFText(text) {
     console.log('[PDF Debug] Extracted text (' + text.length + ' chars, ' + text.split('\n').length + ' lines):');
     console.log(text.substring(0, 2000));
@@ -4740,10 +4781,19 @@ function parsePDFText(text) {
     ];
     var amountPattern = /[-]?\$?\s*([\d,]+\.\d{2})/g;
 
+    /* Transaction rows in a Chase PDF are dated "01/05" with no year; only the
+       statement period carries one. Anchor bare dates to the period's last day
+       and step back a year when the month is ahead of it (a December row on a
+       statement that closes in January). */
+    var period = statementPeriodEnd(text);
+    var BARE_DATE = /(?:^|\s)(\d{1,2}\/\d{1,2})(?![\/\d])/;
+
     var lastDate = null;
+    var inSummary = false;
 
     lines.forEach(function(line) {
         if (line.trim().length < 3) return;
+        if (SUMMARY_HEADING_PATTERN.test(line)) { inSummary = true; return; }
 
         var dateStr = null;
         var dateMatch = null;
@@ -4755,7 +4805,22 @@ function parsePDFText(text) {
             }
         }
 
-        if (dateStr) lastDate = dateStr;
+        if (!dateStr && period) {
+            var bare = line.match(BARE_DATE);
+            if (bare) {
+                var parts = bare[1].split('/');
+                var mm = parseInt(parts[0], 10), dd = parseInt(parts[1], 10);
+                if (mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31) {
+                    var yr = mm > period.month ? period.year - 1 : period.year;
+                    dateStr = yr + '-' + pad2(mm) + '-' + pad2(dd);
+                    dateMatch = [bare[1]];
+                }
+            }
+        }
+
+        /* A line carrying its own date is a real transaction, which also means
+           the summary block is over. Summary rows only ever inherit a date. */
+        if (dateStr) { lastDate = dateStr; inSummary = false; }
 
         var amounts = [];
         var amtMatch;
@@ -4777,16 +4842,19 @@ function parsePDFText(text) {
         var desc = searchText.replace(/[-]?\$?\s*[\d,]+\.\d{2}/g, '').replace(/[-]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
         if (desc.length < 2) desc = 'PDF Transaction';
 
-        candidates.push({ date: usableDate, description: desc.substring(0, 80), amounts: amounts, line: line });
+        candidates.push({ date: usableDate, description: desc.substring(0, 80), amounts: amounts, line: line, summary: inSummary });
     });
 
     // Statement rows usually read "date  description  amount  balance"; when most
     // rows carry two amounts the trailing one is the running balance, not the
     // transaction, so importing it would inflate every expense.
+    var summaryRows = candidates.filter(function(c) { return c.summary; }).length;
+    candidates = candidates.filter(function(c) { return !c.summary; });
+
     var multi = candidates.filter(function(c) { return c.amounts.length > 1; }).length;
     var hasBalanceColumn = candidates.length > 0 && multi > candidates.length / 2;
 
-    bankSkipStats = { transfers: 0, totals: 0 };
+    bankSkipStats = { transfers: 0, totals: summaryRows };
     bankParsedRows = [];
     candidates.forEach(function(c) {
         var idx = hasBalanceColumn && c.amounts.length > 1 ? c.amounts.length - 2 : c.amounts.length - 1;
@@ -7438,14 +7506,14 @@ function reclassifyImportedZelles() {
    so "Total Card Deposits & Credits" was sitting in the ledger as income on top
    of the purchases it summarises. They are dropped once. */
 function dropImportedStatementTotals() {
-    if (localStorage.getItem('fhd_totalsPurge') === '1') return 0;
+    if (localStorage.getItem('fhd_totalsPurge') === '2') return 0;
     if (!financeEntries.length) return 0;
     var before = financeEntries.length;
     financeEntries = financeEntries.filter(function(e) {
         return !(e.note && STATEMENT_TOTAL_PATTERN.test(e.note));
     });
     var removed = before - financeEntries.length;
-    localStorage.setItem('fhd_totalsPurge', '1');
+    localStorage.setItem('fhd_totalsPurge', '2');
     if (removed) {
         console.log('[FINANCE] Removed ' + removed + ' statement total rows');
         save();
