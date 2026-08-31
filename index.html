@@ -2167,6 +2167,7 @@ async function loadFromSupabase() {
         entries = cloudJobs;
         financeEntries = cloudFinance;
         normalizeJobCategories(entries);
+        clearImportedCustomerNames(entries);
         reclassifyImportedZelles();
 
         localStorage.setItem('fhd_categories', JSON.stringify(categories));
@@ -2556,6 +2557,12 @@ var LEGACY_JOB_CATEGORIES = {
     'warehouse pickup': 'Furniture Store Warehouse',
     'furniture store jobs': 'Furniture Store Warehouse',
     'furniture store warehouse': 'Furniture Store Warehouse',
+    /* "Furniture store customer" is not a category of its own: such a job is
+       either a warehouse pickup or a floor model, and which one cannot be
+       inferred, so it lands in Uncategorized to be set by hand. */
+    'furniture store': JOB_UNCATEGORIZED,
+    'furniture store customer': JOB_UNCATEGORIZED,
+    'furniture store customers': JOB_UNCATEGORIZED,
     'floor model': 'Furniture Store Floor Models',
     'floor models': 'Furniture Store Floor Models',
     'display model': 'Furniture Store Floor Models',
@@ -2649,6 +2656,28 @@ if (stripGuessedCustomerNames(entries)) {
     localStorage.setItem('fhd_entries', JSON.stringify(entries));
     localStorage.setItem('fhd_dirty', '1');
 }
+
+/* Names that survived the guesser are still salespeople, address fragments and
+   stray sentences, and an imported name is never trustworthy. Every stored name
+   is cleared once so the column starts empty; from here on only the entry form
+   and the edit dialog fill it, and both require it. Runs again after the first
+   cloud pull, because that data arrives after this point. */
+function clearImportedCustomerNames(list) {
+    if (localStorage.getItem('fhd_customerWipe') === '1') return 0;
+    if (!list.length) return 0;
+    var cleared = 0;
+    list.forEach(function(e) {
+        if (e.customer) { e.customer = ''; cleared++; }
+    });
+    localStorage.setItem('fhd_customerWipe', '1');
+    if (cleared) {
+        localStorage.setItem('fhd_entries', JSON.stringify(list));
+        localStorage.setItem('fhd_dirty', '1');
+        console.log('[JOBS] Cleared ' + cleared + ' imported customer names');
+    }
+    return cleared;
+}
+clearImportedCustomerNames(entries);
 
 /* A job whose category is not one the dashboard knows about would vanish from
    the chart and the per-category totals, so it becomes Uncategorized instead. */
