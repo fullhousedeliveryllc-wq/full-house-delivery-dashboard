@@ -827,7 +827,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v75</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v76</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -4679,6 +4679,11 @@ function statementSection(line) {
    sent out is an expense regardless. */
 var OUTGOING_DESCRIPTION = /\b(card\s+purchase|purchase\s+(with|authorized)|recurring\s+card|debit\s+card\s+purchase|zelle\s+payment\s+to|payment\s+to\b|(atm\s+)?withdrawals?\b|cash\s+withdrawal|check\s*#|bill\s*pay|autopay|service\s+charge|monthly\s+fee)/i;
 
+/* The interest-charge grid on a card statement prints an APR beside a figure
+   ("Purchases 26.24%(v)(d) 16.74", "My Chase Loan%(v)(d)"). Those are rate
+   table rows, not charges. */
+var STATEMENT_RATE_PATTERN = /%\s*\(?\s*[vfd]\s*\)?|\d+\.\d+\s*%|\bannual\s+percentage\s+rate\b|\bapr\b/i;
+
 var bankSkipStats = { transfers: 0, totals: 0 };
 
 // Builds one preview row from a statement line, or returns null for an internal
@@ -4687,8 +4692,11 @@ var bankSkipStats = { transfers: 0, totals: 0 };
 // revenue row, money out an expense row; either way the type is validated
 // against the user's own lists so an import can never invent a category.
 function buildBankRow(dateStr, description, amount, isCredit) {
-    var desc = (description || '').trim();
+    /* Extraction leaves the column's sign or a stray bullet on the label
+       ("Purchases +"), which would hide it from the totals filter. */
+    var desc = (description || '').replace(/[\s+\u2022|:*-]+$/, '').trim();
     if (STATEMENT_TOTAL_PATTERN.test(desc)) { bankSkipStats.totals++; return null; }
+    if (STATEMENT_RATE_PATTERN.test(desc)) { bankSkipStats.totals++; return null; }
     if (INTERNAL_TRANSFER_PATTERN.test(desc)) { bankSkipStats.transfers++; return null; }
 
     // The statement's own sign wins whenever it is known — a debit stays an
@@ -4742,7 +4750,22 @@ function parseCSVLine(line) {
     return result;
 }
 
+/* A reference or account fragment can look like a date ("26-02-06"); an
+   impossible month or day means it never was one. */
+function validDateStr(s) {
+    if (!s) return null;
+    var p = s.split('-');
+    var y = parseInt(p[0], 10), mo = parseInt(p[1], 10), d = parseInt(p[2], 10);
+    if (!(y >= 1990 && y <= 2100) || !(mo >= 1 && mo <= 12) || !(d >= 1 && d <= 31)) return null;
+    return s;
+}
+
 function parseDate(val) {
+    if (!val) return null;
+    return validDateStr(parseDateRaw(val));
+}
+
+function parseDateRaw(val) {
     if (!val) return null;
     val = val.replace(/['"]/g, '').trim();
     var m;
@@ -4976,6 +4999,7 @@ function parsePDFText(text) {
                 if (dateStr) break;
             }
         }
+        if (!dateStr) dateMatch = null;
 
         if (!dateStr && period) {
             var bare = line.match(BARE_DATE);
