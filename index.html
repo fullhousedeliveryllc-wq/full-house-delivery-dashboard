@@ -827,7 +827,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v72</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v73</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -7125,8 +7125,13 @@ function schedParseHeaderDate(cell) {
     return { mo: mo, day: day, year: year };
 }
 
+/* Time off is written into the schedule the same way a job is, but nobody was
+   paid to do it: "Jorge vacation", "Angel Vacacion", "Masi day off". */
+var SCHED_TIME_OFF = /\bvacation|\bvacacion|\bday\s*off\b|\bdays\s*off\b|\bpto\b|\bsick\s*(day|leave)?\b|\boff\s+today\b/i;
+
 function schedIsNoise(text) {
     var t = text.trim();
+    if (SCHED_TIME_OFF.test(t)) return true;
     if (t.length < 4) return true;
     if (/^\d{1,2}(:\d{2})?\s*(am|pm)?$/i.test(t)) return true;
     if (/^(sunday|monday|tuesday|wednesday|thursday|friday|saturday)$/i.test(t)) return true;
@@ -7677,9 +7682,29 @@ function dropImportedStatementTotals() {
     return removed;
 }
 
+/* Time-off blocks imported before they were recognised are sitting in the
+   Entry Log as $0 jobs; they are dropped once. */
+function dropTimeOffEntries() {
+    if (localStorage.getItem('fhd_timeOffPurge') === '1') return 0;
+    var before = entries.length;
+    entries = entries.filter(function(e) {
+        return !(e.note && SCHED_TIME_OFF.test(e.note));
+    });
+    var removed = before - entries.length;
+    localStorage.setItem('fhd_timeOffPurge', '1');
+    if (removed) {
+        save();
+        renderAll();
+        toast('Removed ' + removed + ' vacation/day-off block' +
+            (removed === 1 ? '' : 's') + ' that were imported as jobs.');
+    }
+    return removed;
+}
+
 function migrateImportedFinance() {
     dropImportedStatementTotals();
     reclassifyImportedZelles();
+    dropTimeOffEntries();
 }
 migrateImportedFinance();
 
