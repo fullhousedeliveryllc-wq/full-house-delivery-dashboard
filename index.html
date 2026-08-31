@@ -4652,7 +4652,7 @@ var TXN_SECTION_HEADINGS = [
     { re: /^\s*atm\s*(&|and)?\s*debit\s+card\s+withdrawals?\b/i, credit: false },
     { re: /^\s*electronic\s+withdrawals?\b/i, credit: false },
     { re: /^\s*(other\s+withdrawals?|checks?\s+paid|fees?(\s*(and|&)\s*charges?)?)\s*$/i, credit: false },
-    { re: /^\s*(account\s+activity|transaction\s+detail|transactions?)\s*$/i, credit: null }
+    { re: /^\s*(account\s+activity|transaction\s+detail|transactions?)\s*(\(?\s*(card|acct\.?|account)[^)]*\)?)?\s*$/i, credit: null }
 ];
 
 /* Headings that close a transaction section. */
@@ -4665,7 +4665,9 @@ function statementSection(line) {
        the first row of its table onto it ("DAILY ENDING BALANCE 01/12 23,245.88"),
        otherwise that whole grid keeps importing under the previous heading. */
     if (NON_TXN_SECTION_HEADING.test(line)) return null;
-    if (/\d/.test(line)) return undefined;
+    /* Figures make it a row, not a heading — but a card number does not
+       ('ACCOUNT ACTIVITY (CARD 7067)' still opens the card's table). */
+    if (/\d[\d,]*\.\d{2}/.test(line) || /\d{1,2}\/\d{1,2}/.test(line)) return undefined;
     for (var i = 0; i < TXN_SECTION_HEADINGS.length; i++) {
         if (TXN_SECTION_HEADINGS[i].re.test(line)) return TXN_SECTION_HEADINGS[i];
     }
@@ -4945,20 +4947,23 @@ function parsePDFText(text) {
     var period = statementPeriodEnd(text);
     var BARE_DATE = /(?:^|\s)(\d{1,2}\/\d{1,2})(?![\/\d])/;
 
-    var lastDate = null;
-    var inSummary = false;
-
     /* When the statement labels its transaction tables, only those tables are
        read. Layouts we do not recognize keep the old whole-document scan. */
     var sectioned = lines.some(function(l) { return statementSection(l); });
-    var section = null;
     var outsideRows = 0;
+
+    function scanLines(useSections) {
+    var found = [];
+    var lastDate = null;
+    var inSummary = false;
+    var section = null;
+    outsideRows = 0;
 
     lines.forEach(function(line) {
         if (line.trim().length < 3) return;
-        if (sectioned) {
-            var found = statementSection(line);
-            if (found !== undefined) { section = found; return; }
+        if (useSections) {
+            var heading = statementSection(line);
+            if (heading !== undefined) { section = heading; return; }
         }
         if (SUMMARY_HEADING_PATTERN.test(line)) { inSummary = true; return; }
 
@@ -5012,13 +5017,23 @@ function parsePDFText(text) {
            grid or a totals table, whatever section the parser thinks it is in. */
         if (!/[a-z]{3}/i.test(desc)) { outsideRows++; return; }
 
-        if (sectioned && !section) { outsideRows++; return; }
+        if (useSections && !section) { outsideRows++; return; }
 
-        candidates.push({
+        found.push({
             date: usableDate, description: desc.substring(0, 80), amounts: amounts,
             line: line, summary: inSummary, credit: section ? section.credit : null
         });
     });
+    return found;
+    }
+
+    candidates = scanLines(sectioned);
+    /* A layout whose headings we half-recognize can leave every row "outside" a
+       table and import nothing at all; the whole-document scan is the fallback. */
+    if (sectioned && candidates.length === 0) {
+        console.log('[PDF] no rows inside the recognized tables — rescanning the whole document');
+        candidates = scanLines(false);
+    }
 
     // Statement rows usually read "date  description  amount  balance"; when most
     // rows carry two amounts the trailing one is the running balance, not the
@@ -5047,7 +5062,8 @@ function parsePDFText(text) {
     if (bankParsedRows.length === 0) {
         console.log('[PDF Debug] No expenses found. Full text dump:');
         console.log(text);
-        toast('No transactions could be extracted. Open browser console (F12) to see extracted text for debugging. Try CSV export for best results.', true);
+        toast('No transactions could be extracted — if the PDF is a scan or an image, its text cannot be read. ' +
+            'Open the browser console (F12) to see what was extracted, or use the CSV export instead.', true);
         return;
     }
 
