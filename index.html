@@ -827,7 +827,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v59</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v65</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -856,6 +856,7 @@
     <!-- Pie Chart -->
     <div class="card">
         <h2><span class="icon">&#128202;</span> <span id="pieChartTitle">Job Distribution</span></h2>
+        <div id="pieChartSub" style="font-size:11px;color:#70757a;margin:-6px 0 8px;"></div>
         <div class="pie-mode-toggle">
             <button type="button" class="period-btn active" data-pie="jobs" onclick="setPieMode('jobs')">Jobs</button>
             <button type="button" class="period-btn" data-pie="money" onclick="setPieMode('money')">Money out</button>
@@ -2166,6 +2167,8 @@ async function loadFromSupabase() {
         entries = cloudJobs;
         financeEntries = cloudFinance;
         normalizeJobCategories(entries);
+        clearImportedCustomerNames(entries);
+        reclassifyImportedZelles();
 
         localStorage.setItem('fhd_categories', JSON.stringify(categories));
         localStorage.setItem('fhd_entries', JSON.stringify(entries));
@@ -2554,6 +2557,12 @@ var LEGACY_JOB_CATEGORIES = {
     'warehouse pickup': 'Furniture Store Warehouse',
     'furniture store jobs': 'Furniture Store Warehouse',
     'furniture store warehouse': 'Furniture Store Warehouse',
+    /* "Furniture store customer" is not a category of its own: such a job is
+       either a warehouse pickup or a floor model, and which one cannot be
+       inferred, so it lands in Uncategorized to be set by hand. */
+    'furniture store': JOB_UNCATEGORIZED,
+    'furniture store customer': JOB_UNCATEGORIZED,
+    'furniture store customers': JOB_UNCATEGORIZED,
     'floor model': 'Furniture Store Floor Models',
     'floor models': 'Furniture Store Floor Models',
     'display model': 'Furniture Store Floor Models',
@@ -2647,6 +2656,28 @@ if (stripGuessedCustomerNames(entries)) {
     localStorage.setItem('fhd_entries', JSON.stringify(entries));
     localStorage.setItem('fhd_dirty', '1');
 }
+
+/* Names that survived the guesser are still salespeople, address fragments and
+   stray sentences, and an imported name is never trustworthy. Every stored name
+   is cleared once so the column starts empty; from here on only the entry form
+   and the edit dialog fill it, and both require it. Runs again after the first
+   cloud pull, because that data arrives after this point. */
+function clearImportedCustomerNames(list) {
+    if (localStorage.getItem('fhd_customerWipe') === '1') return 0;
+    if (!list.length) return 0;
+    var cleared = 0;
+    list.forEach(function(e) {
+        if (e.customer) { e.customer = ''; cleared++; }
+    });
+    localStorage.setItem('fhd_customerWipe', '1');
+    if (cleared) {
+        localStorage.setItem('fhd_entries', JSON.stringify(list));
+        localStorage.setItem('fhd_dirty', '1');
+        console.log('[JOBS] Cleared ' + cleared + ' imported customer names');
+    }
+    return cleared;
+}
+clearImportedCustomerNames(entries);
 
 /* A job whose category is not one the dashboard knows about would vanish from
    the chart and the per-category totals, so it becomes Uncategorized instead. */
@@ -2796,6 +2827,9 @@ function setPieMode(mode) {
     });
     document.getElementById('pieChartTitle').textContent =
         pieMode === 'money' ? 'Where the Money Went' : 'Job Distribution';
+    document.getElementById('pieChartSub').textContent = pieMode === 'money'
+        ? 'Every expense row in Revenues & Expenses — bank and credit-card statements plus rows you logged by hand. Job records never count here.'
+        : 'Jobs logged in the Entry Log, by category.';
     buildChart();
 }
 
@@ -4320,14 +4354,33 @@ function importData(event) {
    ═══════════════════════════════════════ */
 var bankParsedRows = [];
 
-var OWNER_DISTRIB = [
-    { names: ['jorge', 'jorge lopez perez'], min: 225 },
-    { names: ['angel', 'angel orbe'], min: 200 },
-    { names: ['david', 'david garcia'], min: 70 },
-    { names: ['manny', 'emanuel salinas'], min: 100 },
-    { names: ['josh', 'josh verde'], min: 70 }
+/* Crew wages leave the checking account as a Zelle to someone on the roster —
+   $150 (Oslain $160) is the usual minimum, not a ceiling, so the amount is not
+   used to classify. A few people are paid under another person's name, and the
+   two owners are paid this way whenever they work a job themselves. Money the
+   owners take for themselves is memoed "distribution" and is an expense too. */
+var PAY_ROSTER_ALIASES = [
+    'oslain', 'masi', 'danny lopez', 'emanuel salinas', 'craig',
+    'jorge lopez', 'angel orbe', 'jose', 'ricky', 'dayron',
+    'david garcia', 'josh verde'
 ];
-var DRIVER_NAMES = ['oslain', 'danny lopez', 'jose', 'ricky', 'dayron'];
+var DISTRIBUTION_PATTERN = /distribution|owner\s*draw|\bdraw\b/i;
+/* Tested against the memo only — "Zelle payment to" is in every description. */
+var WAGE_MEMO_PATTERN = /\bpay\b|\bpaid\b|\bpayroll\b|\bwages?\b|\bworked?\b/i;
+
+/* The roster the user maintains on the Team tab, so a rename keeps working. */
+function payRosterNames() {
+    var names = PAY_ROSTER_ALIASES.slice();
+    (typeof teamDrivers !== 'undefined' ? teamDrivers : []).forEach(function(d) {
+        var n = String(d && d.name || '').trim().toLowerCase();
+        if (n && names.indexOf(n) === -1) names.push(n);
+    });
+    (typeof teamOwners !== 'undefined' ? teamOwners : []).forEach(function(o) {
+        var n = String(o || '').trim().toLowerCase();
+        if (n && names.indexOf(n) === -1) names.push(n);
+    });
+    return names;
+}
 
 var CATEGORY_RULES = [
     { pattern: /juan family mechanic/i, type: 'Truck Repair/Maintenance' },
@@ -4371,25 +4424,25 @@ var COMMISSION_NAMES = ['jt', 'jorge t', 'jorge torrens'];
 
 function categorizeZellePayment(description, amount) {
     var desc = (description || '').toLowerCase();
-    var zelleMatch = desc.match(/zelle\s*payment\s*to\s+(.+?)(?:\s+(?:jpm|29\d|\d{11}|\w{12,}))/i);
+    var zelleMatch = desc.match(/zelle\s*payment\s*to\s+(.+?)(?:\s+(?:jpm|29\d|\d{11}|\w{12,}))/i) ||
+        desc.match(/zelle\s*payment\s*to\s+(.+)$/i);
     if (!zelleMatch) return null;
-    var recipient = zelleMatch[1].trim().toLowerCase();
-    var absAmt = Math.abs(amount || 0);
+    var rest = zelleMatch[1].trim();
 
-    for (var oi = 0; oi < OWNER_DISTRIB.length; oi++) {
-        var owner = OWNER_DISTRIB[oi];
-        for (var ni = 0; ni < owner.names.length; ni++) {
-            if (recipient.indexOf(owner.names[ni]) !== -1) {
-                return absAmt >= owner.min ? 'Distributions' : null;
-            }
-        }
+    if (DISTRIBUTION_PATTERN.test(desc)) return 'Distributions';
+
+    var ci;
+    for (ci = 0; ci < COMMISSION_NAMES.length; ci++) {
+        if (rest.indexOf(COMMISSION_NAMES[ci]) !== -1) return 'Commissions';
     }
-    for (var di = 0; di < DRIVER_NAMES.length; di++) {
-        if (recipient.indexOf(DRIVER_NAMES[di]) !== -1) return 'Driver Pay';
+
+    var roster = payRosterNames();
+    for (var ri = 0; ri < roster.length; ri++) {
+        if (rest.indexOf(roster[ri]) !== -1) return 'Driver Pay';
     }
-    for (var ci = 0; ci < COMMISSION_NAMES.length; ci++) {
-        if (recipient.indexOf(COMMISSION_NAMES[ci]) !== -1) return 'Commissions';
-    }
+
+    /* Someone not on the roster, but the memo says it is pay for work. */
+    if (WAGE_MEMO_PATTERN.test(rest)) return 'Driver Pay';
 
     // Any other Zelle to an individual defaults to Commissions
     return 'Commissions';
@@ -7316,6 +7369,31 @@ function renderFinanceAll() {
     renderFinanceTypes(); renderFinanceSummary(); renderFinanceBreakdown(); drawFinanceChart(); renderFinanceLog(); renderMoneySnapshot();
     renderSummary(); buildChart();
 }
+
+/* Statement rows imported before crew Zelles were understood landed in
+   Distributions or Commissions. Re-read them once with the current rules so the
+   expense chart is right without re-importing the statements. Manual rows (no
+   source) and types the user picked himself are left alone. */
+function reclassifyImportedZelles() {
+    if (localStorage.getItem('fhd_zelleReclass') === '1') return 0;
+    if (!financeEntries.length) return 0;
+    var retype = { 'Distributions': 1, 'Commissions': 1, 'Uncategorized': 1, 'Driver Pay': 1 };
+    var changed = 0;
+    financeEntries.forEach(function(e) {
+        if (!e.note || !retype[e.type]) return;
+        if (!/zelle\s*payment\s*to\s/i.test(e.note)) return;
+        var type = categorizeZellePayment(e.note, e.amount);
+        if (type && financeTypes.indexOf(type) !== -1 && type !== e.type) { e.type = type; changed++; }
+    });
+    localStorage.setItem('fhd_zelleReclass', '1');
+    if (changed) {
+        console.log('[FINANCE] Reclassified ' + changed + ' imported Zelle rows');
+        save();
+        renderFinanceAll();
+    }
+    return changed;
+}
+reclassifyImportedZelles();
 
 document.getElementById('entryDate').value = today();
 document.getElementById('finDate').value = today();
