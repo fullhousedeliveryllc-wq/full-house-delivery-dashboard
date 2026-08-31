@@ -827,7 +827,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v74</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v75</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -4629,7 +4629,14 @@ var STATEMENT_TOTAL_PATTERN = new RegExp(
     '|cash\\s+access\\s+line|available\\s+for\\s+cash|opening/closing\\s+date' +
     '|balance\\s+over\\s+the\\s+credit\\s+access\\s+line)\\s*:?\\s*\\d*\\s*$' +
     '|minimum\\s+daily\\s+ending\\s+balance|business\\s+card\\s+activity|payment\\s+solutions.{0,3}activity' +
-    '|monthly\\s+service\\s+fee', 'i');
+    '|monthly\\s+service\\s+fee' +
+    /* Per-card roll-ups on a multi-card statement, e.g.
+       "TRANSACTIONS THIS CYCLE (CARD 7067)  -2,668.19" — every one of those
+       charges is already listed individually under ACCOUNT ACTIVITY. */
+    '|\\b(transactions?|purchases?|charges?|payments?|credits?|fees?|activity|spending)\\s+' +
+    '(this|for\\s+(this|the))\\s+(cycle|period|statement|month|billing\\s+period)\\b' +
+    '|^\\s*total\\s+(for|on)\\s+(card|account)\\b' +
+    '|^\\s*(card|account)\\s*(#|no\\.?|number)?\\s*[x*\\d-]{4,}\\s+totals?\\b', 'i');
 
 /* Headings that open a summary block, and the ones that open a real transaction
    list. Everything between a summary heading and the next dated line is a
@@ -7753,7 +7760,7 @@ function dropImportedStatementTotals() {
         return !(e.note && STATEMENT_TOTAL_PATTERN.test(e.note));
     });
     var removed = before - financeEntries.length;
-    localStorage.setItem('fhd_totalsPurge', '2');
+    localStorage.setItem('fhd_totalsPurge', '3');
     if (removed) {
         console.log('[FINANCE] Removed ' + removed + ' statement total rows');
         save();
