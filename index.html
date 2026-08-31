@@ -258,6 +258,13 @@
         td { padding: 11px 14px; border-bottom: 1px solid #f1f2f4; }
         tr:hover { background: var(--surface); }
         .empty-log { text-align: center; color: var(--text-light); padding: 30px; }
+        /* Jobs the importer could not label: amber so they stand out for manual fixing */
+        tr.row-uncat { background: #fffaeb; }
+        tr.row-uncat:hover { background: #fef3c7; }
+        .cat-uncat {
+            display: inline-block; padding: 2px 8px; border-radius: 999px;
+            background: #fde68a; color: #92400e; font-size: 11px; font-weight: 600;
+        }
 
         /* Toast */
         .toast {
@@ -985,6 +992,9 @@
             column header, plus price, phone and email pulled out of the text, and the block's exact wording copied into the
             note. The <strong>cell color decides the category</strong>; you map each color to one of your categories in the
             preview (saved for next time), and anything mentioning a <em>move</em> is categorized as a move regardless of color.
+            Light blue and orange both mean <strong>Furniture Store Warehouse</strong> (Miami Gardens and Tamarac), red means
+            <strong>Furniture Store Floor Models</strong> and lime green <strong>Junk Removal</strong>; any other color imports as
+            <strong>Uncategorized</strong> and is highlighted amber in the Entry Log so you can set it by hand.
             Blocks already imported are flagged as duplicates so re-uploading the same sheet is safe.
             <em>CSV loses the colors &mdash; the .xlsx download is required.</em>
         </p>
@@ -1005,6 +1015,7 @@
             <label class="range-label">From <input type="date" id="filterFrom" onchange="entryPage=1;renderLog()"></label>
             <label class="range-label">To <input type="date" id="filterTo" onchange="entryPage=1;renderLog()"></label>
             <button class="btn btn-outline btn-sm" onclick="clearFilters()">Clear Filters</button>
+            <button class="btn btn-outline btn-sm" id="uncatJumpBtn" style="display:none;border-color:#b45309;color:#b45309;" onclick="showUncategorizedJobs()"></button>
         </div>
         <div class="table-scroll">
             <table class="log-table">
@@ -2015,6 +2026,7 @@ function mapCloudJob(e) {
         storeName: e.store_name || '', referredBy: e.referred_by || '', note: e.note || ''
     };
     stripGuessedCustomerNames([job]);
+    normalizeJobCategories([job]);
     return job;
 }
 
@@ -2150,9 +2162,10 @@ async function loadFromSupabase() {
             console.log('[SYNC] Merged ' + localOnlyJobs + ' local-only jobs, ' + localOnlyFin + ' local-only finance entries');
         }
 
-        if (cloudCats.length > 0) categories = cloudCats;
+        categories = canonicalCategoryList(cloudCats.length > 0 ? cloudCats : categories);
         entries = cloudJobs;
         financeEntries = cloudFinance;
+        normalizeJobCategories(entries);
 
         localStorage.setItem('fhd_categories', JSON.stringify(categories));
         localStorage.setItem('fhd_entries', JSON.stringify(entries));
@@ -2525,9 +2538,41 @@ var FINANCE_COLORS = {
 /* ═══════════════════════════════════════
    STATE
    ═══════════════════════════════════════ */
-var categories = JSON.parse(localStorage.getItem('fhd_categories')) || [
-    'Furniture Store Jobs', 'Repeat Customers', 'Online Customers'
+/* One set of job categories drives the Entry Log, the Job Distribution chart
+   and every per-category statistic. The schedule sheet's two warehouse colors
+   (Miami Gardens light blue, Tamarac orange) are the same business category,
+   and red is floor/display models. Anything that cannot be identified lands in
+   Uncategorized so it can be completed by hand. */
+var JOB_UNCATEGORIZED = 'Uncategorized';
+var JOB_CATEGORIES = [
+    'Furniture Store Warehouse', 'Furniture Store Floor Models', 'Move',
+    'Junk Removal', 'Repeat Customers', 'Online Customers', JOB_UNCATEGORIZED
 ];
+var LEGACY_JOB_CATEGORIES = {
+    'miami gardens pickup': 'Furniture Store Warehouse',
+    'tamarac pickup': 'Furniture Store Warehouse',
+    'warehouse pickup': 'Furniture Store Warehouse',
+    'furniture store jobs': 'Furniture Store Warehouse',
+    'furniture store warehouse': 'Furniture Store Warehouse',
+    'floor model': 'Furniture Store Floor Models',
+    'floor models': 'Furniture Store Floor Models',
+    'display model': 'Furniture Store Floor Models',
+    'display models': 'Furniture Store Floor Models',
+    'furniture store floor models': 'Furniture Store Floor Models',
+    'move': 'Move', 'moves': 'Move', 'moving': 'Move', 'moving job': 'Move',
+    'junk removal': 'Junk Removal',
+    'repeat customer': 'Repeat Customers', 'repeat customers': 'Repeat Customers',
+    'online customer': 'Online Customers', 'online customers': 'Online Customers',
+    'uncategorized': JOB_UNCATEGORIZED
+};
+/* Renames the old labels; a category the user invented is left alone. */
+function canonicalJobCategory(name) {
+    var key = String(name || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    if (!key) return JOB_UNCATEGORIZED;
+    return LEGACY_JOB_CATEGORIES[key] || String(name).trim();
+}
+
+var categories = JSON.parse(localStorage.getItem('fhd_categories')) || JOB_CATEGORIES.slice();
 var entries = JSON.parse(localStorage.getItem('fhd_entries')) || [];
 var financeEntries = JSON.parse(localStorage.getItem('fhd_finance')) || [];
 var financeTypes = JSON.parse(localStorage.getItem('fhd_financeTypes')) || [
@@ -2602,6 +2647,40 @@ if (stripGuessedCustomerNames(entries)) {
     localStorage.setItem('fhd_entries', JSON.stringify(entries));
     localStorage.setItem('fhd_dirty', '1');
 }
+
+/* A job whose category is not one the dashboard knows about would vanish from
+   the chart and the per-category totals, so it becomes Uncategorized instead. */
+function normalizeJobCategories(list) {
+    var known = {};
+    categories.forEach(function(c) { known[c] = 1; });
+    var changed = 0;
+    list.forEach(function(e) {
+        var name = canonicalJobCategory(e.category);
+        if (!known[name]) name = JOB_UNCATEGORIZED;
+        if (name !== e.category) { e.category = name; changed++; }
+    });
+    return changed;
+}
+/* The six business categories first, then anything the user added themselves. */
+function canonicalCategoryList(list) {
+    var renamed = [];
+    (list || []).forEach(function(c) {
+        var name = canonicalJobCategory(c);
+        if (name && renamed.indexOf(name) === -1) renamed.push(name);
+    });
+    return JOB_CATEGORIES.concat(renamed.filter(function(c) { return JOB_CATEGORIES.indexOf(c) === -1; }));
+}
+(function migrateJobCategories() {
+    var before = JSON.stringify(categories);
+    categories = canonicalCategoryList(categories);
+    var changed = JSON.stringify(categories) !== before;
+    if (normalizeJobCategories(entries)) changed = true;
+    if (changed) {
+        localStorage.setItem('fhd_categories', JSON.stringify(categories));
+        localStorage.setItem('fhd_entries', JSON.stringify(entries));
+        localStorage.setItem('fhd_dirty', '1');
+    }
+})();
 
 var chimeEntries = JSON.parse(localStorage.getItem('fhd_chime')) || [];
 var currentPeriod = 'weekly';
@@ -2945,6 +3024,7 @@ function addCategory() {
 
 function removeCategory(i) {
     var name = categories[i];
+    if (name === JOB_UNCATEGORIZED) return toast('Uncategorized holds jobs that still need a category and cannot be removed.');
     if (!confirm('Remove "' + name + '"? Entries in this category will also be deleted.')) return;
     entries = entries.filter(function(e) { return e.category !== name; });
     categories.splice(i, 1); save(); renderAll();
@@ -3163,13 +3243,14 @@ function confirmDupeSubmit() {
    ═══════════════════════════════════════ */
 function updateConditionalFields() {
     var cat = document.getElementById('entryCategory').value;
-    document.getElementById('furnitureStoreField').classList.toggle('visible', cat === 'Furniture Store Jobs');
+    var isStore = cat === 'Furniture Store Warehouse' || cat === 'Furniture Store Floor Models';
+    document.getElementById('furnitureStoreField').classList.toggle('visible', isStore);
     document.getElementById('referredByField').classList.toggle('visible', cat === 'Online Customers');
-    if (cat !== 'Furniture Store Jobs') document.getElementById('entryStoreName').value = '';
+    if (!isStore) document.getElementById('entryStoreName').value = '';
     if (cat !== 'Online Customers') document.getElementById('entryReferredBy').value = '';
     /* A hidden required field blocks submission with an unfocusable-element
        error, so these are only required while their category is selected. */
-    document.getElementById('entryStoreName').required = cat === 'Furniture Store Jobs';
+    document.getElementById('entryStoreName').required = isStore;
     document.getElementById('entryReferredBy').required = cat === 'Online Customers';
 }
 document.getElementById('entryCategory').addEventListener('change', updateConditionalFields);
@@ -3200,7 +3281,8 @@ document.getElementById('entryForm').addEventListener('submit', function(e) {
         ['entryPhone', 'Phone Number'], ['entryEmail', 'Email'], ['entryNote', 'Note'],
         ['entryStatus', 'Job Status']
     ];
-    if (cat === 'Furniture Store Jobs') mustFill.push(['entryStoreName', 'Furniture Store Name']);
+    var isStoreCat = cat === 'Furniture Store Warehouse' || cat === 'Furniture Store Floor Models';
+    if (isStoreCat) mustFill.push(['entryStoreName', 'Furniture Store Name']);
     if (cat === 'Online Customers') mustFill.push(['entryReferredBy', 'Referred By']);
     for (var i = 0; i < mustFill.length; i++) {
         var fld = document.getElementById(mustFill[i][0]);
@@ -3213,7 +3295,7 @@ document.getElementById('entryForm').addEventListener('submit', function(e) {
         customer: document.getElementById('entryCustomer').value.trim(),
         phone: document.getElementById('entryPhone').value.trim(),
         email: document.getElementById('entryEmail').value.trim(),
-        storeName: cat === 'Furniture Store Jobs' ? document.getElementById('entryStoreName').value.trim() : '',
+        storeName: isStoreCat ? document.getElementById('entryStoreName').value.trim() : '',
         referredBy: cat === 'Online Customers' ? document.getElementById('entryReferredBy').value : '',
         note: noteVal,
         invoices: pendingInvoices.slice(),
@@ -3334,7 +3416,22 @@ function filterByDateRange(list, fromId, toId) {
 
 function setEntryPage(p) { entryPage = p; renderLog(); }
 
+/* Shortcut to the jobs that still need a category picked by hand. */
+function showUncategorizedJobs() {
+    document.getElementById('filterCategory').value = JOB_UNCATEGORIZED;
+    entryPage = 1;
+    renderLog();
+}
+function updateUncatJumpBtn() {
+    var btn = document.getElementById('uncatJumpBtn');
+    if (!btn) return;
+    var count = entries.filter(function(e) { return e.category === JOB_UNCATEGORIZED; }).length;
+    btn.style.display = count > 0 ? 'inline-block' : 'none';
+    btn.textContent = 'Uncategorized (' + count + ')';
+}
+
 function renderLog() {
+    updateUncatJumpBtn();
     var catFilter = document.getElementById('filterCategory').value;
     var monthFilter = document.getElementById('filterMonth').value;
     var searchTerm = (document.getElementById('entrySearchBar').value || '').trim().toLowerCase();
@@ -3386,7 +3483,9 @@ function renderLog() {
         var statusClass = statusVal.toLowerCase().replace(/\s+/g, '-');
         var statusCell = '<select class="job-status-select ' + statusClass + '" onchange="updateJobStatus(' + e.id + ',this.value,this)">' + ['Pending','Confirmed','In Progress','Completed'].map(function(s) { return '<option value="' + s + '"' + (statusVal === s ? ' selected' : '') + '>' + s + '</option>'; }).join('') + '</select>';
         var noteText = e.note || '\u2014';
-        return '<tr><td><input type="checkbox" class="entry-select-cb" value="' + e.id + '" onchange="updateEntryBulkBtn()"></td><td class="nowrap">' + e.date + '</td><td>' + esc(e.category) + '</td><td>' + esc(e.customer || '\u2014') + '</td><td class="nowrap">' + esc(e.phone || '\u2014') + '</td><td>' + esc(e.email || '\u2014') + '</td><td>' + esc(details || '\u2014') + '</td><td>' + e.amount + '</td><td class="nowrap">' + rev + '</td><td class="note-cell" title="' + esc(noteText) + '" onclick="this.classList.toggle(\'expanded\')"><span>' + esc(noteText) + '</span></td><td>' + statusCell + '</td><td>' + docsCell + '</td><td class="action-cell"><button class="btn-edit" onclick="editEntry(' + e.id + ')" title="Edit">&#9998;</button><button class="btn btn-danger" onclick="deleteEntry(' + e.id + ')" title="Delete">&times;</button></td></tr>';
+        var uncat = e.category === JOB_UNCATEGORIZED;
+        var catCell = uncat ? '<span class="cat-uncat">' + esc(e.category) + '</span>' : esc(e.category);
+        return '<tr' + (uncat ? ' class="row-uncat"' : '') + '><td><input type="checkbox" class="entry-select-cb" value="' + e.id + '" onchange="updateEntryBulkBtn()"></td><td class="nowrap">' + e.date + '</td><td>' + catCell + '</td><td>' + esc(e.customer || '\u2014') + '</td><td class="nowrap">' + esc(e.phone || '\u2014') + '</td><td>' + esc(e.email || '\u2014') + '</td><td>' + esc(details || '\u2014') + '</td><td>' + e.amount + '</td><td class="nowrap">' + rev + '</td><td class="note-cell" title="' + esc(noteText) + '" onclick="this.classList.toggle(\'expanded\')"><span>' + esc(noteText) + '</span></td><td>' + statusCell + '</td><td>' + docsCell + '</td><td class="action-cell"><button class="btn-edit" onclick="editEntry(' + e.id + ')" title="Edit">&#9998;</button><button class="btn btn-danger" onclick="deleteEntry(' + e.id + ')" title="Delete">&times;</button></td></tr>';
     }).join('');
 
     pagDiv.innerHTML = buildPagination(entryPage, totalPages, filtered.length, 'setEntryPage');
@@ -3571,7 +3670,8 @@ function editEntry(id) {
 
 function updateEditConditionalFields() {
     var cat = document.getElementById('editJobCategory').value;
-    document.getElementById('editFurnitureStoreField').style.display = cat === 'Furniture Store Jobs' ? 'block' : 'none';
+    var isStore = cat === 'Furniture Store Warehouse' || cat === 'Furniture Store Floor Models';
+    document.getElementById('editFurnitureStoreField').style.display = isStore ? 'block' : 'none';
     document.getElementById('editReferredByField').style.display = cat === 'Online Customers' ? 'block' : 'none';
 }
 
@@ -3593,7 +3693,8 @@ function saveJobEdit() {
     entry.customer = document.getElementById('editJobCustomer').value.trim();
     entry.phone = document.getElementById('editJobPhone').value.trim();
     entry.email = document.getElementById('editJobEmail').value.trim();
-    entry.storeName = cat === 'Furniture Store Jobs' ? document.getElementById('editJobStoreName').value.trim() : '';
+    var editIsStore = cat === 'Furniture Store Warehouse' || cat === 'Furniture Store Floor Models';
+    entry.storeName = editIsStore ? document.getElementById('editJobStoreName').value.trim() : '';
     entry.referredBy = cat === 'Online Customers' ? document.getElementById('editJobReferredBy').value : '';
     entry.note = document.getElementById('editJobNote').value.trim();
 
@@ -4202,10 +4303,11 @@ function importData(event) {
     reader.onload = function() {
         try {
             var obj = JSON.parse(reader.result);
-            if (Array.isArray(obj.categories)) categories = obj.categories;
+            if (Array.isArray(obj.categories)) categories = canonicalCategoryList(obj.categories);
             if (Array.isArray(obj.entries)) entries = dedupeJobs(obj.entries);
             if (Array.isArray(obj.financeEntries)) financeEntries = obj.financeEntries;
             if (Array.isArray(obj.chimeEntries)) chimeEntries = obj.chimeEntries;
+            normalizeJobCategories(entries);
             save(); renderAll(); renderFinanceAll(); renderChimeAll();
             toast('Data imported successfully!');
         } catch(err) { toast('Invalid file format.'); }
@@ -6620,14 +6722,24 @@ var schedPage = 1;
 var SCHED_PAGE_SIZE = 150;
 var SCHED_SKIP = '__skip__';
 var schedColorMap = readJSON('fhd_sheetColorMap', {});
+/* Color choices saved before the categories were consolidated still name the
+   old labels, so they are renamed the same way the job list is. */
+Object.keys(schedColorMap).forEach(function(hex) {
+    var v = schedColorMap[hex];
+    if (v && v !== SCHED_SKIP) schedColorMap[hex] = canonicalJobCategory(v);
+});
+/* Sheet colors: light blue is the Miami Gardens warehouse and orange/yellow the
+   Tamarac one — both are furniture store warehouse work — red is floor/display
+   models and lime green is junk removal. Every other color is left for the user
+   to map and imports as Uncategorized. */
 var SCHED_COLOR_SUGGESTIONS = {
-    cyan: 'Miami Gardens Pickup',
-    red: 'Floor Models',
+    cyan: 'Furniture Store Warehouse',
+    red: 'Furniture Store Floor Models',
     green: 'Junk Removal',
-    orange: 'Tamarac Pickup',
-    yellow: 'Tamarac Pickup'
+    orange: 'Furniture Store Warehouse',
+    yellow: 'Furniture Store Warehouse'
 };
-var SCHED_MOVE_CATEGORY = 'Moves';
+var SCHED_MOVE_CATEGORY = 'Move';
 
 function schedRefToPos(ref) {
     var m = /^([A-Z]+)(\d+)$/.exec(ref);
@@ -6931,12 +7043,17 @@ function schedBuildRows() {
             var price = schedExtractPrice(cell.text);
             var phone = schedExtractPhone(cell.text);
             var dupe = !!existing[schedDupKey(date, cell.text)];
+            /* A mapped fill color is the reliable signal; "move"/"moves"/
+               "$120/h move" wording only decides the blocks whose color says
+               nothing. Anything still unknown imports as Uncategorized. */
+            var colorCat = mapped === SCHED_SKIP ? '' : mapped;
+            var textMove = useMove && move && !colorCat;
             schedRows.push({
                 date: date,
                 sheet: sh.name,
                 color: cell.color,
-                skip: mapped === SCHED_SKIP && !(useMove && move),
-                category: (useMove && move) ? moveCatVal : (mapped === SCHED_SKIP ? '' : mapped),
+                skip: mapped === SCHED_SKIP && !textMove,
+                category: textMove ? moveCatVal : (colorCat || JOB_UNCATEGORIZED),
                 customer: '',
                 phone: phone,
                 email: schedExtractEmail(cell.text),
@@ -6986,7 +7103,9 @@ async function handleScheduleFile(input) {
 }
 
 function schedCategoryOptions(selected, withSkip) {
-    var opts = '<option value="">— No category —</option>';
+    /* An unmapped color is not dropped: it imports as Uncategorized and is
+       highlighted in the Entry Log so it can be set by hand. */
+    var opts = '<option value="">— Uncategorized —</option>';
     if (withSkip) opts += '<option value="' + SCHED_SKIP + '"' + (selected === SCHED_SKIP ? ' selected' : '') + '>— Skip, do not import —</option>';
     var known = categories.slice();
     if (selected && selected !== SCHED_SKIP && known.indexOf(selected) === -1) known.push(selected);
@@ -7155,7 +7274,7 @@ function confirmScheduleImport() {
         var row = {
             id: base + i,
             date: r.date,
-            category: r.category,
+            category: r.category || JOB_UNCATEGORIZED,
             amount: 1,
             revenue: r.revenue === null ? 0 : r.revenue,
             customer: r.customer,
