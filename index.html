@@ -276,6 +276,12 @@
             backdrop-filter: blur(12px);
         }
         .toast.show { transform: translateY(0); opacity: 1; }
+        .toast.sticky { cursor: pointer; padding-right: 40px; }
+        .toast .toast-close {
+            position: absolute; top: 8px; right: 12px; font-size: 16px; line-height: 1;
+            opacity: 0.6; display: none;
+        }
+        .toast.sticky .toast-close { display: block; }
 
         footer { text-align: center; padding: 24px; color: var(--text-light); font-size: 13px; }
         .io-row { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -5480,11 +5486,33 @@ function dl(blob, name) {
 }
 function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 function today() { return new Date().toISOString().slice(0, 10); }
-function toast(msg, isError) {
-    var t = document.getElementById('toast'); t.textContent = msg;
+/* A sticky toast waits to be clicked away: import summaries report counts worth
+   reading, and 2.5 seconds is not long enough to read them. */
+function toast(msg, isError, sticky) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    if (sticky) t.insertAdjacentHTML('beforeend', '<span class="toast-close" aria-hidden="true">&times;</span>');
     t.style.background = isError ? '#dc2626' : '#0f2744';
-    t.classList.add('show'); clearTimeout(t._tm);
-    t._tm = setTimeout(function() { t.classList.remove('show'); }, isError ? 6000 : 2500);
+    t.classList.toggle('sticky', !!sticky);
+    t.classList.add('show');
+    clearTimeout(t._tm);
+    t.onclick = function() { clearTimeout(t._tm); t.classList.remove('show'); };
+    if (!sticky) t._tm = setTimeout(function() { t.classList.remove('show'); }, isError ? 6000 : 2500);
+}
+
+/* Long dollar figures were clipped to "$37270…" in the summary bubbles. Shrink
+   the digits to whatever fits the card instead of cutting them off. */
+function fitStatNumbers() {
+    var nums = document.querySelectorAll('.summary-card .num');
+    for (var i = 0; i < nums.length; i++) {
+        var el = nums[i];
+        el.style.fontSize = '';
+        var size = parseFloat(getComputedStyle(el).fontSize);
+        while (size > 11 && el.scrollWidth > el.clientWidth) {
+            size -= 1;
+            el.style.fontSize = size + 'px';
+        }
+    }
 }
 
 /* ═══════════════════════════════════════
@@ -7834,7 +7862,8 @@ function confirmScheduleImport() {
     toast('Imported ' + added + ' job' + (added === 1 ? '' : 's') +
         (skipped ? ' \u00b7 skipped ' + skipped + ' already imported' : '') +
         (flagged ? ' \u00b7 flagged ' + flagged + ' look-alike block' + (flagged === 1 ? '' : 's') + ' for review' : '') +
-        (newCats.length ? ' · added ' + newCats.length + ' new categor' + (newCats.length === 1 ? 'y' : 'ies') : ''));
+        (newCats.length ? ' · added ' + newCats.length + ' new categor' + (newCats.length === 1 ? 'y' : 'ies') : ''),
+        false, true);
 }
 
 /* ═══════════════════════════════════════
@@ -7930,7 +7959,20 @@ migrateImportedFinance();
     console.log('[JOBS] Removed ' + removed + ' job block(s) that were imported more than once');
     renderAll();
     toast('Removed ' + removed + ' job block' + (removed === 1 ? '' : 's') +
-        ' that had been imported more than once.');
+        ' that had been imported more than once.', false, true);
+})();
+
+/* Every render path rebuilds its summary strip from scratch, so refit from one
+   place rather than threading a call through each renderer. */
+(function watchStatNumbers() {
+    var queued = false;
+    new MutationObserver(function() {
+        if (queued) return;
+        queued = true;
+        requestAnimationFrame(function() { queued = false; fitStatNumbers(); });
+    }).observe(document.body, { childList: true, subtree: true });
+    window.addEventListener('resize', fitStatNumbers);
+    fitStatNumbers();
 })();
 
 document.getElementById('entryDate').value = today();
