@@ -42,8 +42,12 @@ CREATE TABLE IF NOT EXISTS finance_entries (
     type        TEXT NOT NULL,
     amount      NUMERIC(12,2) NOT NULL,
     note        TEXT,
+    source      TEXT,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Migration: remember which account a row came from (Checking / Credit Card)
+ALTER TABLE finance_entries ADD COLUMN IF NOT EXISTS source TEXT;
 
 -- 4. App state table — one row per (user, key) holding a JSON blob for the
 --    dashboard data that has no table of its own: expense types, team members,
