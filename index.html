@@ -833,7 +833,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v78</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v79</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -1229,6 +1229,31 @@
                     </tr>
                 </thead>
                 <tbody id="importLogBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Accounting Check -->
+    <div class="card full-width">
+        <h2><span class="icon">&#129518;</span> Accounting Check</h2>
+        <p style="font-size:12px;color:#64748b;margin:-4px 0 10px;">Every figure on this page, shown with the rows behind it &mdash; and anything
+            that would make those figures wrong. Export the ledger for your accountant from here.</p>
+        <div id="auditHeadline"></div>
+        <div id="auditWarnings"></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0;">
+            <button class="btn btn-outline btn-sm" onclick="exportLedgerCSV()">&#128229; Ledger CSV</button>
+            <button class="btn btn-outline btn-sm" onclick="exportMonthlyCSV()">&#128229; Monthly summary CSV</button>
+        </div>
+        <div style="overflow-x:auto;">
+            <table class="finance-table">
+                <thead><tr><th>Month</th><th>Rows</th><th>Money in</th><th>Money out</th><th>Net</th></tr></thead>
+                <tbody id="auditMonthBody"></tbody>
+            </table>
+        </div>
+        <div style="overflow-x:auto;margin-top:14px;">
+            <table class="finance-table">
+                <thead><tr><th>Category</th><th>Direction</th><th>Rows</th><th>Total</th></tr></thead>
+                <tbody id="auditTypeBody"></tbody>
             </table>
         </div>
     </div>
@@ -2060,7 +2085,9 @@ function mapCloudJob(e) {
 }
 
 function mapCloudFinance(e) {
-    return { id: e.id, date: e.date, type: e.type, amount: parseFloat(e.amount), note: e.note || '' };
+    var row = { id: e.id, date: e.date, type: e.type, amount: parseFloat(e.amount), note: e.note || '' };
+    if (e.source) row.source = e.source;
+    return row;
 }
 
 /* PostgREST caps a response at 1000 rows, so a plain select silently truncates
@@ -2081,13 +2108,58 @@ async function selectAllRows(table, orderColumn) {
     }
 }
 
-/* Insert in chunks so a large import does not exceed the request body limit. */
+/* Insert in chunks so a large import does not exceed the request body limit.
+   Every inserted id is collected: a chunk that fails halfway used to leave the
+   cloud holding part of a ledger, which is how a 1,753 job list came back as a
+   round 1,000. The caller rolls the partial batch back with these ids. */
 async function insertRows(table, rows) {
+    var ids = [];
     for (var i = 0; i < rows.length; i += 500) {
-        var res = await supaClient.from(table).insert(rows.slice(i, i + 500));
+        var res = await supaClient.from(table).insert(rows.slice(i, i + 500)).select('id');
+        if (res.error) return { error: res.error, ids: ids };
+        (res.data || []).forEach(function(r) { ids.push(r.id); });
+    }
+    return { error: null, ids: ids };
+}
+
+async function deleteIds(table, ids) {
+    for (var i = 0; i < ids.length; i += 200) {
+        var res = await supaClient.from(table).delete().in('id', ids.slice(i, i + 200));
         if (res.error) return res;
     }
     return { error: null };
+}
+
+async function selectIds(table) {
+    var ids = [];
+    for (var from = 0; ; from += SUPA_PAGE) {
+        var res = await supaClient.from(table).select('id').eq('user_id', currentUser.id)
+            .range(from, from + SUPA_PAGE - 1);
+        if (res.error) throw res.error;
+        var page = res.data || [];
+        page.forEach(function(r) { ids.push(r.id); });
+        if (page.length < SUPA_PAGE) return ids;
+    }
+}
+
+/* Replaces a table's rows without ever leaving a gap: the new rows go in
+   first, the previous ones are deleted only once every insert has landed, and
+   a failure mid-way takes the half-written batch back out. The worst case is a
+   duplicate, which the load path collapses; the old code's worst case was a
+   silently truncated ledger. */
+async function replaceRows(table, rows) {
+    var oldIds = await selectIds(table);
+    if (rows.length > 0) {
+        var ins = await insertRows(table, rows);
+        if (ins.error) {
+            if (ins.ids.length) await deleteIds(table, ins.ids);
+            throw ins.error;
+        }
+    }
+    if (oldIds.length) {
+        var del = await deleteIds(table, oldIds);
+        if (del.error) throw del.error;
+    }
 }
 
 /* Pull rows other devices added since our last load into the local state, so the
@@ -2235,52 +2307,44 @@ async function syncToSupabase() {
     try {
         await mergeRemoteAdditions();
 
-        var r1 = await supaClient.from('categories').delete().eq('user_id', currentUser.id);
-        if (r1.error) throw r1.error;
-        if (categories.length > 0) {
-            var catRows = categories.map(function(name, i) {
-                return { user_id: currentUser.id, name: name, sort_order: i };
-            });
-            var r2 = await insertRows('categories', catRows);
-            if (r2.error) throw r2.error;
+        await replaceRows('categories', categories.map(function(name, i) {
+            return { user_id: currentUser.id, name: name, sort_order: i };
+        }));
+
+        var jobRows = entries.map(function(e) {
+            var row = {
+                user_id: currentUser.id, date: e.date, category: e.category, amount: e.amount,
+                customer: e.customer || null, phone: e.phone || null, email: e.email || null,
+                store_name: e.storeName || null, referred_by: e.referredBy || null, note: e.note || null
+            };
+            if (typeof e.revenue === 'number') row.revenue = e.revenue;
+            return row;
+        });
+        try {
+            await replaceRows('job_entries', jobRows);
+        } catch (jobErr) {
+            /* A project created before the revenue column existed rejects it. */
+            if (!jobErr.message || jobErr.message.indexOf('revenue') === -1) throw jobErr;
+            await replaceRows('job_entries', jobRows.map(function(r) {
+                var c = Object.assign({}, r); delete c.revenue; return c;
+            }));
         }
 
-        var r3 = await supaClient.from('job_entries').delete().eq('user_id', currentUser.id);
-        if (r3.error) throw r3.error;
-        if (entries.length > 0) {
-            var jobRows = entries.map(function(e) {
-                var row = {
-                    user_id: currentUser.id, date: e.date, category: e.category, amount: e.amount,
-                    customer: e.customer || null, phone: e.phone || null, email: e.email || null,
-                    store_name: e.storeName || null, referred_by: e.referredBy || null, note: e.note || null
-                };
-                if (typeof e.revenue === 'number') row.revenue = e.revenue;
-                return row;
-            });
-            var r4 = await insertRows('job_entries', jobRows);
-            if (r4.error) {
-                if (r4.error.message && r4.error.message.indexOf('revenue') !== -1) {
-                    var fallbackRows = jobRows.map(function(r) { var c = Object.assign({}, r); delete c.revenue; return c; });
-                    await supaClient.from('job_entries').delete().eq('user_id', currentUser.id);
-                    var r4b = await insertRows('job_entries', fallbackRows);
-                    if (r4b.error) throw r4b.error;
-                } else {
-                    throw r4.error;
-                }
-            }
-        }
-
-        var r5 = await supaClient.from('finance_entries').delete().eq('user_id', currentUser.id);
-        if (r5.error) throw r5.error;
-        if (financeEntries.length > 0) {
-            var finRows = financeEntries.map(function(e) {
-                return {
-                    user_id: currentUser.id, date: e.date, type: e.type,
-                    amount: e.amount, note: e.note || null
-                };
-            });
-            var r6 = await insertRows('finance_entries', finRows);
-            if (r6.error) throw r6.error;
+        var finRows = financeEntries.map(function(e) {
+            return {
+                user_id: currentUser.id, date: e.date, type: e.type,
+                amount: e.amount, note: e.note || null, source: e.source || null
+            };
+        });
+        try {
+            await replaceRows('finance_entries', finRows);
+        } catch (finErr) {
+            /* Which account a row came from is only kept once the setup SQL has
+               added the column; without it the ledger still syncs. */
+            if (!finErr.message || finErr.message.indexOf('source') === -1) throw finErr;
+            await replaceRows('finance_entries', finRows.map(function(r) {
+                var c = Object.assign({}, r); delete c.source; return c;
+            }));
         }
         setCloudSnapshot(entries, financeEntries, categories);
         localStorage.removeItem('fhd_dirty');
@@ -5419,6 +5483,179 @@ function renderImportLog() {
     }).join('');
 }
 
+/* ═══════════════════════════════════════
+   ACCOUNTING CHECK
+   Shows the arithmetic behind every headline figure and the rows that feed it,
+   so a number can be traced instead of trusted, and flags the things that
+   silently make a ledger wrong: duplicated rows, zero amounts, dates in the
+   future and rows nobody has categorized yet.
+   ═══════════════════════════════════════ */
+function ledgerRowKey(e) {
+    return [e.date || '', e.type || '', Number(e.amount).toFixed(2),
+        (e.note || '').trim().toLowerCase()].join('|');
+}
+
+function auditFindings() {
+    var dupGroups = {};
+    financeEntries.forEach(function(e) {
+        var k = ledgerRowKey(e);
+        (dupGroups[k] = dupGroups[k] || []).push(e);
+    });
+    var dupExtra = 0;
+    Object.keys(dupGroups).forEach(function(k) { dupExtra += dupGroups[k].length - 1; });
+
+    var todayStr = localDateStr(new Date());
+    return {
+        duplicates: dupExtra,
+        badAmount: financeEntries.filter(function(e) { return !(Number(e.amount) > 0); }).length,
+        future: financeEntries.filter(function(e) { return e.date > todayStr; }).length,
+        undated: financeEntries.filter(function(e) { return !e.date; }).length,
+        uncategorized: financeEntries.filter(function(e) {
+            return e.type === UNCATEGORIZED || e.type === UNCATEGORIZED_INCOME;
+        }).length,
+        unknownType: financeEntries.filter(function(e) {
+            return financeTypes.indexOf(e.type) === -1 && financeIncomeTypes.indexOf(e.type) === -1;
+        }).length
+    };
+}
+
+/* Two rows identical down to the note are the same statement line imported
+   twice; one of each is kept. */
+function removeDuplicateLedgerRows() {
+    var seen = {};
+    var kept = [];
+    var removed = 0;
+    financeEntries.forEach(function(e) {
+        var k = ledgerRowKey(e);
+        if (seen[k]) { removed++; return; }
+        seen[k] = true;
+        kept.push(e);
+    });
+    if (!removed) { toast('No duplicate ledger rows found.'); return; }
+    if (!confirm('Remove ' + removed + ' duplicate row' + (removed === 1 ? '' : 's') +
+        ' from the Finance Log? One copy of each is kept.')) return;
+    financeEntries = kept;
+    save();
+    renderFinanceAll();
+    toast('Removed ' + removed + ' duplicate ledger row' + (removed === 1 ? '' : 's') + '.', false, true);
+}
+
+function renderAudit() {
+    var head = document.getElementById('auditHeadline');
+    if (!head) return;
+    var income = financeEntries.filter(isIncomeEntry);
+    var expense = financeEntries.filter(isExpenseEntry);
+    var rev = income.reduce(function(s, e) { return s + e.amount; }, 0);
+    var exp = expense.reduce(function(s, e) { return s + e.amount; }, 0);
+
+    head.innerHTML =
+        '<div style="font-size:13px;line-height:1.9;color:#334155;">' +
+        '<div><strong>Total Revenue ' + money(rev) + '</strong> = the ' + income.length +
+            ' ledger rows whose category is a revenue category, added up.</div>' +
+        '<div><strong>Total Expenses ' + money(exp) + '</strong> = the ' + expense.length +
+            ' ledger rows whose category is an expense category, added up.</div>' +
+        '<div><strong>Net Profit ' + money(rev - exp) + '</strong> = revenue minus expenses.</div>' +
+        '<div style="color:#64748b;">Nothing else moves these numbers: the ' + entries.length +
+            ' Entry Log jobs (' + money(entries.reduce(function(s, e) {
+                return s + (typeof e.revenue === 'number' ? e.revenue : 0); }, 0)) +
+            ' of job value) and the ' + chimeEntries.length +
+            ' Square rows are counted on their own tabs only.</div>' +
+        '</div>';
+
+    var f = auditFindings();
+    var warn = [];
+    if (f.duplicates) warn.push('<strong>' + f.duplicates + ' duplicate row' +
+        (f.duplicates === 1 ? '' : 's') + '</strong> (same date, category, amount and note) &mdash; ' +
+        'the same statement line imported twice inflates both totals. ' +
+        '<button class="btn btn-outline btn-sm" onclick="removeDuplicateLedgerRows()">Remove duplicates</button>');
+    if (f.badAmount) warn.push(f.badAmount + ' row' + (f.badAmount === 1 ? '' : 's') +
+        ' with a zero or negative amount &mdash; a negative expense subtracts from your expenses.');
+    if (f.future) warn.push(f.future + ' row' + (f.future === 1 ? '' : 's') +
+        ' dated in the future &mdash; usually a statement year read wrong.');
+    if (f.undated) warn.push(f.undated + ' row' + (f.undated === 1 ? '' : 's') + ' with no date.');
+    if (f.uncategorized) warn.push(f.uncategorized + ' row' + (f.uncategorized === 1 ? '' : 's') +
+        ' still Uncategorized &mdash; counted in the totals, but your accountant cannot break them out.');
+    if (f.unknownType) warn.push(f.unknownType + ' row' + (f.unknownType === 1 ? '' : 's') +
+        ' using a category that no longer exists &mdash; those count as expenses.');
+    if (entries.length > 0 && entries.length % 1000 === 0) warn.push('The job count is exactly ' +
+        entries.length + '. A round thousand is what a cut-off cloud read looks like &mdash; press Sync Now and check it again.');
+
+    document.getElementById('auditWarnings').innerHTML = warn.length
+        ? '<ul style="margin:12px 0 0;padding-left:18px;font-size:13px;color:#7c2d12;line-height:2;">' +
+            warn.map(function(w) { return '<li>' + w + '</li>'; }).join('') + '</ul>'
+        : '<div style="margin-top:12px;font-size:13px;color:#166534;">No duplicated, undated, negative or ' +
+            'uncategorized rows &mdash; the ledger adds up.</div>';
+
+    var months = {};
+    financeEntries.forEach(function(e) {
+        var m = (e.date || 'no date').slice(0, 7);
+        var row = months[m] = months[m] || { n: 0, inc: 0, exp: 0 };
+        row.n++;
+        if (isIncomeEntry(e)) row.inc += e.amount; else row.exp += e.amount;
+    });
+    var monthKeys = Object.keys(months).sort().reverse();
+    document.getElementById('auditMonthBody').innerHTML = monthKeys.length
+        ? monthKeys.map(function(m) {
+            var r = months[m];
+            var net = r.inc - r.exp;
+            return '<tr><td>' + esc(m) + '</td><td>' + r.n + '</td>' +
+                '<td style="color:#059669">' + money(r.inc) + '</td>' +
+                '<td style="color:#c0392b">' + money(r.exp) + '</td>' +
+                '<td style="color:' + (net >= 0 ? '#059669' : '#c0392b') + '">' + money(net) + '</td></tr>';
+        }).join('')
+        : '<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:16px;">No ledger rows yet.</td></tr>';
+
+    var types = {};
+    financeEntries.forEach(function(e) {
+        var t = types[e.type] = types[e.type] || { n: 0, total: 0, income: isIncomeEntry(e) };
+        t.n++; t.total += e.amount;
+    });
+    var typeKeys = Object.keys(types).sort(function(a, b) { return types[b].total - types[a].total; });
+    document.getElementById('auditTypeBody').innerHTML = typeKeys.length
+        ? typeKeys.map(function(t) {
+            return '<tr><td>' + esc(t) + '</td><td>' + (types[t].income ? 'Money in' : 'Money out') +
+                '</td><td>' + types[t].n + '</td><td>' + money(types[t].total) + '</td></tr>';
+        }).join('')
+        : '<tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:16px;">No ledger rows yet.</td></tr>';
+}
+
+function csvCell(v) {
+    return '"' + String(v === undefined || v === null ? '' : v).replace(/"/g, '""') + '"';
+}
+
+function exportLedgerCSV() {
+    var rows = [['Date', 'Direction', 'Category', 'Amount', 'Account', 'Description']];
+    financeEntries.slice().sort(function(a, b) { return (a.date || '').localeCompare(b.date || ''); })
+        .forEach(function(e) {
+            rows.push([e.date || '', isIncomeEntry(e) ? 'Money in' : 'Money out', e.type,
+                Number(e.amount).toFixed(2), e.source || 'Manual', e.note || '']);
+        });
+    dl(new Blob([rows.map(function(r) { return r.map(csvCell).join(','); }).join('\n')],
+        { type: 'text/csv' }), 'fhd-ledger-' + today() + '.csv');
+}
+
+function exportMonthlyCSV() {
+    var months = {};
+    financeEntries.forEach(function(e) {
+        var m = (e.date || 'no date').slice(0, 7);
+        var row = months[m] = months[m] || {};
+        row[e.type] = (row[e.type] || 0) + e.amount;
+    });
+    var typeList = financeIncomeTypes.concat(financeTypes);
+    var rows = [['Month', 'Money in', 'Money out', 'Net'].concat(typeList)];
+    Object.keys(months).sort().forEach(function(m) {
+        var inc = 0, exp = 0;
+        typeList.forEach(function(t) {
+            var v = months[m][t] || 0;
+            if (isIncomeType(t)) inc += v; else exp += v;
+        });
+        rows.push([m, inc.toFixed(2), exp.toFixed(2), (inc - exp).toFixed(2)]
+            .concat(typeList.map(function(t) { return (months[m][t] || 0).toFixed(2); })));
+    });
+    dl(new Blob([rows.map(function(r) { return r.map(csvCell).join(','); }).join('\n')],
+        { type: 'text/csv' }), 'fhd-monthly-summary-' + today() + '.csv');
+}
+
 function closeBankPreview() {
     document.getElementById('bankPreviewModal').classList.remove('active');
     bankParsedRows = [];
@@ -7134,7 +7371,7 @@ function topExpenseCategory(range) {
 }
 
 function money(n) {
-    return (n < 0 ? '-$' : '$') + Math.abs(n).toFixed(2);
+    return (n < 0 ? '-$' : '$') + Math.abs(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
 function moneyBlock(label, sub, data) {
@@ -7875,7 +8112,7 @@ function renderAll() {
     if (document.getElementById('tab-leads').classList.contains('active')) renderContacts();
 }
 function renderFinanceAll() {
-    renderFinanceTypes(); renderFinanceSummary(); renderFinanceBreakdown(); drawFinanceChart(); renderFinanceLog(); renderImportLog(); renderMoneySnapshot();
+    renderFinanceTypes(); renderFinanceSummary(); renderFinanceBreakdown(); drawFinanceChart(); renderFinanceLog(); renderImportLog(); renderAudit(); renderMoneySnapshot();
     renderSummary(); buildChart();
 }
 
