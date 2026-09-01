@@ -833,7 +833,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v79</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v80</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -1239,6 +1239,7 @@
         <p style="font-size:12px;color:#64748b;margin:-4px 0 10px;">Every figure on this page, shown with the rows behind it &mdash; and anything
             that would make those figures wrong. Export the ledger for your accountant from here.</p>
         <div id="auditHeadline"></div>
+        <div id="auditHealth"></div>
         <div id="auditWarnings"></div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0;">
             <button class="btn btn-outline btn-sm" onclick="exportLedgerCSV()">&#128229; Ledger CSV</button>
@@ -1957,6 +1958,7 @@ async function handleSignOut() {
     }
     await supaClient.auth.signOut();
     currentUser = null;
+    _cloudCounts = null;
     updateAuthUI();
     toast('Signed out. Using local data.');
 }
@@ -2056,11 +2058,7 @@ function setSyncStatus(msg) {
     if (el && currentUser) el.textContent = msg;
 }
 
-/* Keys of the rows this device last saw in the cloud. A row that is in the cloud
-   now but not in the snapshot was created by another device; a row in the snapshot
-   but not local was deleted here. Lets the delete-then-insert upload keep other
-   devices' new rows without resurrecting locally deleted ones. */
-var _cloudSnapshot = { jobs: {}, fin: {}, cats: {} };
+var _cloudCounts = null;
 
 function keySet(list, keyFn) {
     var set = {};
@@ -2068,8 +2066,99 @@ function keySet(list, keyFn) {
     return set;
 }
 
-function setCloudSnapshot(jobs, fin, cats) {
-    _cloudSnapshot = { jobs: keySet(jobs, jobKey), fin: keySet(fin, finKey), cats: keySet(cats) };
+/* Deletions are recorded, not inferred. A row this device holds that the cloud
+   does not is otherwise ambiguous: either something added here since the last
+   sync, or something an interrupted upload dropped — and both have to be put
+   back, which is what stops one failed upload from truncating the ledger on
+   every device. That is only safe if a real deletion leaves a mark, so every
+   delete records the row's key here and the list syncs with the rest of the
+   state. Marked rows stay deleted; everything else comes back. */
+var DELETED_KEY = 'fhd_deletedRows';
+var TOMBSTONE_MS = 365 * 24 * 60 * 60 * 1000;
+var deletedRowKeys = { jobs: {}, fin: {}, cats: {} };
+
+function normalizeTombstones(raw) {
+    var out = { jobs: {}, fin: {}, cats: {} };
+    if (!raw || typeof raw !== 'object') return out;
+    ['jobs', 'fin', 'cats'].forEach(function(kind) {
+        var src = raw[kind];
+        if (!src || typeof src !== 'object') return;
+        Object.keys(src).forEach(function(k) {
+            var ts = Number(src[k]) || 0;
+            if (Date.now() - ts < TOMBSTONE_MS) out[kind][k] = ts;
+        });
+    });
+    return out;
+}
+
+function loadTombstones() {
+    deletedRowKeys = normalizeTombstones(readJSON(DELETED_KEY, null));
+}
+
+function rememberDeleted(kind, keys) {
+    if (!keys.length) return;
+    keys.forEach(function(k) { deletedRowKeys[kind][k] = Date.now(); });
+    saveState(DELETED_KEY, deletedRowKeys);
+    /* Not on the usual debounce: another device reloading in the next second
+       has to see the deletion, or it will push the row back up. */
+    if (supaClient && currentUser) pushState();
+}
+
+function dedupeIdenticalFinance(rows) {
+    var seen = {};
+    return rows.filter(function(e) {
+        var k = finKey(e) + '|' + (e.source || '');
+        if (seen[k]) return false;
+        seen[k] = true;
+        return true;
+    });
+}
+
+function rememberDeletedJobs(rows) { rememberDeleted('jobs', rows.map(jobKey)); }
+function rememberDeletedFinance(rows) { rememberDeleted('fin', rows.map(finKey)); }
+
+/* A row that exists again — retyped or re-imported — is no longer deleted. */
+function clearRevivedTombstones() {
+    var changed = false;
+    entries.forEach(function(e) {
+        var k = jobKey(e);
+        if (deletedRowKeys.jobs[k]) { delete deletedRowKeys.jobs[k]; changed = true; }
+    });
+    financeEntries.forEach(function(e) {
+        var k = finKey(e);
+        if (deletedRowKeys.fin[k]) { delete deletedRowKeys.fin[k]; changed = true; }
+    });
+    categories.forEach(function(c) {
+        if (deletedRowKeys.cats[c]) { delete deletedRowKeys.cats[c]; changed = true; }
+    });
+    if (changed) saveState(DELETED_KEY, deletedRowKeys);
+}
+
+/* The deletion list is one row of app_state, and it has to be current before
+   the merge below judges which rows the cloud is missing. */
+async function pullDeletions() {
+    if (!supaClient || !currentUser) return;
+    try {
+        var res = await supaClient.from('app_state').select('value')
+            .eq('user_id', currentUser.id).eq('key', DELETED_KEY).maybeSingle();
+        if (res.error || !res.data) return;
+        var remote = normalizeTombstones(res.data.value);
+        var merged = { jobs: {}, fin: {}, cats: {} };
+        ['jobs', 'fin', 'cats'].forEach(function(kind) {
+            Object.keys(deletedRowKeys[kind]).forEach(function(k) { merged[kind][k] = deletedRowKeys[kind][k]; });
+            Object.keys(remote[kind]).forEach(function(k) {
+                if (!merged[kind][k] || remote[kind][k] > merged[kind][k]) merged[kind][k] = remote[kind][k];
+            });
+        });
+        var grew = ['jobs', 'fin', 'cats'].some(function(kind) {
+            return Object.keys(merged[kind]).length > Object.keys(remote[kind]).length;
+        });
+        deletedRowKeys = merged;
+        if (grew) saveState(DELETED_KEY, deletedRowKeys);
+        else localStorage.setItem(DELETED_KEY, JSON.stringify(deletedRowKeys));
+    } catch (err) {
+        console.error('[SYNC] could not read the deletion list:', err);
+    }
 }
 
 function mapCloudJob(e) {
@@ -2176,18 +2265,18 @@ async function mergeRemoteAdditions() {
     var localJobKeys = keySet(entries, jobKey);
     (jobResult.data || []).map(mapCloudJob).forEach(function(e) {
         var k = jobKey(e);
-        if (!localJobKeys[k] && !_cloudSnapshot.jobs[k]) { entries.push(e); localJobKeys[k] = true; added++; }
+        if (!localJobKeys[k] && !deletedRowKeys.jobs[k]) { entries.push(e); localJobKeys[k] = true; added++; }
     });
 
     var localFinKeys = keySet(financeEntries, finKey);
     (finResult.data || []).map(mapCloudFinance).forEach(function(e) {
         var k = finKey(e);
-        if (!localFinKeys[k] && !_cloudSnapshot.fin[k]) { financeEntries.push(e); localFinKeys[k] = true; added++; }
+        if (!localFinKeys[k] && !deletedRowKeys.fin[k]) { financeEntries.push(e); localFinKeys[k] = true; added++; }
     });
 
     var localCats = keySet(categories);
     (catResult.data || []).forEach(function(c) {
-        if (!localCats[c.name] && !_cloudSnapshot.cats[c.name]) { categories.push(c.name); localCats[c.name] = true; added++; }
+        if (!localCats[c.name] && !deletedRowKeys.cats[c.name]) { categories.push(c.name); localCats[c.name] = true; added++; }
     });
 
     if (added > 0) {
@@ -2199,15 +2288,25 @@ async function mergeRemoteAdditions() {
     }
 }
 
-async function loadFromSupabase() {
+/* Loads and uploads take turns. An upload inserts the new rows before deleting
+   the old ones, so a read that lands in the middle of one sees both copies. */
+function loadFromSupabase() {
+    if (!supaClient || !currentUser) return Promise.resolve();
+    _syncChain = _syncChain.then(function() { return _loadFromSupabase(); })
+        .catch(function(err) { console.error('Load from Supabase failed:', err); });
+    return _syncChain;
+}
+
+async function _loadFromSupabase() {
     if (!supaClient || !currentUser) return;
 
     setSyncStatus('Syncing...');
 
     try {
-        await _syncChain;
+        await pullDeletions();
 
         var hasDirty = localStorage.getItem('fhd_dirty') === '1';
+        var wasDirty = hasDirty;
 
         var catResult = await selectAllRows('categories', 'sort_order');
         if (catResult.error) {
@@ -2234,35 +2333,52 @@ async function loadFromSupabase() {
         }
 
         var cloudJobs = (jobResult.data || []).map(mapCloudJob);
-        var cloudFinance = (finResult.data || []).map(mapCloudFinance);
+        /* An upload writes the new rows before removing the old ones, so a read
+           landing inside that window sees both copies. Two ledger rows alike in
+           every field are one row written twice — a real second charge differs
+           somewhere, if only in its note. */
+        var cloudFinance = dedupeIdenticalFinance((finResult.data || []).map(mapCloudFinance));
         var cloudCats = (catResult.data || []).map(function(c) { return c.name; });
 
-        setCloudSnapshot(cloudJobs, cloudFinance, cloudCats);
+        _cloudCounts = { jobs: cloudJobs.length, fin: cloudFinance.length, at: Date.now() };
 
         console.log('[SYNC] Cloud data: ' + cloudJobs.length + ' jobs, ' + cloudFinance.length + ' finance, ' + cloudCats.length + ' categories. Local dirty: ' + hasDirty + ', local jobs: ' + entries.length);
 
-        if (hasDirty && entries.length > 0) {
-            var cloudJobKeys = {};
-            cloudJobs.forEach(function(e) { cloudJobKeys[jobKey(e)] = true; });
-            var localOnlyJobs = 0;
-            entries.forEach(function(e) {
-                if (!cloudJobKeys[jobKey(e)]) {
-                    cloudJobs.push(e);
-                    localOnlyJobs++;
-                }
-            });
+        /* Rows this device holds that the cloud lost come back; rows somebody
+           deleted on purpose do not. */
+        var cloudJobKeys = keySet(cloudJobs, jobKey);
+        var keptJobs = 0;
+        entries.forEach(function(e) {
+            var k = jobKey(e);
+            if (cloudJobKeys[k] || deletedRowKeys.jobs[k]) return;
+            cloudJobs.push(e);
+            cloudJobKeys[k] = true;
+            keptJobs++;
+        });
 
-            var cloudFinKeys = {};
-            cloudFinance.forEach(function(e) { cloudFinKeys[finKey(e)] = true; });
-            var localOnlyFin = 0;
-            financeEntries.forEach(function(e) {
-                if (!cloudFinKeys[finKey(e)]) {
-                    cloudFinance.push(e);
-                    localOnlyFin++;
-                }
-            });
-            console.log('[SYNC] Merged ' + localOnlyJobs + ' local-only jobs, ' + localOnlyFin + ' local-only finance entries');
+        var cloudFinKeys = keySet(cloudFinance, finKey);
+        var keptFin = 0;
+        financeEntries.forEach(function(e) {
+            var k = finKey(e);
+            if (cloudFinKeys[k] || deletedRowKeys.fin[k]) return;
+            cloudFinance.push(e);
+            cloudFinKeys[k] = true;
+            keptFin++;
+        });
+
+        if (keptJobs + keptFin > 0) {
+            console.log('[SYNC] Kept ' + keptJobs + ' local-only jobs and ' + keptFin + ' local-only finance rows the cloud did not have');
+            hasDirty = true;
+            if (!wasDirty) {
+                toast('Restored ' + keptJobs + ' job' + (keptJobs === 1 ? '' : 's') + ' and ' + keptFin +
+                    ' ledger row' + (keptFin === 1 ? '' : 's') + ' this device had but the cloud was missing.',
+                    false, true);
+            }
         }
+
+        cloudJobs = cloudJobs.filter(function(e) { return !deletedRowKeys.jobs[jobKey(e)]; });
+        cloudFinance = cloudFinance.filter(function(e) { return !deletedRowKeys.fin[finKey(e)]; });
+        cloudCats = cloudCats.filter(function(name) { return !deletedRowKeys.cats[name]; });
 
         categories = canonicalCategoryList(cloudCats.length > 0 ? cloudCats : categories);
         entries = cloudJobs;
@@ -2346,7 +2462,7 @@ async function syncToSupabase() {
                 var c = Object.assign({}, r); delete c.source; return c;
             }));
         }
-        setCloudSnapshot(entries, financeEntries, categories);
+        _cloudCounts = { jobs: entries.length, fin: financeEntries.length, at: Date.now() };
         localStorage.removeItem('fhd_dirty');
         _lastSyncTime = Date.now();
         setSyncStatus(_realtimeChannel ? 'Live' : 'Synced');
@@ -2413,6 +2529,7 @@ function saveLocal() {
     localStorage.setItem('fhd_categories', JSON.stringify(categories));
     localStorage.setItem('fhd_entries', JSON.stringify(entries));
     localStorage.setItem('fhd_finance', JSON.stringify(financeEntries));
+    clearRevivedTombstones();
     saveState('fhd_financeTypes', financeTypes);
     saveState('fhd_financeIncomeTypes', financeIncomeTypes);
     saveState('fhd_chime', chimeEntries);
@@ -2433,7 +2550,7 @@ var STATE_KEYS = [
     'fhd_teamDrivers2', 'fhd_teamOwners', 'fhd_schedule', 'fhd_availability',
     'fhd_auditLog', 'fhd_ownerContacts', 'fhd_ownerUnavailDays', 'fhd_manualPay',
     'fhd_leads', 'fhd_contacts', 'fhd_contacts_deleted', 'fhd_sheetColorMap',
-    'fhd_importLog'
+    'fhd_importLog', 'fhd_deletedRows'
 ];
 var STATE_DIRTY_KEY = 'fhd_state_dirty';
 var _statePushTimer = null;
@@ -2556,6 +2673,7 @@ function rehydrateState() {
     deletedContactKeys = readJSON('fhd_contacts_deleted', deletedContactKeys);
     schedColorMap = readJSON('fhd_sheetColorMap', schedColorMap);
     importLog = readJSON('fhd_importLog', importLog);
+    loadTombstones();
     collapseDuplicateJobs();
     renderAll();
     renderFinanceAll();
@@ -2828,6 +2946,7 @@ function canonicalCategoryList(list) {
 var chimeEntries = JSON.parse(localStorage.getItem('fhd_chime')) || [];
 /* One record per statement upload that was actually imported. */
 var importLog = readJSON('fhd_importLog', []);
+loadTombstones();
 var currentPeriod = 'weekly';
 var chimePeriod = 'daily';
 var pendingInvoices = [];
@@ -3174,6 +3293,8 @@ function removeCategory(i) {
     var name = categories[i];
     if (name === JOB_UNCATEGORIZED) return toast('Uncategorized holds jobs that still need a category and cannot be removed.');
     if (!confirm('Remove "' + name + '"? Entries in this category will also be deleted.')) return;
+    rememberDeletedJobs(entries.filter(function(e) { return e.category === name; }));
+    rememberDeleted('cats', [name]);
     entries = entries.filter(function(e) { return e.category !== name; });
     categories.splice(i, 1); save(); renderAll();
     toast('Category "' + name + '" removed.');
@@ -3768,6 +3889,7 @@ function renderLog() {
 async function deleteEntry(id) {
     if (!confirm('Delete this entry?')) return;
     var before = entries.length;
+    rememberDeletedJobs(entries.filter(function(e) { return String(e.id) === String(id); }));
     entries = entries.filter(function(e) { return String(e.id) !== String(id); });
     var after = entries.length;
     if (before === after) {
@@ -3803,6 +3925,7 @@ function bulkDeleteEntries() {
     document.querySelectorAll('.entry-select-cb:checked').forEach(function(cb) { ids.push(cb.value); });
     if (!ids.length) return;
     showBulkDeleteWarning(ids.length, function() {
+        rememberDeletedJobs(entries.filter(function(e) { return ids.indexOf(String(e.id)) !== -1; }));
         ids.forEach(function(id) {
             entries = entries.filter(function(e) { return String(e.id) !== String(id); });
         });
@@ -3860,6 +3983,7 @@ function bulkDeleteFinEntries() {
     }
     if (!ids.length) return;
     showBulkDeleteWarning(ids.length, function() {
+        rememberDeletedFinance(financeEntries.filter(function(e) { return ids.indexOf(String(e.id)) !== -1; }));
         ids.forEach(function(id) {
             financeEntries = financeEntries.filter(function(e) { return String(e.id) !== String(id); });
         });
@@ -4476,6 +4600,7 @@ function renderFinanceLog() {
 async function deleteFinanceEntry(id) {
     if (!confirm('Delete this finance entry?')) return;
     var before = financeEntries.length;
+    rememberDeletedFinance(financeEntries.filter(function(e) { return String(e.id) === String(id); }));
     financeEntries = financeEntries.filter(function(e) { return String(e.id) !== String(id); });
     var after = financeEntries.length;
     if (before === after) {
@@ -5561,6 +5686,28 @@ function renderAudit() {
             ' of job value) and the ' + chimeEntries.length +
             ' Square rows are counted on their own tabs only.</div>' +
         '</div>';
+
+    var health = document.getElementById('auditHealth');
+    if (health) {
+        if (!currentUser) {
+            health.innerHTML = '<div style="margin-top:10px;font-size:12px;color:#64748b;">Not signed in &mdash; ' +
+                entries.length + ' jobs and ' + financeEntries.length + ' ledger rows are stored on this device only.</div>';
+        } else {
+            /* A write on its way up makes the two counts differ for a second;
+               that is not something to warn about. */
+            var uploading = _localWriteInFlight || _syncScheduled || localStorage.getItem('fhd_dirty') === '1';
+            var mismatch = !uploading && _cloudCounts &&
+                (_cloudCounts.jobs !== entries.length || _cloudCounts.fin !== financeEntries.length);
+            health.innerHTML = '<div style="margin-top:10px;font-size:12px;color:' + (mismatch ? '#b45309' : '#64748b') + ';">' +
+                'This device: ' + entries.length + ' jobs, ' + financeEntries.length + ' ledger rows. ' +
+                (_cloudCounts
+                    ? 'Cloud at last load: ' + _cloudCounts.jobs + ' jobs, ' + _cloudCounts.fin + ' ledger rows.' +
+                        (uploading ? ' Still uploading this device\'s latest changes.' : '') +
+                        (mismatch ? ' The two do not match &mdash; press Sync Now to push this device\'s copy up.' : '')
+                    : 'Cloud not read yet.') +
+                '</div>';
+        }
+    }
 
     var f = auditFindings();
     var warn = [];
