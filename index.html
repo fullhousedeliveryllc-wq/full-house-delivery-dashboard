@@ -827,7 +827,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v77</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v78</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -996,7 +996,8 @@
             Light blue and orange both mean <strong>Furniture Store Warehouse</strong> (Miami Gardens and Tamarac), red means
             <strong>Furniture Store Floor Models</strong> and lime green <strong>Junk Removal</strong>; any other color imports as
             <strong>Uncategorized</strong> and is highlighted amber in the Entry Log so you can set it by hand.
-            Blocks already imported are flagged as duplicates so re-uploading the same sheet is safe.
+            Blocks already imported are flagged so re-uploading the same sheet is safe; a block the sheet itself
+            repeats is kept as a second job and highlighted for review instead of being dropped.
             <em>CSV loses the colors &mdash; the .xlsx download is required.</em>
         </p>
     </div>
@@ -3211,7 +3212,8 @@ function exactJobKey(e) {
         (e.email || '').trim().toLowerCase(),
         e.amount || 0,
         e.revenue || 0,
-        (e.note || '').replace(/\s+/g, ' ').trim().toLowerCase()
+        (e.note || '').replace(/\s+/g, ' ').trim().toLowerCase(),
+        e.sheetSeq || 0
     ].join('|');
 }
 
@@ -3256,7 +3258,26 @@ function dedupeJobs(list) {
 function looseJobKey(e) {
     var note = (e.note || '').replace(/\s+/g, ' ').trim().toLowerCase();
     if (!note) return null;
-    return [e.date || '', e.amount || 0, e.revenue || 0, note].join('|');
+    /* Two identical-looking blocks on the same sheet page are two real jobs; the
+       sequence number the importer gave them keeps them apart forever. */
+    return [e.date || '', e.amount || 0, e.revenue || 0, note, e.sheetSeq || 0].join('|');
+}
+
+/* Identity of a schedule block ignoring which copy of it this is. The importer
+   counts copies with it, so a sheet page holding the same block twice creates
+   two jobs, while uploading that page again creates none. */
+function blockIdentityKey(e) {
+    var note = (e.note || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    if (note) return 'loose|' + [e.date || '', e.amount || 0, e.revenue || 0, note].join('|');
+    return 'exact|' + [
+        e.date || '',
+        (e.category || '').toLowerCase(),
+        (e.customer || '').trim().toLowerCase(),
+        (e.phone || '').replace(/\D/g, ''),
+        (e.email || '').trim().toLowerCase(),
+        e.amount || 0,
+        e.revenue || 0
+    ].join('|');
 }
 
 /* How much of a job is filled in — the richest copy of a duplicate is kept. */
@@ -3655,7 +3676,10 @@ function renderLog() {
         var noteText = e.note || '\u2014';
         var uncat = e.category === JOB_UNCATEGORIZED;
         var catCell = uncat ? '<span class="cat-uncat">' + esc(e.category) + '</span>' : esc(e.category);
-        return '<tr' + (uncat ? ' class="row-uncat"' : '') + '><td><input type="checkbox" class="entry-select-cb" value="' + e.id + '" onchange="updateEntryBulkBtn()"></td><td class="nowrap">' + e.date + '</td><td>' + catCell + '</td><td>' + esc(e.customer || '\u2014') + '</td><td class="nowrap">' + esc(e.phone || '\u2014') + '</td><td>' + esc(e.email || '\u2014') + '</td><td>' + esc(details || '\u2014') + '</td><td>' + e.amount + '</td><td class="nowrap">' + rev + '</td><td class="note-cell" title="' + esc(noteText) + '" onclick="this.classList.toggle(\'expanded\')"><span>' + esc(noteText) + '</span></td><td>' + statusCell + '</td><td>' + docsCell + '</td><td class="action-cell"><button class="btn-edit" onclick="editEntry(' + e.id + ')" title="Edit">&#9998;</button><button class="btn btn-danger" onclick="deleteEntry(' + e.id + ')" title="Delete">&times;</button></td></tr>';
+        if (e.sheetSeq) {
+            noteText = '\u26a0 look-alike block #' + e.sheetSeq + ' \u2014 ' + noteText;
+        }
+        return '<tr' + (uncat || e.sheetSeq ? ' class="row-uncat"' : '') + '><td><input type="checkbox" class="entry-select-cb" value="' + e.id + '" onchange="updateEntryBulkBtn()"></td><td class="nowrap">' + e.date + '</td><td>' + catCell + '</td><td>' + esc(e.customer || '\u2014') + '</td><td class="nowrap">' + esc(e.phone || '\u2014') + '</td><td>' + esc(e.email || '\u2014') + '</td><td>' + esc(details || '\u2014') + '</td><td>' + e.amount + '</td><td class="nowrap">' + rev + '</td><td class="note-cell" title="' + esc(noteText) + '" onclick="this.classList.toggle(\'expanded\')"><span>' + esc(noteText) + '</span></td><td>' + statusCell + '</td><td>' + docsCell + '</td><td class="action-cell"><button class="btn-edit" onclick="editEntry(' + e.id + ')" title="Edit">&#9998;</button><button class="btn btn-danger" onclick="deleteEntry(' + e.id + ')" title="Delete">&times;</button></td></tr>';
     }).join('');
 
     pagDiv.innerHTML = buildPagination(entryPage, totalPages, filtered.length, 'setEntryPage');
@@ -7501,8 +7525,15 @@ function schedBuildRows() {
     var moveCat = document.getElementById('schedMoveCat');
     var moveCatVal = moveCat ? moveCat.value : SCHED_MOVE_CATEGORY;
     var yearMap = schedYearMap(schedSheets, schedAnchorYear);
+    /* Counted, not just flagged: a sheet page that carries the same block twice
+       is two real jobs, so only as many copies as the log already holds count as
+       already imported and the extras come in flagged for review. */
     var existing = {};
-    entries.forEach(function(e) { existing[schedDupKey(e.date, e.note)] = 1; });
+    entries.forEach(function(e) {
+        var k = schedDupKey(e.date, e.note);
+        existing[k] = (existing[k] || 0) + 1;
+    });
+    var occ = {};
 
     schedRows = [];
     schedSheets.forEach(function(sh, si) {
@@ -7512,7 +7543,10 @@ function schedBuildRows() {
             var move = schedIsMove(cell.text);
             var price = schedExtractPrice(cell.text);
             var phone = schedExtractPhone(cell.text);
-            var dupe = !!existing[schedDupKey(date, cell.text)];
+            var dk = schedDupKey(date, cell.text);
+            var n = (occ[dk] = (occ[dk] || 0) + 1);
+            var dupe = n <= (existing[dk] || 0);
+            var lookAlike = !dupe && n - (existing[dk] || 0) > 1;
             /* A mapped fill color is the reliable signal; "move"/"moves"/
                "$120/h move" wording only decides the blocks whose color says
                nothing. Anything still unknown imports as Uncategorized. */
@@ -7531,6 +7565,7 @@ function schedBuildRows() {
                 hourly: price.hourly,
                 note: cell.text,
                 duplicate: dupe,
+                lookAlike: lookAlike,
                 selected: !dupe
             });
         });
@@ -7640,8 +7675,9 @@ function schedRenderRows() {
         '<th>Date</th><th>Category</th><th>Customer</th><th>Phone</th><th>Email</th><th>Revenue</th><th>Note</th></tr></thead><tbody>';
     pageRows.forEach(function(row) {
         var idx = schedRows.indexOf(row);
-        var dupTag = row.duplicate ? '<span style="font-size:9px;background:var(--warning);color:#fff;padding:1px 5px;border-radius:3px;margin-left:4px;">DUPLICATE</span>' : '';
-        html += '<tr' + (row.duplicate ? ' style="background:#fff8e1;"' : '') + '>' +
+        var dupTag = row.duplicate ? '<span style="font-size:9px;background:var(--warning);color:#fff;padding:1px 5px;border-radius:3px;margin-left:4px;">ALREADY IMPORTED</span>' :
+            (row.lookAlike ? '<span style="font-size:9px;background:#b45309;color:#fff;padding:1px 5px;border-radius:3px;margin-left:4px;">LOOK-ALIKE</span>' : '');
+        html += '<tr' + (row.duplicate || row.lookAlike ? ' style="background:#fff8e1;"' : '') + '>' +
             '<td><input type="checkbox" class="preview-check" ' + (row.selected ? 'checked' : '') + ' onchange="schedRows[' + idx + '].selected=this.checked;schedUpdateStats()"></td>' +
             '<td style="white-space:nowrap">' + esc(row.date) + dupTag + '</td>' +
             '<td><select style="padding:4px 8px;border:1px solid #ccc;border-radius:4px;font-size:12px;" onchange="schedRows[' + idx + '].category=this.value">' + schedCategoryOptions(row.category) + '</select></td>' +
@@ -7705,6 +7741,7 @@ function schedUpdateStats() {
     var visible = schedVisibleRows();
     var sel = visible.filter(function(r) { return r.selected; }).length;
     var dupes = visible.filter(function(r) { return r.duplicate; }).length;
+    var lookAlikes = visible.filter(function(r) { return r.lookAlike && r.selected; }).length;
     var outOfRange = schedRows.filter(function(r) { return !r.skip && !r.inRange; }).length;
     var skipped = schedRows.filter(function(r) { return r.skip; }).length;
     var byYear = {};
@@ -7718,6 +7755,7 @@ function schedUpdateStats() {
         sel + ' of ' + visible.length + ' blocks selected' +
         (years ? ' (' + years + ')' : '') +
         (dupes ? ' · ' + dupes + ' already imported' : '') +
+        (lookAlikes ? ' · ' + lookAlikes + ' look-alike block' + (lookAlikes === 1 ? '' : 's') + ' kept for review' : '') +
         (outOfRange ? ' · ' + outOfRange + ' outside the date range' : '') +
         (skipped ? ' · ' + skipped + ' skipped by color' : '');
 }
@@ -7738,10 +7776,16 @@ function confirmScheduleImport() {
     newCats.forEach(function(c) { categories.push(c); });
 
     var base = Date.now();
-    var seen = exactJobKeySet();
-    var seenLoose = {};
-    entries.forEach(function(e) { var lk = looseJobKey(e); if (lk) seenLoose[lk] = true; });
-    var added = 0, skipped = 0;
+    /* How many copies of each block the log already holds. Anything beyond that
+       count is a block this sheet carries more than once — two real jobs on the
+       same day at the same price, kept and flagged instead of dropped. */
+    var inLog = {};
+    entries.forEach(function(e) {
+        var bk = blockIdentityKey(e);
+        inLog[bk] = (inLog[bk] || 0) + 1;
+    });
+    var occ = {};
+    var added = 0, skipped = 0, flagged = 0;
     picked.forEach(function(r, i) {
         var row = {
             id: base + i,
@@ -7759,16 +7803,19 @@ function confirmScheduleImport() {
             status: status,
             hourlyRate: r.hourly ? r.revenue : undefined
         };
-        /* Catches both rows already in the log and the same block appearing
-           twice in the workbook. */
-        var k = exactJobKey(row);
-        /* The loose key ignores category and customer, so a block already in the
-           log still counts as imported after a category migration or the
+        /* The identity key ignores category and customer, so a block already in
+           the log still counts as imported after a category migration or the
            customer-name wipe changed how it is stored. */
-        var lk = looseJobKey(row);
-        if (seen[k] || (lk && seenLoose[lk])) { skipped++; return; }
-        seen[k] = true;
-        if (lk) seenLoose[lk] = true;
+        var bk = blockIdentityKey(row);
+        var n = (occ[bk] = (occ[bk] || 0) + 1);
+        if (n <= (inLog[bk] || 0)) { skipped++; return; }
+        var copy = n - (inLog[bk] || 0);
+        if (copy > 1) {
+            /* Keeps this copy out of the duplicate collapse and marks it for
+               review, since identical blocks can also be a mistake on the sheet. */
+            row.sheetSeq = copy;
+            flagged++;
+        }
         entries.push(row);
         added++;
     });
@@ -7777,7 +7824,8 @@ function confirmScheduleImport() {
     renderFinanceAll();
     closeSchedPreview();
     toast('Imported ' + added + ' job' + (added === 1 ? '' : 's') +
-        (skipped ? ' · skipped ' + skipped + ' duplicate' + (skipped === 1 ? '' : 's') : '') +
+        (skipped ? ' \u00b7 skipped ' + skipped + ' already imported' : '') +
+        (flagged ? ' \u00b7 flagged ' + flagged + ' look-alike block' + (flagged === 1 ? '' : 's') + ' for review' : '') +
         (newCats.length ? ' · added ' + newCats.length + ' new categor' + (newCats.length === 1 ? 'y' : 'ies') : ''));
 }
 
