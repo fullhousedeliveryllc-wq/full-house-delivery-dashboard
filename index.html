@@ -3212,8 +3212,7 @@ function exactJobKey(e) {
         (e.email || '').trim().toLowerCase(),
         e.amount || 0,
         e.revenue || 0,
-        (e.note || '').replace(/\s+/g, ' ').trim().toLowerCase(),
-        e.sheetSeq || 0
+        (e.note || '').replace(/\s+/g, ' ').trim().toLowerCase()
     ].join('|');
 }
 
@@ -3256,18 +3255,28 @@ function dedupeJobs(list) {
    note carries nothing to tell two same-day, same-price jobs apart, so those
    are only ever matched on the exact key. */
 function looseJobKey(e) {
+    /* The copy marker stays in the key: two identical blocks on one sheet page
+       are two real jobs and must never collapse into one. */
     var note = (e.note || '').replace(/\s+/g, ' ').trim().toLowerCase();
     if (!note) return null;
-    /* Two identical-looking blocks on the same sheet page are two real jobs; the
-       sequence number the importer gave them keeps them apart forever. */
-    return [e.date || '', e.amount || 0, e.revenue || 0, note, e.sheetSeq || 0].join('|');
+    return [e.date || '', e.amount || 0, e.revenue || 0, note].join('|');
+}
+
+/* A block a sheet page carries twice becomes two jobs, and the second one is
+   marked in its note. The marker rides along in the note column, so the copies
+   stay distinct through a cloud round trip and on every other device — a
+   separate field would be dropped by the job_entries insert. */
+var SHEET_COPY_RE = /\s*\[copy \d+\]\s*$/i;
+
+function stripCopyMarker(note) {
+    return (note || '').replace(SHEET_COPY_RE, '');
 }
 
 /* Identity of a schedule block ignoring which copy of it this is. The importer
    counts copies with it, so a sheet page holding the same block twice creates
    two jobs, while uploading that page again creates none. */
 function blockIdentityKey(e) {
-    var note = (e.note || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    var note = stripCopyMarker(e.note).replace(/\s+/g, ' ').trim().toLowerCase();
     if (note) return 'loose|' + [e.date || '', e.amount || 0, e.revenue || 0, note].join('|');
     return 'exact|' + [
         e.date || '',
@@ -3676,10 +3685,9 @@ function renderLog() {
         var noteText = e.note || '\u2014';
         var uncat = e.category === JOB_UNCATEGORIZED;
         var catCell = uncat ? '<span class="cat-uncat">' + esc(e.category) + '</span>' : esc(e.category);
-        if (e.sheetSeq) {
-            noteText = '\u26a0 look-alike block #' + e.sheetSeq + ' \u2014 ' + noteText;
-        }
-        return '<tr' + (uncat || e.sheetSeq ? ' class="row-uncat"' : '') + '><td><input type="checkbox" class="entry-select-cb" value="' + e.id + '" onchange="updateEntryBulkBtn()"></td><td class="nowrap">' + e.date + '</td><td>' + catCell + '</td><td>' + esc(e.customer || '\u2014') + '</td><td class="nowrap">' + esc(e.phone || '\u2014') + '</td><td>' + esc(e.email || '\u2014') + '</td><td>' + esc(details || '\u2014') + '</td><td>' + e.amount + '</td><td class="nowrap">' + rev + '</td><td class="note-cell" title="' + esc(noteText) + '" onclick="this.classList.toggle(\'expanded\')"><span>' + esc(noteText) + '</span></td><td>' + statusCell + '</td><td>' + docsCell + '</td><td class="action-cell"><button class="btn-edit" onclick="editEntry(' + e.id + ')" title="Edit">&#9998;</button><button class="btn btn-danger" onclick="deleteEntry(' + e.id + ')" title="Delete">&times;</button></td></tr>';
+        var isCopy = SHEET_COPY_RE.test(e.note || '');
+        if (isCopy) noteText = '\u26a0 look-alike block \u2014 ' + noteText;
+        return '<tr' + (uncat || isCopy ? ' class="row-uncat"' : '') + '><td><input type="checkbox" class="entry-select-cb" value="' + e.id + '" onchange="updateEntryBulkBtn()"></td><td class="nowrap">' + e.date + '</td><td>' + catCell + '</td><td>' + esc(e.customer || '\u2014') + '</td><td class="nowrap">' + esc(e.phone || '\u2014') + '</td><td>' + esc(e.email || '\u2014') + '</td><td>' + esc(details || '\u2014') + '</td><td>' + e.amount + '</td><td class="nowrap">' + rev + '</td><td class="note-cell" title="' + esc(noteText) + '" onclick="this.classList.toggle(\'expanded\')"><span>' + esc(noteText) + '</span></td><td>' + statusCell + '</td><td>' + docsCell + '</td><td class="action-cell"><button class="btn-edit" onclick="editEntry(' + e.id + ')" title="Edit">&#9998;</button><button class="btn btn-danger" onclick="deleteEntry(' + e.id + ')" title="Delete">&times;</button></td></tr>';
     }).join('');
 
     pagDiv.innerHTML = buildPagination(entryPage, totalPages, filtered.length, 'setEntryPage');
@@ -7516,7 +7524,7 @@ function schedIsMove(text) {
 }
 
 function schedDupKey(date, note) {
-    return date + '|' + (note || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    return date + '|' + stripCopyMarker(note).replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
 function schedBuildRows() {
@@ -7813,7 +7821,7 @@ function confirmScheduleImport() {
         if (copy > 1) {
             /* Keeps this copy out of the duplicate collapse and marks it for
                review, since identical blocks can also be a mistake on the sheet. */
-            row.sheetSeq = copy;
+            row.note = (row.note ? row.note + ' ' : '') + '[copy ' + copy + ']';
             flagged++;
         }
         entries.push(row);
