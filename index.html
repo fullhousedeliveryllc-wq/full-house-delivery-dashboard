@@ -827,7 +827,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v76</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v77</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -2113,6 +2113,7 @@ async function mergeRemoteAdditions() {
 
     if (added > 0) {
         console.log('[SYNC] Adopted ' + added + ' row(s) added by another device before upload');
+        collapseDuplicateJobs();
         saveLocal();
         renderAll();
         renderFinanceAll();
@@ -2190,6 +2191,11 @@ async function loadFromSupabase() {
         normalizeJobCategories(entries);
         clearImportedCustomerNames(entries);
         migrateImportedFinance();
+        var collapsed = collapseDuplicateJobs();
+        if (collapsed) {
+            console.log('[SYNC] Collapsed ' + collapsed + ' re-imported job block(s)');
+            hasDirty = true;
+        }
 
         localStorage.setItem('fhd_categories', JSON.stringify(categories));
         localStorage.setItem('fhd_entries', JSON.stringify(entries));
@@ -2479,6 +2485,7 @@ function rehydrateState() {
     deletedContactKeys = readJSON('fhd_contacts_deleted', deletedContactKeys);
     schedColorMap = readJSON('fhd_sheetColorMap', schedColorMap);
     importLog = readJSON('fhd_importLog', importLog);
+    collapseDuplicateJobs();
     renderAll();
     renderFinanceAll();
     renderChimeAll();
@@ -3266,6 +3273,28 @@ function findDuplicateJobGroups() {
     });
     return Object.keys(groups).map(function(k) { return groups[k]; })
         .filter(function(g) { return g.length > 1; });
+}
+
+/* A schedule block re-imported after a migration is the same job twice: same
+   day, same price and the same wording out of the sheet. Waiting for someone to
+   press the cleanup button leaves the copies in the cloud, where any device that
+   still holds them puts them back, so they are collapsed on every load. Jobs
+   with no wording of their own are never touched — those may be two real jobs. */
+function collapseDuplicateJobs() {
+    var seen = {};
+    var removed = 0;
+    var kept = [];
+    entries.forEach(function(e) {
+        var k = looseJobKey(e);
+        if (!k) { kept.push(e); return; }
+        var prev = seen[k];
+        if (prev === undefined) { seen[k] = kept.length; kept.push(e); return; }
+        removed++;
+        /* keep whichever copy came through with more filled in */
+        if (jobCompleteness(e) > jobCompleteness(kept[prev])) kept[prev] = e;
+    });
+    if (removed) entries = kept;
+    return removed;
 }
 
 function scanDuplicateJobs() {
@@ -7836,6 +7865,17 @@ function migrateImportedFinance() {
     dropTimeOffEntries();
 }
 migrateImportedFinance();
+
+(function dropReimportedJobBlocks() {
+    var removed = collapseDuplicateJobs();
+    if (!removed) return;
+    localStorage.setItem('fhd_entries', JSON.stringify(entries));
+    localStorage.setItem('fhd_dirty', '1');
+    console.log('[JOBS] Removed ' + removed + ' job block(s) that were imported more than once');
+    renderAll();
+    toast('Removed ' + removed + ' job block' + (removed === 1 ? '' : 's') +
+        ' that had been imported more than once.');
+})();
 
 document.getElementById('entryDate').value = today();
 document.getElementById('finDate').value = today();
