@@ -5693,11 +5693,16 @@ function renderAudit() {
             health.innerHTML = '<div style="margin-top:10px;font-size:12px;color:#64748b;">Not signed in &mdash; ' +
                 entries.length + ' jobs and ' + financeEntries.length + ' ledger rows are stored on this device only.</div>';
         } else {
-            var mismatch = _cloudCounts && (_cloudCounts.jobs !== entries.length || _cloudCounts.fin !== financeEntries.length);
+            /* A write on its way up makes the two counts differ for a second;
+               that is not something to warn about. */
+            var uploading = _localWriteInFlight || _syncScheduled || localStorage.getItem('fhd_dirty') === '1';
+            var mismatch = !uploading && _cloudCounts &&
+                (_cloudCounts.jobs !== entries.length || _cloudCounts.fin !== financeEntries.length);
             health.innerHTML = '<div style="margin-top:10px;font-size:12px;color:' + (mismatch ? '#b45309' : '#64748b') + ';">' +
                 'This device: ' + entries.length + ' jobs, ' + financeEntries.length + ' ledger rows. ' +
                 (_cloudCounts
                     ? 'Cloud at last load: ' + _cloudCounts.jobs + ' jobs, ' + _cloudCounts.fin + ' ledger rows.' +
+                        (uploading ? ' Still uploading this device\'s latest changes.' : '') +
                         (mismatch ? ' The two do not match &mdash; press Sync Now to push this device\'s copy up.' : '')
                     : 'Cloud not read yet.') +
                 '</div>';
