@@ -833,7 +833,7 @@
 
 <!-- Auth Bar -->
 <div class="auth-bar" id="authBar">
-    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v80</span>
+    <span style="font-size:10px;color:#999;margin-right:8px" id="appVersion">v81</span>
     <span class="sync-status" id="syncStatus">Local Only</span>
     <span class="user-email" id="userEmail"></span>
     <button id="syncNowBtn" onclick="manualSync()" style="display:none;font-size:11px;padding:4px 10px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px">&#x21bb; Sync Now</button>
@@ -2854,6 +2854,13 @@ if (financeIncomeTypes.indexOf(UNCATEGORIZED_INCOME) === -1) {
 function isIncomeType(type) {
     return financeIncomeTypes.indexOf(type) !== -1;
 }
+
+/* Money that left the bank but is not an operating cost: an owner draw is
+   equity, a truck is written off over several years. Both stay in the ledger
+   and in the money-out total; the Accounting Check reports the operating
+   figure separately so a year of draws does not read as a trading loss. */
+var NON_OPERATING_TYPES = { 'Distributions': 1, 'Capital Expenditures': 1 };
+function isNonOperatingType(type) { return NON_OPERATING_TYPES[type] === 1; }
 
 /* "Money Received" was the old catch-all for incoming money. */
 (function migrateMoneyReceived() {
@@ -5629,8 +5636,23 @@ function auditFindings() {
     var dupExtra = 0;
     Object.keys(dupGroups).forEach(function(k) { dupExtra += dupGroups[k].length - 1; });
 
+    /* A month whose statement pages were only half imported shows a full set
+       of withdrawals and no deposits at all. That alone turns a profitable
+       month into a loss, so the months are worth naming. */
+    var months = {};
+    financeEntries.forEach(function(e) {
+        var m = (e.date || '').slice(0, 7);
+        if (!m) return;
+        var row = months[m] = months[m] || { incRows: 0, expRows: 0 };
+        if (isIncomeEntry(e)) row.incRows++; else row.expRows++;
+    });
+    var missingIncomeMonths = Object.keys(months).filter(function(m) {
+        return months[m].incRows === 0 && months[m].expRows >= 5;
+    }).sort();
+
     var todayStr = localDateStr(new Date());
     return {
+        missingIncomeMonths: missingIncomeMonths,
         duplicates: dupExtra,
         badAmount: financeEntries.filter(function(e) { return !(Number(e.amount) > 0); }).length,
         future: financeEntries.filter(function(e) { return e.date > todayStr; }).length,
@@ -5672,6 +5694,8 @@ function renderAudit() {
     var expense = financeEntries.filter(isExpenseEntry);
     var rev = income.reduce(function(s, e) { return s + e.amount; }, 0);
     var exp = expense.reduce(function(s, e) { return s + e.amount; }, 0);
+    var nonOp = expense.filter(function(e) { return isNonOperatingType(e.type); });
+    var nonOpTotal = nonOp.reduce(function(s, e) { return s + e.amount; }, 0);
 
     head.innerHTML =
         '<div style="font-size:13px;line-height:1.9;color:#334155;">' +
@@ -5685,6 +5709,14 @@ function renderAudit() {
                 return s + (typeof e.revenue === 'number' ? e.revenue : 0); }, 0)) +
             ' of job value) and the ' + chimeEntries.length +
             ' Square rows are counted on their own tabs only.</div>' +
+        (nonOpTotal > 0
+            ? '<div style="margin-top:8px;padding-top:8px;border-top:1px solid #e2e8f0;">' +
+              '<strong>Operating profit ' + money(rev - exp + nonOpTotal) + '</strong> = the same figure with ' +
+              money(nonOpTotal) + ' across ' + nonOp.length + ' owner draw and equipment rows (' +
+              esc(Object.keys(NON_OPERATING_TYPES).join(', ')) + ') taken back out. Those did leave the bank, ' +
+              'but a draw is your own money and a truck is written off over several years, so neither belongs ' +
+              'in a trading result.</div>'
+            : '') +
         '</div>';
 
     var health = document.getElementById('auditHealth');
@@ -5711,6 +5743,11 @@ function renderAudit() {
 
     var f = auditFindings();
     var warn = [];
+    if (f.missingIncomeMonths.length) warn.push('<strong>' + f.missingIncomeMonths.length + ' month' +
+        (f.missingIncomeMonths.length === 1 ? ' has' : 's have') + ' expenses but not a single deposit</strong> (' +
+        esc(f.missingIncomeMonths.join(', ')) + ') &mdash; those statements came in without their ' +
+        'DEPOSITS AND ADDITIONS pages, so the money in is missing and each of those months reads as a loss. ' +
+        'Re-import those statements.');
     if (f.duplicates) warn.push('<strong>' + f.duplicates + ' duplicate row' +
         (f.duplicates === 1 ? '' : 's') + '</strong> (same date, category, amount and note) &mdash; ' +
         'the same statement line imported twice inflates both totals. ' +
